@@ -32,14 +32,16 @@ import SceneKit
             renderer.scene = world.scene
             renderer.pointOfView = world.camera
             renderer.isJitteringEnabled = true
+            _ = renderer.snapshot(atTime: time, with: size, antialiasingMode: .multisampling4X)  // warm-up: Metal pipeline, shader compilation
             let started = Date()
             var image = renderer.snapshot(atTime: time, with: size, antialiasingMode: .multisampling4X)
             for frame in 1...4 { image = renderer.snapshot(atTime: time + Double(frame) / 60, with: size, antialiasingMode: .multisampling4X) }
-            let ms = Date().timeIntervalSince(started) * 1000 / 5
+            let ms = Date().timeIntervalSince(started) * 1000 / 5  // mean warm offscreen 4x-MSAA snapshot including readback
             guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
-                  let png = bitmap.representation(using: .png, properties: [:]) else { continue }
+                  let png = bitmap.representation(using: .png, properties: [:]) else { fatalError("PNG encode failed: \(name)") }
             try png.write(to: out.appendingPathComponent("\(name).png"))
-            // Exposure sanity: mean luminance plus shares of crushed and clipped pixels.
+            // Exposure sanity: mean luminance (sRGB-encoded gamma-space) plus shares of
+            // crushed (<0.02) and clipped (>0.98) pixels.
             var sum = 0.0, crushed = 0, clipped = 0, samples = 0
             for y in stride(from: 0, to: bitmap.pixelsHigh, by: 4) {
                 for x in stride(from: 0, to: bitmap.pixelsWide, by: 4) {
