@@ -1,5 +1,4 @@
 import AppKit
-import Metal
 import SceneKit
 
 /// Verifies that every world applies its look and that the grading LUT stays off.
@@ -8,7 +7,7 @@ import SceneKit
         let resources = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources")
         let world = CoastalWorld(assetsURL: resources)
         world.applyQuality(.ultra)
-        // 1. Every world applies its own table, and off-world skies are real assets.
+        // 1. Every world applies its own look (contrast, saturation, fog), and off-world skies are real assets.
         for (index, stage) in WorldStage.allCases.enumerated() {
             var stageRun = RunnerSimulation(); stageRun.start(seed: 3, mode: .odyssey, startStage: index)
             world.update(simulation: stageRun, character: "milo", board: "tideline", time: 2)
@@ -23,6 +22,7 @@ import SceneKit
             }
         }
         // 2. Performance tier drops grain; ultra keeps it.
+        precondition(world.camera.camera!.grainIntensity > 0, "ultra tier must use grain")
         world.applyQuality(.performance)
         precondition(world.camera.camera!.grainIntensity == 0, "performance tier must not use grain")
         print("LookTests passed")

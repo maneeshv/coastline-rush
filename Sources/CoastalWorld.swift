@@ -19,14 +19,14 @@ final class CoastalWorld {
     var highContrastCues = false
     var previewMode: RunMode = .endless
     var previewStage: WorldStage = .harbor
-    var renderedStage: WorldStage = .harbor
+    private(set) var renderedStage: WorldStage = .harbor
     private var journeyRoot = SCNNode()
     private var journeySections: [SCNNode] = []
     private var journeyAnimated: [SCNNode] = []
     private var harborScenery: [SCNNode] = []
-    var worldSun: SCNLight?
-    var worldAmbient: SCNLight?
-    var worldSunNode: SCNNode?
+    private(set) var worldSun: SCNLight?
+    private(set) var worldAmbient: SCNLight?
+    private(set) var worldSunNode: SCNNode?
     private let portal = SCNNode()
     private let warpVeil = SCNNode()
     private var portalSurface: SCNNode?
@@ -44,10 +44,11 @@ final class CoastalWorld {
         let finale: SCNNode
     }
     private var destinations: [WorldStage: Destination] = [:]
+    private static let skyNames: [WorldStage: String] = [.orbit: "OrbitSky", .mars: "MarsSky", .verdant: "VerdantSky", .cryo: "CryoSky", .forge: "ForgeSky"]
     private(set) var preparationNode: SCNNode?
     private(set) var preparationRevision = 0
     private var warmedStages: Set<WorldStage> = []
-    var qualityLevel = 1
+    private(set) var qualityLevel = 1
     private let harborFinale = SCNNode()
     private var finaleRoot = SCNNode()
     private let alternateRouteRoot = SCNNode()
@@ -124,10 +125,6 @@ final class CoastalWorld {
     init(assetsURL: URL? = nil) {
         self.assetsURL = assetsURL
         scene.background.contents = color("344465")
-        scene.fogColor = color("354B66")
-        scene.fogStartDistance = 75
-        scene.fogEndDistance = 215
-        scene.fogDensityExponent = 1.8
         scene.rootNode.addChildNode(setRoot)
         makeLighting()
         makeCamera()
@@ -560,19 +557,14 @@ final class CoastalWorld {
 
     private func makeLighting() {
         scene.lightingEnvironment.contents = loadAsset("HarborSky") ?? environmentMap()
-        scene.lightingEnvironment.intensity = 0.65
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.color = color("8199C9")
-        ambient.light?.intensity = 75
         worldAmbient = ambient.light
         scene.rootNode.addChildNode(ambient)
         let sunlight = SCNNode()
         sunlight.light = SCNLight()
         sunlight.light?.type = .directional
-        sunlight.light?.color = color("FFC392")
-        sunlight.light?.intensity = 1500
         worldSun = sunlight.light
         worldSunNode = sunlight
         sunlight.light?.castsShadow = true
@@ -584,8 +576,6 @@ final class CoastalWorld {
         sunlight.light?.shadowBias = 0.01
         sunlight.light?.zNear = 0.5
         sunlight.light?.zFar = 95
-        sunlight.position = vector(-25, 18, -12)
-        sunlight.look(at: vector(0, 0, -8))
         scene.rootNode.addChildNode(sunlight)
         let rim = SCNNode()
         rim.light = SCNLight()
@@ -611,13 +601,7 @@ final class CoastalWorld {
         camera.camera?.zFar = 380
         camera.camera?.fieldOfView = 66
         camera.camera?.wantsHDR = true
-        camera.camera?.exposureOffset = -0.35
         camera.camera?.wantsExposureAdaptation = false
-        camera.camera?.bloomIntensity = 0.28
-        camera.camera?.bloomThreshold = 1.1
-        camera.camera?.bloomBlurRadius = 8
-        camera.camera?.vignettingIntensity = 0.35
-        camera.camera?.vignettingPower = 0.75
         camera.camera?.screenSpaceAmbientOcclusionIntensity = 0.7
         camera.camera?.screenSpaceAmbientOcclusionRadius = 2
         camera.camera?.screenSpaceAmbientOcclusionBias = 0.03
@@ -1826,6 +1810,8 @@ private extension CoastalWorld {
         let stages = WorldStage.allCases
         let next = stages.firstIndex(of: stage).flatMap { $0 + 1 < stages.count ? stages[$0 + 1] : nil }
         destinations = destinations.filter { $0.key == stage || $0.key == next }
+        // Off-world skies are 2048x1024 decoded images; keep only the current and next stage's. HarborSky is never evicted.
+        for (other, name) in Self.skyNames where other != stage && other != next { textureCache["asset-" + name] = nil }
         warmedStages = warmedStages.filter { $0 == stage || $0 == next }
         // Pools survive stage changes, but never retain more than 96 entity hierarchies.
         trimEntityPools()
@@ -1858,8 +1844,7 @@ private extension CoastalWorld {
         if destinations[stage] == nil {
             journeyRoot = SCNNode()
             makeWorldHorizon()
-            let names: [WorldStage: String] = [.orbit: "OrbitSky", .mars: "MarsSky", .verdant: "VerdantSky", .cryo: "CryoSky", .forge: "ForgeSky"]
-            let sky = loadAsset(names[stage] ?? "") ?? worldSky()
+            let sky = loadAsset(Self.skyNames[stage] ?? "") ?? worldSky()
             let finale = SCNNode()
             makeFinale(stage: stage, into: finale)
             journeyRoot.addChildNode(finale)
