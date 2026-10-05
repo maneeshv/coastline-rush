@@ -21,6 +21,7 @@
 		1C0583262DA6D2D27164E5A3 /* ReplayGhost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12758C175AA79FFE91F0250F /* ReplayGhost.swift */; };
 		1CB9B51ED5EC5842EEA437F0 /* portal.wav in Resources */ = {isa = PBXBuildFile; fileRef = 65F5F05B3C6AE028B9157B97 /* portal.wav */; };
 		200E5C00AC314F08FF635EEC /* ambient-verdant.wav in Resources */ = {isa = PBXBuildFile; fileRef = 7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */; };
+		240C426F2FBB81AC1B59AFFE /* CryoSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 99E3DDC25CB65E103530FF83 /* CryoSky.png */; };
 		27254B1A3B8E6C65C8EF00B7 /* portal.wav in Resources */ = {isa = PBXBuildFile; fileRef = 65F5F05B3C6AE028B9157B97 /* portal.wav */; };
 		2914F33249FEBF1878EF9830 /* crash.wav in Resources */ = {isa = PBXBuildFile; fileRef = 649627708DBFE183BB0D9286 /* crash.wav */; };
 		2921263B996A5747C8FAC738 /* GameUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADB393A954D3BA1F179E369 /* GameUI.swift */; };
@@ -43,6 +44,7 @@
 		60E5EAF299F54C9AB2C3210F /* ambient-orbit.wav in Resources */ = {isa = PBXBuildFile; fileRef = CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */; };
 		6250AB2DCFD0EDA88AC2F95E /* MarsRock-v4.png in Resources */ = {isa = PBXBuildFile; fileRef = C91311E35A28F3C55ABE472E /* MarsRock-v4.png */; };
 		663EEFCD655CAC49F8CD7282 /* ambient-cryo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */; };
+		68C0B6DA6690419FE219A3CD /* CryoSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 99E3DDC25CB65E103530FF83 /* CryoSky.png */; };
 		6919CD1D26E22364BD92F46A /* RunPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 460898FD7CCF322E10C5B99A /* RunPresentation.swift */; };
 		6C3630CA3C43913745DB3CF1 /* GameSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 063B09B53BC5FA43DF976394 /* GameSurface.swift */; };
 		738EAF0F0C3300249E06B1ED /* coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4311F61CD9CC4AD6D42422AD /* coin.wav */; };
@@ -51,6 +53,7 @@
 		788BD73F6A34C4DD1AF5F556 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1851265C2543846F94D3D054 /* PrivacyInfo.xcprivacy */; };
 		7A186AA29BCD9FEF8BD79EA1 /* GameAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E052065F5CD5980721CCE2 /* GameAudio.swift */; };
 		7BA8F16910FAC0C4B9B06C57 /* slide.wav in Resources */ = {isa = PBXBuildFile; fileRef = E14384481731928F29E6CE3A /* slide.wav */; };
+		7E61359463AC7B7C1218D3FD /* ForgeSky.png in Resources */ = {isa = PBXBuildFile; fileRef = C357AF66191977D65F197FA0 /* ForgeSky.png */; };
 		7F8BEF30AF77969F7F78403F /* ambient-forge.wav in Resources */ = {isa = PBXBuildFile; fileRef = D56BE6DE4338A71F5E2D62FD /* ambient-forge.wav */; };
 		81A3A84EB3820B8D5E38B676 /* ambient-orbit.wav in Resources */ = {isa = PBXBuildFile; fileRef = CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */; };
 		82C545E65FB5B02CEF959748 /* GameUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADB393A954D3BA1F179E369 /* GameUI.swift */; };
@@ -62,6 +65,7 @@
 		994700D2EE57651FA1405E0C /* GameSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 063B09B53BC5FA43DF976394 /* GameSurface.swift */; };
 		A79E86227CCAFF8E8DE2817C /* GameController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5E98467EA2488FBFF25538 /* GameController.swift */; };
 		A8EA5E562121B5A65293DEF2 /* PortalJourney.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55DE9BA6F49492775FE9077 /* PortalJourney.swift */; };
+		AEE42331E0E752B27660598D /* VerdantSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 33A3055EEB7288EA34EE23C8 /* VerdantSky.png */; };
 		B21ECDF48DD3A7F2BDAA3C8A /* coastline.wav in Resources */ = {isa = PBXBuildFile; fileRef = B7F9838E140F74C5098326FA /* coastline.wav */; };
 		B92D1181595B677B0F2BB99D /* CoastlineRushApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298E41BCA89B5C6AB9D15A28 /* CoastlineRushApp.swift */; };
 		B958EF10CB9665EF0480D8D2 /* MarsRock-v4.png in Resources */ = {isa = PBXBuildFile; fileRef = C91311E35A28F3C55ABE472E /* MarsRock-v4.png */; };
@@ -69,6 +73,7 @@
 		C12C5E45627158F97FD602BF /* warningSlide.wav in Resources */ = {isa = PBXBuildFile; fileRef = ABA264A1D1585BBFFC5EAD5C /* warningSlide.wav */; };
 		C2B2CA94F2E9B01C157E9C17 /* start.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8D1EC8E6894B827136036F62 /* start.wav */; };
 		C2E666EF927CD138CFBF8A6E /* ambient-cryo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */; };
+		C66A3F0A4F3223F24B4CD1C9 /* MarsSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B95AAEE3C89EC94468455EC9 /* MarsSky.png */; };
 		C9577625F29F9748B6D2CD7F /* ambient-mars.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */; };
 		CE5D8E468B5C61DD9F9788D5 /* ambient-harbor.wav in Resources */ = {isa = PBXBuildFile; fileRef = C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */; };
 		D0B6132220B437BC5BDD1A37 /* PlayerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB92C0D967ED794E939A227 /* PlayerProfile.swift */; };
@@ -77,14 +82,17 @@
 		D4DDB90D1716FFC9A346950A /* power.wav in Resources */ = {isa = PBXBuildFile; fileRef = D6B675E615B5613937010AA4 /* power.wav */; };
 		D722AA2F217368C01259A490 /* watercraft.wav in Resources */ = {isa = PBXBuildFile; fileRef = 050AB0FCF4958B193C4A0C9A /* watercraft.wav */; };
 		D7C6F5288AA17CC2F4219EEE /* watercraft.wav in Resources */ = {isa = PBXBuildFile; fileRef = 050AB0FCF4958B193C4A0C9A /* watercraft.wav */; };
+		D8288F14FE035D954CAD109F /* MarsSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B95AAEE3C89EC94468455EC9 /* MarsSky.png */; };
 		E7E4CAD78991E5C375665072 /* OrbitSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 0E8EF526EC40D372DED15A81 /* OrbitSky.png */; };
 		E8308DC106A5BB7866E663DD /* jump.wav in Resources */ = {isa = PBXBuildFile; fileRef = 45EC89860E08FD6C19810175 /* jump.wav */; };
+		ECEBD35B9AC1EDF17F92CB1E /* ForgeSky.png in Resources */ = {isa = PBXBuildFile; fileRef = C357AF66191977D65F197FA0 /* ForgeSky.png */; };
 		EE1422F30E0B7DF2E8AAECF5 /* ambient-mars.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */; };
 		F3C6BA597EB730C49A8C4F4F /* RunnerSimulation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */; };
 		F6170AB1ADD393C526DF7BD0 /* CoastalWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC14B585B646C33518A998 /* CoastalWorld.swift */; };
 		F62D8BAC58CFCB998B667EDE /* arrival.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6A1573F8B0495D5E7E0EC0DC /* arrival.wav */; };
 		F69F7D1CE2836F3B120AC6BB /* warningJump.wav in Resources */ = {isa = PBXBuildFile; fileRef = DFC5115C898DB180660C0790 /* warningJump.wav */; };
 		F93254B058966DDF38903465 /* RunPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 460898FD7CCF322E10C5B99A /* RunPresentation.swift */; };
+		FC5EBF6F4C4E63E2DA09B685 /* VerdantSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 33A3055EEB7288EA34EE23C8 /* VerdantSky.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -98,6 +106,7 @@
 		298E41BCA89B5C6AB9D15A28 /* CoastlineRushApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoastlineRushApp.swift; sourceTree = "<group>"; };
 		29E052065F5CD5980721CCE2 /* GameAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAudio.swift; sourceTree = "<group>"; };
 		30EEAFBE58801773659E0174 /* ExpeditionExpansion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpeditionExpansion.swift; sourceTree = "<group>"; };
+		33A3055EEB7288EA34EE23C8 /* VerdantSky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = VerdantSky.png; sourceTree = "<group>"; };
 		4311F61CD9CC4AD6D42422AD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
 		45EC89860E08FD6C19810175 /* jump.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = jump.wav; sourceTree = "<group>"; };
 		460898FD7CCF322E10C5B99A /* RunPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunPresentation.swift; sourceTree = "<group>"; };
@@ -110,13 +119,16 @@
 		7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-verdant.wav"; sourceTree = "<group>"; };
 		8AAE9FD94BA2CACA10BB579A /* shield.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = shield.wav; sourceTree = "<group>"; };
 		8D1EC8E6894B827136036F62 /* start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = start.wav; sourceTree = "<group>"; };
+		99E3DDC25CB65E103530FF83 /* CryoSky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = CryoSky.png; sourceTree = "<group>"; };
 		A55DE9BA6F49492775FE9077 /* PortalJourney.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalJourney.swift; sourceTree = "<group>"; };
 		AADB393A954D3BA1F179E369 /* GameUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameUI.swift; sourceTree = "<group>"; };
 		ABA264A1D1585BBFFC5EAD5C /* warningSlide.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = warningSlide.wav; sourceTree = "<group>"; };
 		AE605EFB89B8E82E0F71EC7E /* CoastlineRush-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CoastlineRush-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B7F9838E140F74C5098326FA /* coastline.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coastline.wav; sourceTree = "<group>"; };
+		B95AAEE3C89EC94468455EC9 /* MarsSky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = MarsSky.png; sourceTree = "<group>"; };
 		B966A996CE337C575704915C /* HarborSky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HarborSky.png; sourceTree = "<group>"; };
 		C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-harbor.wav"; sourceTree = "<group>"; };
+		C357AF66191977D65F197FA0 /* ForgeSky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ForgeSky.png; sourceTree = "<group>"; };
 		C91311E35A28F3C55ABE472E /* MarsRock-v4.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "MarsRock-v4.png"; sourceTree = "<group>"; };
 		C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerSimulation.swift; sourceTree = "<group>"; };
 		CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-orbit.wav"; sourceTree = "<group>"; };
@@ -164,9 +176,12 @@
 				B7F9838E140F74C5098326FA /* coastline.wav */,
 				4311F61CD9CC4AD6D42422AD /* coin.wav */,
 				649627708DBFE183BB0D9286 /* crash.wav */,
+				99E3DDC25CB65E103530FF83 /* CryoSky.png */,
+				C357AF66191977D65F197FA0 /* ForgeSky.png */,
 				B966A996CE337C575704915C /* HarborSky.png */,
 				45EC89860E08FD6C19810175 /* jump.wav */,
 				C91311E35A28F3C55ABE472E /* MarsRock-v4.png */,
+				B95AAEE3C89EC94468455EC9 /* MarsSky.png */,
 				0E8EF526EC40D372DED15A81 /* OrbitSky.png */,
 				65F5F05B3C6AE028B9157B97 /* portal.wav */,
 				D6B675E615B5613937010AA4 /* power.wav */,
@@ -175,6 +190,7 @@
 				8AAE9FD94BA2CACA10BB579A /* shield.wav */,
 				E14384481731928F29E6CE3A /* slide.wav */,
 				8D1EC8E6894B827136036F62 /* start.wav */,
+				33A3055EEB7288EA34EE23C8 /* VerdantSky.png */,
 				667CBB548D92694E8037D831 /* warningDodge.wav */,
 				DFC5115C898DB180660C0790 /* warningJump.wav */,
 				ABA264A1D1585BBFFC5EAD5C /* warningSlide.wav */,
@@ -285,10 +301,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EC8F61F79825C807FC42CE1 /* Assets.xcassets in Resources */,
+				240C426F2FBB81AC1B59AFFE /* CryoSky.png in Resources */,
+				7E61359463AC7B7C1218D3FD /* ForgeSky.png in Resources */,
 				29EC398CBDCCAFB01A68AE86 /* HarborSky.png in Resources */,
 				B958EF10CB9665EF0480D8D2 /* MarsRock-v4.png in Resources */,
+				D8288F14FE035D954CAD109F /* MarsSky.png in Resources */,
 				0D5C655118AC57D5A85F356A /* OrbitSky.png in Resources */,
 				105568C9D7C105738B7F3772 /* PrivacyInfo.xcprivacy in Resources */,
+				AEE42331E0E752B27660598D /* VerdantSky.png in Resources */,
 				663EEFCD655CAC49F8CD7282 /* ambient-cryo.wav in Resources */,
 				7F8BEF30AF77969F7F78403F /* ambient-forge.wav in Resources */,
 				CE5D8E468B5C61DD9F9788D5 /* ambient-harbor.wav in Resources */,
@@ -318,10 +338,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				1863C461B1476789BAB737CB /* Assets.xcassets in Resources */,
+				68C0B6DA6690419FE219A3CD /* CryoSky.png in Resources */,
+				ECEBD35B9AC1EDF17F92CB1E /* ForgeSky.png in Resources */,
 				098A1809758288063F7E0BBC /* HarborSky.png in Resources */,
 				6250AB2DCFD0EDA88AC2F95E /* MarsRock-v4.png in Resources */,
+				C66A3F0A4F3223F24B4CD1C9 /* MarsSky.png in Resources */,
 				E7E4CAD78991E5C375665072 /* OrbitSky.png in Resources */,
 				788BD73F6A34C4DD1AF5F556 /* PrivacyInfo.xcprivacy in Resources */,
+				FC5EBF6F4C4E63E2DA09B685 /* VerdantSky.png in Resources */,
 				C2E666EF927CD138CFBF8A6E /* ambient-cryo.wav in Resources */,
 				0CD4A747E2015707F24D1B8A /* ambient-forge.wav in Resources */,
 				59358C6D7165BCDD3A3031BE /* ambient-harbor.wav in Resources */,
