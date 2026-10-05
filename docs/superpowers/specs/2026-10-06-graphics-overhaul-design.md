@@ -21,7 +21,7 @@ New files, each an `extension CoastalWorld`:
 
 | File | Responsibility |
 |---|---|
-| `Sources/WorldLook.swift` | Per-stage look table and `applyLook(_:)`: sun color/intensity/direction, ambient, environment intensity, fog, exposure, contrast, saturation, white balance, grain, bloom, procedural color-grading LUT. Called from `configureWorld` and `init`. |
+| `Sources/WorldLook.swift` | Per-stage look table and `applyLook(_:)`: sun color/intensity/direction, ambient, environment intensity, fog, exposure, contrast, saturation, white balance, grain, bloom, procedural color-grading LUT (dropped in phase 1; see the LUT note under Phase 1). Called from `configureWorld` and `init`. |
 | `Sources/WorldMaterials.swift` | World-space surface-detail shader modifier (albedo breakup, roughness variation, cavity darkening, edge wear), higher-resolution texture builders, deck decals. |
 | `Sources/WorldFX.swift` | Ambient particle systems per stage, speed lines, footstep dust, landing burst, camera follow/lag/FOV/lean. |
 
@@ -32,6 +32,7 @@ The shared helpers in `CoastalWorld.swift` (`color`, `material`, `box`, `sphere`
 - `Scripts/generate_skies.swift` writes `Resources/MarsSky.png`, `VerdantSky.png`, `CryoSky.png`, `ForgeSky.png`: 2048×1024 equirectangular, horizon at mid-height, fbm clouds/nebula, star field, sun or planet glow, seamless horizontally. The existing loader picks them up by name.
 - `WorldLook` targets: Harbor warm/cool dusk; Mars dusty ochre haze; Verdant bioluminescent teal; Cryo cold high-key; Forge deep contrast with orange glow; Orbit crisp black with strong rim light.
 - LUT: generated in code (CoreGraphics strip, 16³ or 32³ layout as `colorGrading.contents`); verify SceneKit's expected LUT layout during implementation.
+  - Note: the color-grading LUT was dropped during phase 1: SceneKit samples it by linear color with no half-texel offset, which floors the darks. Grading uses SCNCamera contrast/saturation/white balance instead; a custom SCNTechnique post pass is the phase 4 fallback if split-toning is wanted.
 
 ## Phase 2 — surfaces and geometry
 
@@ -51,6 +52,7 @@ The shared helpers in `CoastalWorld.swift` (`color`, `material`, `box`, `sphere`
 - Ambient particles: harbor mist, orbit star streaks, Mars dust, Verdant spores, Cryo snow, Forge embers.
 - Speed lines above a speed threshold, footstep dust, landing burst; pickup sparkle only if a pickup event is available without simulation changes.
 - Camera: slightly lower, smoothed follow lag, speed-scaled FOV, subtle lean into lane changes.
+- Phase 4 gaps from phase 1: per-world white balance is unused (temperature/tint 0 everywhere), and the rim light is identical in every world (Orbit needs a strong rim).
 
 ## Constraints
 

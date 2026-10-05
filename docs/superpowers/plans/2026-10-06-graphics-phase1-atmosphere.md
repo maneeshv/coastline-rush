@@ -325,6 +325,8 @@ git commit -m "feat: generated panoramic skies for Mars, Verdant, Cryo and Forge
 
 ### Task 3: WorldLook — per-world lighting, fog and grading
 
+> Note: The color-grading LUT was dropped during phase 1: SceneKit samples it by linear color with no half-texel offset, which floors the darks. Grading uses SCNCamera contrast/saturation/white balance instead; a custom SCNTechnique post pass is the phase 4 fallback if split-toning is wanted.
+
 **Files:**
 - Create: `Sources/WorldLook.swift`
 - Create: `Tests/LookTests.swift`

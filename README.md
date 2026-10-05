@@ -2,7 +2,7 @@
 
 An original native 3D runner for iPhone, iPad, and Mac. Cross six worlds in Portal Odyssey: a dusk harbor, orbital causeway, Mars outpost, alien ruins, frozen moon, and stellar forge. Complete each stage and jump through its portal without leaving the run. Campaign and Endless Odyssey now include branching routes, run perks and authored finales. The Atlas offers short finale practice; the original Coastal Rush, Sprint and Jet Ski modes are also included.
 
-Built with SwiftUI, SceneKit, and AVFoundation. The 3D art and surface textures are procedural, the harbor and orbital skies and Mars rock albedo are original generated images, the music and sound effects are original, and all resources are bundled. No third-party runtime packages, accounts, internet connection, or subscriptions are required.
+Built with SwiftUI, SceneKit, and AVFoundation. The 3D art and surface textures are procedural, the harbor and orbital skies and Mars rock albedo are original generated images, the Mars, Verdant, Cryo and Forge skies are procedural, the music and sound effects are original, and all resources are bundled. No third-party runtime packages, accounts, internet connection, or subscriptions are required.
 
 ## Play on Mac
 
