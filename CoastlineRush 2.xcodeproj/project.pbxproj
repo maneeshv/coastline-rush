@@ -1,0 +1,601 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		098A1809758288063F7E0BBC /* HarborSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B966A996CE337C575704915C /* HarborSky.png */; };
+		0C94D545CB8C12BF79CAE291 /* PlayerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB92C0D967ED794E939A227 /* PlayerProfile.swift */; };
+		0CD4A747E2015707F24D1B8A /* ambient-forge.wav in Resources */ = {isa = PBXBuildFile; fileRef = D56BE6DE4338A71F5E2D62FD /* ambient-forge.wav */; };
+		0D5C655118AC57D5A85F356A /* OrbitSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 0E8EF526EC40D372DED15A81 /* OrbitSky.png */; };
+		0F9EBB63E4DB52CE06C2EEE4 /* GameAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E052065F5CD5980721CCE2 /* GameAudio.swift */; };
+		105568C9D7C105738B7F3772 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1851265C2543846F94D3D054 /* PrivacyInfo.xcprivacy */; };
+		1159D13A1E86512D8BD6B35C /* CoastalWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC14B585B646C33518A998 /* CoastalWorld.swift */; };
+		158B160CDA15CAE902267B02 /* RunCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55BE61112AB0C9CD4D7E490 /* RunCheckpoint.swift */; };
+		1863C461B1476789BAB737CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 255AA4773792467B5495D9AC /* Assets.xcassets */; };
+		1B8638EFD395550B94538A8A /* slide.wav in Resources */ = {isa = PBXBuildFile; fileRef = E14384481731928F29E6CE3A /* slide.wav */; };
+		1C0583262DA6D2D27164E5A3 /* ReplayGhost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12758C175AA79FFE91F0250F /* ReplayGhost.swift */; };
+		1CB9B51ED5EC5842EEA437F0 /* portal.wav in Resources */ = {isa = PBXBuildFile; fileRef = 65F5F05B3C6AE028B9157B97 /* portal.wav */; };
+		200E5C00AC314F08FF635EEC /* ambient-verdant.wav in Resources */ = {isa = PBXBuildFile; fileRef = 7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */; };
+		27254B1A3B8E6C65C8EF00B7 /* portal.wav in Resources */ = {isa = PBXBuildFile; fileRef = 65F5F05B3C6AE028B9157B97 /* portal.wav */; };
+		2914F33249FEBF1878EF9830 /* crash.wav in Resources */ = {isa = PBXBuildFile; fileRef = 649627708DBFE183BB0D9286 /* crash.wav */; };
+		2921263B996A5747C8FAC738 /* GameUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADB393A954D3BA1F179E369 /* GameUI.swift */; };
+		29EC398CBDCCAFB01A68AE86 /* HarborSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B966A996CE337C575704915C /* HarborSky.png */; };
+		39BEC587185699AD0E6EA51D /* relic.wav in Resources */ = {isa = PBXBuildFile; fileRef = 26E1E0530DCD6E42C954C5CD /* relic.wav */; };
+		4EBD570E5B27811113C87EFD /* shield.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8AAE9FD94BA2CACA10BB579A /* shield.wav */; };
+		4EBFED94B865135D90E856A4 /* power.wav in Resources */ = {isa = PBXBuildFile; fileRef = D6B675E615B5613937010AA4 /* power.wav */; };
+		50B1590AF436FBEB39F09BD3 /* PortalJourney.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55DE9BA6F49492775FE9077 /* PortalJourney.swift */; };
+		59358C6D7165BCDD3A3031BE /* ambient-harbor.wav in Resources */ = {isa = PBXBuildFile; fileRef = C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */; };
+		599695BCE19934DF809263CE /* relic.wav in Resources */ = {isa = PBXBuildFile; fileRef = 26E1E0530DCD6E42C954C5CD /* relic.wav */; };
+		5A4AB337A4773943EF708B3D /* RunCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55BE61112AB0C9CD4D7E490 /* RunCheckpoint.swift */; };
+		5A7BE35B00AF432F18852237 /* coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4311F61CD9CC4AD6D42422AD /* coin.wav */; };
+		5C633F6F908D4E4E781F2C0F /* arrival.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6A1573F8B0495D5E7E0EC0DC /* arrival.wav */; };
+		5C7FD1CA8E3C149ED1F4F64E /* CoastlineRushApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298E41BCA89B5C6AB9D15A28 /* CoastlineRushApp.swift */; };
+		5CD8BDFE5D98C454F2CFF8B5 /* coastline.wav in Resources */ = {isa = PBXBuildFile; fileRef = B7F9838E140F74C5098326FA /* coastline.wav */; };
+		5FBA4BF9B41362FEC98BEBD5 /* jump.wav in Resources */ = {isa = PBXBuildFile; fileRef = 45EC89860E08FD6C19810175 /* jump.wav */; };
+		604B6806363336075B364F6C /* start.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8D1EC8E6894B827136036F62 /* start.wav */; };
+		60E5EAF299F54C9AB2C3210F /* ambient-orbit.wav in Resources */ = {isa = PBXBuildFile; fileRef = CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */; };
+		663EEFCD655CAC49F8CD7282 /* ambient-cryo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */; };
+		6C3630CA3C43913745DB3CF1 /* GameSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 063B09B53BC5FA43DF976394 /* GameSurface.swift */; };
+		738EAF0F0C3300249E06B1ED /* coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4311F61CD9CC4AD6D42422AD /* coin.wav */; };
+		78437305F27DCB2260BBD8EF /* GameController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5E98467EA2488FBFF25538 /* GameController.swift */; };
+		788BD73F6A34C4DD1AF5F556 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1851265C2543846F94D3D054 /* PrivacyInfo.xcprivacy */; };
+		7A186AA29BCD9FEF8BD79EA1 /* GameAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E052065F5CD5980721CCE2 /* GameAudio.swift */; };
+		7BA8F16910FAC0C4B9B06C57 /* slide.wav in Resources */ = {isa = PBXBuildFile; fileRef = E14384481731928F29E6CE3A /* slide.wav */; };
+		7F8BEF30AF77969F7F78403F /* ambient-forge.wav in Resources */ = {isa = PBXBuildFile; fileRef = D56BE6DE4338A71F5E2D62FD /* ambient-forge.wav */; };
+		81A3A84EB3820B8D5E38B676 /* ambient-orbit.wav in Resources */ = {isa = PBXBuildFile; fileRef = CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */; };
+		82C545E65FB5B02CEF959748 /* GameUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADB393A954D3BA1F179E369 /* GameUI.swift */; };
+		8A440FA0FC718612458060EC /* ambient-verdant.wav in Resources */ = {isa = PBXBuildFile; fileRef = 7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */; };
+		8EC8F61F79825C807FC42CE1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 255AA4773792467B5495D9AC /* Assets.xcassets */; };
+		95CB711F8D14900673BC9775 /* ReplayGhost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12758C175AA79FFE91F0250F /* ReplayGhost.swift */; };
+		994700D2EE57651FA1405E0C /* GameSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 063B09B53BC5FA43DF976394 /* GameSurface.swift */; };
+		A79E86227CCAFF8E8DE2817C /* GameController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5E98467EA2488FBFF25538 /* GameController.swift */; };
+		A8EA5E562121B5A65293DEF2 /* PortalJourney.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55DE9BA6F49492775FE9077 /* PortalJourney.swift */; };
+		B21ECDF48DD3A7F2BDAA3C8A /* coastline.wav in Resources */ = {isa = PBXBuildFile; fileRef = B7F9838E140F74C5098326FA /* coastline.wav */; };
+		B92D1181595B677B0F2BB99D /* CoastlineRushApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298E41BCA89B5C6AB9D15A28 /* CoastlineRushApp.swift */; };
+		B991FE215F8CE57693C7F541 /* shield.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8AAE9FD94BA2CACA10BB579A /* shield.wav */; };
+		C2B2CA94F2E9B01C157E9C17 /* start.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8D1EC8E6894B827136036F62 /* start.wav */; };
+		C2E666EF927CD138CFBF8A6E /* ambient-cryo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */; };
+		C9577625F29F9748B6D2CD7F /* ambient-mars.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */; };
+		CE5D8E468B5C61DD9F9788D5 /* ambient-harbor.wav in Resources */ = {isa = PBXBuildFile; fileRef = C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */; };
+		D0B6132220B437BC5BDD1A37 /* PlayerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB92C0D967ED794E939A227 /* PlayerProfile.swift */; };
+		D12E1F8832AB5D18F7B60CCB /* crash.wav in Resources */ = {isa = PBXBuildFile; fileRef = 649627708DBFE183BB0D9286 /* crash.wav */; };
+		D35E074519360AC1B4BED4FA /* RunnerSimulation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */; };
+		D4DDB90D1716FFC9A346950A /* power.wav in Resources */ = {isa = PBXBuildFile; fileRef = D6B675E615B5613937010AA4 /* power.wav */; };
+		D722AA2F217368C01259A490 /* watercraft.wav in Resources */ = {isa = PBXBuildFile; fileRef = 050AB0FCF4958B193C4A0C9A /* watercraft.wav */; };
+		D7C6F5288AA17CC2F4219EEE /* watercraft.wav in Resources */ = {isa = PBXBuildFile; fileRef = 050AB0FCF4958B193C4A0C9A /* watercraft.wav */; };
+		E7E4CAD78991E5C375665072 /* OrbitSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 0E8EF526EC40D372DED15A81 /* OrbitSky.png */; };
+		E8308DC106A5BB7866E663DD /* jump.wav in Resources */ = {isa = PBXBuildFile; fileRef = 45EC89860E08FD6C19810175 /* jump.wav */; };
+		EE1422F30E0B7DF2E8AAECF5 /* ambient-mars.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */; };
+		F3C6BA597EB730C49A8C4F4F /* RunnerSimulation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */; };
+		F6170AB1ADD393C526DF7BD0 /* CoastalWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC14B585B646C33518A998 /* CoastalWorld.swift */; };
+		F62D8BAC58CFCB998B667EDE /* arrival.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6A1573F8B0495D5E7E0EC0DC /* arrival.wav */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		050AB0FCF4958B193C4A0C9A /* watercraft.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = watercraft.wav; sourceTree = "<group>"; };
+		063B09B53BC5FA43DF976394 /* GameSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSurface.swift; sourceTree = "<group>"; };
+		0E8EF526EC40D372DED15A81 /* OrbitSky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OrbitSky.png; sourceTree = "<group>"; };
+		12758C175AA79FFE91F0250F /* ReplayGhost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayGhost.swift; sourceTree = "<group>"; };
+		1851265C2543846F94D3D054 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		255AA4773792467B5495D9AC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		26E1E0530DCD6E42C954C5CD /* relic.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = relic.wav; sourceTree = "<group>"; };
+		298E41BCA89B5C6AB9D15A28 /* CoastlineRushApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoastlineRushApp.swift; sourceTree = "<group>"; };
+		29E052065F5CD5980721CCE2 /* GameAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAudio.swift; sourceTree = "<group>"; };
+		4311F61CD9CC4AD6D42422AD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
+		45EC89860E08FD6C19810175 /* jump.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = jump.wav; sourceTree = "<group>"; };
+		649627708DBFE183BB0D9286 /* crash.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = crash.wav; sourceTree = "<group>"; };
+		65F5F05B3C6AE028B9157B97 /* portal.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = portal.wav; sourceTree = "<group>"; };
+		6A1573F8B0495D5E7E0EC0DC /* arrival.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = arrival.wav; sourceTree = "<group>"; };
+		78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-cryo.wav"; sourceTree = "<group>"; };
+		7E5E98467EA2488FBFF25538 /* GameController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameController.swift; sourceTree = "<group>"; };
+		7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-verdant.wav"; sourceTree = "<group>"; };
+		8AAE9FD94BA2CACA10BB579A /* shield.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = shield.wav; sourceTree = "<group>"; };
+		8D1EC8E6894B827136036F62 /* start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = start.wav; sourceTree = "<group>"; };
+		A55DE9BA6F49492775FE9077 /* PortalJourney.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalJourney.swift; sourceTree = "<group>"; };
+		AADB393A954D3BA1F179E369 /* GameUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameUI.swift; sourceTree = "<group>"; };
+		AE605EFB89B8E82E0F71EC7E /* CoastlineRush-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CoastlineRush-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B7F9838E140F74C5098326FA /* coastline.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coastline.wav; sourceTree = "<group>"; };
+		B966A996CE337C575704915C /* HarborSky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HarborSky.png; sourceTree = "<group>"; };
+		C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-harbor.wav"; sourceTree = "<group>"; };
+		C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerSimulation.swift; sourceTree = "<group>"; };
+		CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-orbit.wav"; sourceTree = "<group>"; };
+		CDDC14B585B646C33518A998 /* CoastalWorld.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoastalWorld.swift; sourceTree = "<group>"; };
+		D55BE61112AB0C9CD4D7E490 /* RunCheckpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCheckpoint.swift; sourceTree = "<group>"; };
+		D56BE6DE4338A71F5E2D62FD /* ambient-forge.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-forge.wav"; sourceTree = "<group>"; };
+		D6B675E615B5613937010AA4 /* power.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = power.wav; sourceTree = "<group>"; };
+		E14384481731928F29E6CE3A /* slide.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = slide.wav; sourceTree = "<group>"; };
+		EFB92C0D967ED794E939A227 /* PlayerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerProfile.swift; sourceTree = "<group>"; };
+		FD68AA912003B5178E58792A /* CoastlineRush-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "CoastlineRush-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-mars.wav"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1DB96F73E886CC7B44815363 = {
+			isa = PBXGroup;
+			children = (
+				276F6812D55F32E5AA1F0A57 /* Resources */,
+				428D7567440516446813F6CF /* Sources */,
+				1EE84FB66F194AAA3A869A3E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1EE84FB66F194AAA3A869A3E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FD68AA912003B5178E58792A /* CoastlineRush-iOS.app */,
+				AE605EFB89B8E82E0F71EC7E /* CoastlineRush-macOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		276F6812D55F32E5AA1F0A57 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */,
+				D56BE6DE4338A71F5E2D62FD /* ambient-forge.wav */,
+				C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */,
+				FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */,
+				CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */,
+				7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */,
+				6A1573F8B0495D5E7E0EC0DC /* arrival.wav */,
+				255AA4773792467B5495D9AC /* Assets.xcassets */,
+				B7F9838E140F74C5098326FA /* coastline.wav */,
+				4311F61CD9CC4AD6D42422AD /* coin.wav */,
+				649627708DBFE183BB0D9286 /* crash.wav */,
+				B966A996CE337C575704915C /* HarborSky.png */,
+				45EC89860E08FD6C19810175 /* jump.wav */,
+				0E8EF526EC40D372DED15A81 /* OrbitSky.png */,
+				65F5F05B3C6AE028B9157B97 /* portal.wav */,
+				D6B675E615B5613937010AA4 /* power.wav */,
+				1851265C2543846F94D3D054 /* PrivacyInfo.xcprivacy */,
+				26E1E0530DCD6E42C954C5CD /* relic.wav */,
+				8AAE9FD94BA2CACA10BB579A /* shield.wav */,
+				E14384481731928F29E6CE3A /* slide.wav */,
+				8D1EC8E6894B827136036F62 /* start.wav */,
+				050AB0FCF4958B193C4A0C9A /* watercraft.wav */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		428D7567440516446813F6CF /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				CDDC14B585B646C33518A998 /* CoastalWorld.swift */,
+				298E41BCA89B5C6AB9D15A28 /* CoastlineRushApp.swift */,
+				29E052065F5CD5980721CCE2 /* GameAudio.swift */,
+				7E5E98467EA2488FBFF25538 /* GameController.swift */,
+				063B09B53BC5FA43DF976394 /* GameSurface.swift */,
+				AADB393A954D3BA1F179E369 /* GameUI.swift */,
+				EFB92C0D967ED794E939A227 /* PlayerProfile.swift */,
+				A55DE9BA6F49492775FE9077 /* PortalJourney.swift */,
+				12758C175AA79FFE91F0250F /* ReplayGhost.swift */,
+				D55BE61112AB0C9CD4D7E490 /* RunCheckpoint.swift */,
+				C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2716AEE3107938150DA40F9A /* CoastlineRush-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 27E81A58EB1B57EBCF2ABC8D /* Build configuration list for PBXNativeTarget "CoastlineRush-iOS" */;
+			buildPhases = (
+				9549A6310C47EADDA976DFC6 /* Sources */,
+				C9B28E13895E6E4DC3DD64A0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "CoastlineRush-iOS";
+			packageProductDependencies = (
+			);
+			productName = "CoastlineRush-iOS";
+			productReference = FD68AA912003B5178E58792A /* CoastlineRush-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7EBE308E2EAFBA628ACFB253 /* CoastlineRush-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 89C24227834CE9EF85B721BB /* Build configuration list for PBXNativeTarget "CoastlineRush-macOS" */;
+			buildPhases = (
+				4ADAF7E2C2AAC448BA4C85D8 /* Sources */,
+				10C053D8D44CB59E4AAE43A8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "CoastlineRush-macOS";
+			packageProductDependencies = (
+			);
+			productName = "CoastlineRush-macOS";
+			productReference = AE605EFB89B8E82E0F71EC7E /* CoastlineRush-macOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C65AE795D3C74276B4BF4262 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					2716AEE3107938150DA40F9A = {
+						ProvisioningStyle = Automatic;
+					};
+					7EBE308E2EAFBA628ACFB253 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 77837EE643C050E693E9B878 /* Build configuration list for PBXProject "CoastlineRush" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1DB96F73E886CC7B44815363;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2716AEE3107938150DA40F9A /* CoastlineRush-iOS */,
+				7EBE308E2EAFBA628ACFB253 /* CoastlineRush-macOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		10C053D8D44CB59E4AAE43A8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8EC8F61F79825C807FC42CE1 /* Assets.xcassets in Resources */,
+				29EC398CBDCCAFB01A68AE86 /* HarborSky.png in Resources */,
+				0D5C655118AC57D5A85F356A /* OrbitSky.png in Resources */,
+				105568C9D7C105738B7F3772 /* PrivacyInfo.xcprivacy in Resources */,
+				663EEFCD655CAC49F8CD7282 /* ambient-cryo.wav in Resources */,
+				7F8BEF30AF77969F7F78403F /* ambient-forge.wav in Resources */,
+				CE5D8E468B5C61DD9F9788D5 /* ambient-harbor.wav in Resources */,
+				EE1422F30E0B7DF2E8AAECF5 /* ambient-mars.wav in Resources */,
+				60E5EAF299F54C9AB2C3210F /* ambient-orbit.wav in Resources */,
+				8A440FA0FC718612458060EC /* ambient-verdant.wav in Resources */,
+				5C633F6F908D4E4E781F2C0F /* arrival.wav in Resources */,
+				5CD8BDFE5D98C454F2CFF8B5 /* coastline.wav in Resources */,
+				5A7BE35B00AF432F18852237 /* coin.wav in Resources */,
+				D12E1F8832AB5D18F7B60CCB /* crash.wav in Resources */,
+				E8308DC106A5BB7866E663DD /* jump.wav in Resources */,
+				1CB9B51ED5EC5842EEA437F0 /* portal.wav in Resources */,
+				D4DDB90D1716FFC9A346950A /* power.wav in Resources */,
+				39BEC587185699AD0E6EA51D /* relic.wav in Resources */,
+				4EBD570E5B27811113C87EFD /* shield.wav in Resources */,
+				1B8638EFD395550B94538A8A /* slide.wav in Resources */,
+				604B6806363336075B364F6C /* start.wav in Resources */,
+				D7C6F5288AA17CC2F4219EEE /* watercraft.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C9B28E13895E6E4DC3DD64A0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1863C461B1476789BAB737CB /* Assets.xcassets in Resources */,
+				098A1809758288063F7E0BBC /* HarborSky.png in Resources */,
+				E7E4CAD78991E5C375665072 /* OrbitSky.png in Resources */,
+				788BD73F6A34C4DD1AF5F556 /* PrivacyInfo.xcprivacy in Resources */,
+				C2E666EF927CD138CFBF8A6E /* ambient-cryo.wav in Resources */,
+				0CD4A747E2015707F24D1B8A /* ambient-forge.wav in Resources */,
+				59358C6D7165BCDD3A3031BE /* ambient-harbor.wav in Resources */,
+				C9577625F29F9748B6D2CD7F /* ambient-mars.wav in Resources */,
+				81A3A84EB3820B8D5E38B676 /* ambient-orbit.wav in Resources */,
+				200E5C00AC314F08FF635EEC /* ambient-verdant.wav in Resources */,
+				F62D8BAC58CFCB998B667EDE /* arrival.wav in Resources */,
+				B21ECDF48DD3A7F2BDAA3C8A /* coastline.wav in Resources */,
+				738EAF0F0C3300249E06B1ED /* coin.wav in Resources */,
+				2914F33249FEBF1878EF9830 /* crash.wav in Resources */,
+				5FBA4BF9B41362FEC98BEBD5 /* jump.wav in Resources */,
+				27254B1A3B8E6C65C8EF00B7 /* portal.wav in Resources */,
+				4EBFED94B865135D90E856A4 /* power.wav in Resources */,
+				599695BCE19934DF809263CE /* relic.wav in Resources */,
+				B991FE215F8CE57693C7F541 /* shield.wav in Resources */,
+				7BA8F16910FAC0C4B9B06C57 /* slide.wav in Resources */,
+				C2B2CA94F2E9B01C157E9C17 /* start.wav in Resources */,
+				D722AA2F217368C01259A490 /* watercraft.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4ADAF7E2C2AAC448BA4C85D8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1159D13A1E86512D8BD6B35C /* CoastalWorld.swift in Sources */,
+				5C7FD1CA8E3C149ED1F4F64E /* CoastlineRushApp.swift in Sources */,
+				0F9EBB63E4DB52CE06C2EEE4 /* GameAudio.swift in Sources */,
+				78437305F27DCB2260BBD8EF /* GameController.swift in Sources */,
+				994700D2EE57651FA1405E0C /* GameSurface.swift in Sources */,
+				2921263B996A5747C8FAC738 /* GameUI.swift in Sources */,
+				0C94D545CB8C12BF79CAE291 /* PlayerProfile.swift in Sources */,
+				A8EA5E562121B5A65293DEF2 /* PortalJourney.swift in Sources */,
+				95CB711F8D14900673BC9775 /* ReplayGhost.swift in Sources */,
+				158B160CDA15CAE902267B02 /* RunCheckpoint.swift in Sources */,
+				F3C6BA597EB730C49A8C4F4F /* RunnerSimulation.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9549A6310C47EADDA976DFC6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F6170AB1ADD393C526DF7BD0 /* CoastalWorld.swift in Sources */,
+				B92D1181595B677B0F2BB99D /* CoastlineRushApp.swift in Sources */,
+				7A186AA29BCD9FEF8BD79EA1 /* GameAudio.swift in Sources */,
+				A79E86227CCAFF8E8DE2817C /* GameController.swift in Sources */,
+				6C3630CA3C43913745DB3CF1 /* GameSurface.swift in Sources */,
+				82C545E65FB5B02CEF959748 /* GameUI.swift in Sources */,
+				D0B6132220B437BC5BDD1A37 /* PlayerProfile.swift in Sources */,
+				50B1590AF436FBEB39F09BD3 /* PortalJourney.swift in Sources */,
+				1C0583262DA6D2D27164E5A3 /* ReplayGhost.swift in Sources */,
+				5A4AB337A4773943EF708B3D /* RunCheckpoint.swift in Sources */,
+				D35E074519360AC1B4BED4FA /* RunnerSimulation.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		62D75D1C648A57387C3153BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = studio.coastline.rush.mac;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		705DBC7B066F10C8056483D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = studio.coastline.rush;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		79DE404B208BFE40DF21F8A6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = studio.coastline.rush;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B1E585F8064D98B445CA9EFA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 4;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Coastline Rush";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.arcade-games";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 4.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "Coastline Rush";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		BF34D43FC245F85F413A9F5C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 4;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Coastline Rush";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.arcade-games";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 4.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "Coastline Rush";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		E1B41DF2773F9F634DE5B401 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = studio.coastline.rush.mac;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		27E81A58EB1B57EBCF2ABC8D /* Build configuration list for PBXNativeTarget "CoastlineRush-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				79DE404B208BFE40DF21F8A6 /* Debug */,
+				705DBC7B066F10C8056483D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		77837EE643C050E693E9B878 /* Build configuration list for PBXProject "CoastlineRush" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF34D43FC245F85F413A9F5C /* Debug */,
+				B1E585F8064D98B445CA9EFA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		89C24227834CE9EF85B721BB /* Build configuration list for PBXNativeTarget "CoastlineRush-macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E1B41DF2773F9F634DE5B401 /* Debug */,
+				62D75D1C648A57387C3153BB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C65AE795D3C74276B4BF4262 /* Project object */;
+}

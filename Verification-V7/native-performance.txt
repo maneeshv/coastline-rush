@@ -1,0 +1,14 @@
+Native macOS SceneKit rendering probe
+Duration: 630.9637213333044 s
+Frames: 66418
+Size: 480×800 points, balanced 2x MSAA
+Six-world practice/finale sweep, automated driver, concurrent build load may apply
+Restarts: 21
+Render callbacks: 116.2/s · 66417 measured
+Callback interval p95 / p99: 8.6 ms / 16.5 ms
+Callbacks over 33 ms: 1 / 720
+Main simulation + scene update p95: 0.2 ms
+Input received → next tick p95: —
+Quality: balanced · Thermal: NSProcessInfoThermalState(rawValue: 0)
+Replay frames: 0 / 48
+Rolling 720-frame window. These are local CPU/callback measurements, not GPU presentation, touch-to-photon, or battery measurements.

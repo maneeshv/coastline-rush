@@ -1,0 +1,26 @@
+# After Hours art direction
+
+The visual target is a cinematic dusk harbor: cool water and sky, warm inhabited windows, reflective road detail, a clear racer silhouette, and a restrained high-contrast interface. The main menu keeps the live 3D environment visible and previews the selected runner or water course.
+
+## Advisor consultation
+
+Fable 5.1 reviewed the original iPhone/menu and scene screenshots through Paseo. The consultation was limited to images; no private source code was shared. Its key recommendations were stronger directional contrast and shadows, physically based surface detail, water reflections, layered scenery, a substantial rider/vehicle, and less rounded UI typography/chrome. Those recommendations informed this implementation. It also suggested skill-based slalom and risk/reward modes with fair telegraphing.
+
+Fable also reviewed an intermediate second pass. It judged the improvement material but still short of high-end PC art fidelity, and prioritized stronger contact shadows, continuous water trails, and less repetitive architecture. The final polish addressed those three areas and corrected the water quays, rider posture and overly reflective helmet. Its screenshot observations were treated as visual feedback, not proof of source configuration or frame rate.
+
+Opus 5.5 was not present in Paseo's available model catalog. The offered Opus 5 fallback was not launched because explicit approval to substitute it was pending. No Opus advice is claimed.
+
+## Assets and implementation
+
+- `Resources/HarborSky.png`: original image created with the built-in image-generation tool; 1774 × 887 pixels, 2:1 panorama. Used as the scene background and lighting environment.
+- Surface, normal, foam, shadow and reflection-support textures: generated in `CoastalWorld.swift` with CoreGraphics and shader modifiers.
+- 3D geometry: original programmatic SceneKit models. Static assemblies are merged with explicit transform baking; gameplay entities are pooled.
+- Audio: original synthesized samples. `Scripts/generate_audio.py` produces the soundtrack/effects; `Scripts/generate_vehicle_audio.py` produces the watercraft loop.
+
+No downloaded third-party art, fonts, music or models are included. Environment reflections are image-based; the water is an animated material rather than a fluid simulation. The visual result is stylized, not photorealistic AAA rendering.
+
+## Image-generation prompt
+
+Built-in tool; no input image; opaque background:
+
+> Use case: stylized-concept. Asset type: original high-resolution equirectangular panoramic sky texture for an immersive premium 3D harbor racing game, 2:1 landscape panorama. Primary request: a cinematic blue-hour coastal sky, 15 minutes after sunset, with fine painterly-realistic atmospheric cloud detail, sophisticated beautiful subtle lighting, no foreground objects. Composition: full spherical equirectangular mapping, horizon exactly halfway down the image, upper half rich deep indigo sky transitioning through lavender cloud layers to a thin warm luminous peach-orange horizon glow; lower half a dark muted blue featureless ocean/under-horizon color band (mostly unseen in game). Low, distant thin stratocumulus clouds catch warm rim light; delicate cirrus higher up. A pale small crescent moon high in the sky away from center. Rich natural dynamic range but no pure black, subtle filmic color, high detail, a seamless-feeling left and right edge. This is an environment background texture, NOT a screenshot or game mockup. No text, no UI, no buildings, no boats, no people, no terrain, no lens flare, no exaggerated neon, no stars, no watermark.

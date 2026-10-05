@@ -1,0 +1,123 @@
+PASS lane controls clamp and interpolate
+PASS running into a barrier crashes with useful reason
+PASS jump clears barriers and lands
+PASS roll clears arches but jumping does not
+PASS late jump swipes buffer across landing but early repeats do not
+PASS roll forces an airborne runner down
+PASS lateral dodge avoids a tram
+PASS ramps connect to collectible tram roofs
+PASS board consumes inventory and absorbs exactly one hit
+PASS board naturally expires after thirty active seconds
+PASS pause freezes world, power timers and controls
+PASS revive clears crash and grants limited immunity
+PASS magnet collects coins across lanes but not keys
+PASS aligned keys are collected once
+PASS jetpack flies above collisions and collects airborne coins
+PASS sneakers raise the jump arc
+PASS score multipliers apply then expire
+PASS oncoming trams close faster and cannot tunnel through the runner
+PASS entity saves preserve speed and accept older stationary entities
+PASS large frame deltas cannot tunnel through obstacles
+PASS frame subdivision preserves motion and score
+PASS seeded generation and replay reproduce exactly
+PASS procedural rows retain an open lane and increase difficulty
+PASS finish is terminal and starting again resets counters
+PASS headstart and invalid time inputs behave safely
+25/25 simulation tests passed
+PASS challenge defaults preserve pre-upgrade saved runs
+PASS challenge counters and timed mode survive checkpoint round trips
+PASS sprint checkpoints add time and cannot be collected twice
+PASS timed modes expire and pause freezes their clock
+PASS sprint finishes at its goal instead of running forever
+PASS water course has its own finish and time economy
+PASS slalom gates reward accuracy and penalize misses
+PASS water boost spends charge rather than board inventory and does not shield collisions
+PASS braking lowers water speed and cancels boost
+PASS water ramps launch and each airborne trick can score only once
+PASS airborne hazards are real threats but harmless on the ground
+PASS flight rings require flight and lateral precision
+PASS clean obstacles form a combo and idle time decays it
+PASS a last-moment lateral dodge counts a near miss but cruising does not
+PASS shield crashes break a combo without losing the run
+PASS expert starts faster and its opening asks for earlier decisions
+PASS boosted expert ramp flight can clear the following slalom gate
+PASS expert courses tighten the clock and checkpoint bonuses
+PASS water routes retain one clear gate lane and adequate reaction distance
+PASS water steering has momentum, currents and continuous touch targets
+PASS air combinations bank only unique tricks after a stable landing
+PASS late water tricks lose the landing reward and momentarily slow the craft
+PASS moving boats collide and wake jumps clear their actual hulls
+PASS water momentum and pending tricks survive a checkpoint exactly
+PASS flight course remains finite, reachable and lane-readable
+25/25 challenge tests passed
+PASS crash replay stays bounded and cannot change game or wallet
+PASS practice and accessibility settings survive without spending rewards
+PASS diagnostics describe measured callback data accurately
+PASS artifact choices pause time and optional replay corruption preserves a run
+PASS ghost race recreates the recorded course and survives a checkpoint
+PASS render cadence samples HUD and paused worlds stop updating
+PASS v4 preferences persist and daily Odyssey has stable rules
+PASS new profiles feature Odyssey while existing course preferences survive
+PASS portal and relic progress checkpoint without settling the run
+PASS six-world victories settle once and later-world practice is not a full expedition
+PASS new players get a stopped clock while reading the first-run briefing
+PASS course preferences persist and daily challenge keeps its fixed rules
+PASS a record is measured against its own course and difficulty
+PASS water boost never charges a board consumable
+PASS course completion banks rewards once without a finish button
+PASS race clock pauses and reviving an expired race preserves accounting
+PASS new personal best distinguishes records from ties
+PASS simulation checkpoint preserves deterministic continuation
+PASS legacy profile migrates and authoritative envelope takes precedence
+PASS damaged transient checkpoint preserves the authoritative wallet
+PASS active run is checkpointed within five seconds
+PASS background restore retains earned rewards and consumed boards
+PASS freshly collected key can revive and cannot be credited twice
+PASS banked rescue key spending and crashed state survive relaunch
+PASS paused shopping preserves run accounting across restarts
+PASS daily run identity survives checkpoint and settlement
+26/26 controller/checkpoint tests passed
+PASS: 257 profile assertions across 19 groups; no player preferences written.
+PASS: six ordered worlds expose distinctive physics and finite lengths
+PASS: manual portal setting waits safely when precision entry is missed
+PASS: jump from every lane enters the gateway without an alignment trap
+PASS: pause and persistence preserve gateway transition exactly
+PASS: moving transition protects the player and freezes resource clocks
+PASS: six portals complete a journey with no relic requirement
+PASS: relics award score and persist a world catalog without double collection
+PASS: old snapshots decode and retain existing mode
+PASS: moving Mars rovers retain their ramp and collectible roof support
+PASS: world gravity, ice steering and growing bounded stage speed are real
+PASS: each world lasts ninety to one hundred twenty seconds while speed rises
+PASS: later worlds start and finish faster and Expert increases the curve
+PASS: normal and precision portals retain speed across every world boundary
+PASS: later worlds retain encounter tiers and phase progress remains valid
+PASS: late-stage Air Dash always accelerates and its bonus expires
+PASS: a new expedition resets momentum to the selected starting world
+DENSITY world=0 expert=false early=1.009/s late=2.141/s
+DENSITY world=0 expert=true early=1.135/s late=2.232/s
+DENSITY world=1 expert=false early=1.330/s late=1.735/s
+DENSITY world=1 expert=true early=1.310/s late=2.043/s
+DENSITY world=2 expert=false early=1.446/s late=2.390/s
+DENSITY world=2 expert=true early=1.429/s late=2.635/s
+DENSITY world=3 expert=false early=1.802/s late=2.420/s
+DENSITY world=3 expert=true early=1.922/s late=2.841/s
+DENSITY world=4 expert=false early=1.773/s late=2.270/s
+DENSITY world=4 expert=true early=1.922/s late=2.514/s
+DENSITY world=5 expert=false early=2.059/s late=2.319/s
+DENSITY world=5 expert=true early=2.244/s late=2.640/s
+PASS: later worlds retain demanding encounter pressure throughout their stages
+PASS: steering alone cannot bypass the required jump and slide encounters
+PASS: all generated worlds provide a clear landing and portal approach
+PASS: assisted portals keep moving and a precision jump earns an entry bonus
+PASS: relic charges power real abilities with caps and honest collision outcomes
+PASS: medals require actual skill and risky relic collection
+PASS: v3 snapshots migrate new state without losing an active expedition
+PASS: v4 active checkpoints finish their original stage then enter the longer route
+PASS: v5 midair checkpoints keep original speed and length until the next portal
+PASS: v6 checkpoints retain their stage until the next portal enables expansion
+PASS: daily Odyssey uses a stable date seed and reproduces encounters
+PASS: required world actions are feasible over eight full seeded routes
+28 portal journey tests passed.
+PASS 138 expedition expansion checks
+Test executables retained at /tmp/coastline-tests.c85kWY

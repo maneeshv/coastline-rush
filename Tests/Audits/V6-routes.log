@@ -1,0 +1,3 @@
+TIMING expert=false stages=[harbor=97.93s, orbit=100.15s, mars=101.52s, verdant=101.39s, cryo=101.28s, forge=101.19s] total=613.06s
+TIMING expert=true stages=[harbor=82.08s, orbit=83.87s, mars=86.46s, verdant=87.40s, cryo=88.21s, forge=88.92s] total=526.53s
+RESULT passes=60 failures=0 generated-six-world-routes; roundTrips=5070; maximumEntities=66; jumps=12502; rolls=2302; gold=355; relics=1036; retainedPortals=300; maximumSpeed=51.000m/s; no fixture track, boards, abilities or revives

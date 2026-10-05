@@ -1,0 +1,40 @@
+PASS: six ordered worlds expose distinctive physics and finite lengths
+PASS: manual portal setting waits safely when precision entry is missed
+PASS: jump from every lane enters the gateway without an alignment trap
+PASS: pause and persistence preserve gateway transition exactly
+PASS: moving transition protects the player and freezes resource clocks
+PASS: six portals complete a journey with no relic requirement
+PASS: relics award score and persist a world catalog without double collection
+PASS: old snapshots decode and retain existing mode
+PASS: moving Mars rovers retain their ramp and collectible roof support
+PASS: world gravity, ice steering and growing bounded stage speed are real
+PASS: each world lasts ninety to one hundred twenty seconds while speed rises
+PASS: later worlds start and finish faster and Expert increases the curve
+PASS: normal and precision portals retain speed across every world boundary
+PASS: later worlds retain encounter tiers and phase progress remains valid
+PASS: late-stage Air Dash always accelerates and its bonus expires
+PASS: a new expedition resets momentum to the selected starting world
+DENSITY world=0 expert=false early=1.327/s late=2.588/s
+DENSITY world=0 expert=true early=1.568/s late=2.681/s
+DENSITY world=1 expert=false early=1.735/s late=1.870/s
+DENSITY world=1 expert=true early=1.728/s late=1.883/s
+DENSITY world=2 expert=false early=1.706/s late=2.660/s
+DENSITY world=2 expert=true early=1.829/s late=2.906/s
+DENSITY world=3 expert=false early=2.304/s late=2.592/s
+DENSITY world=3 expert=true early=2.544/s late=2.922/s
+DENSITY world=4 expert=false early=2.207/s late=2.320/s
+DENSITY world=4 expert=true early=2.500/s late=2.480/s
+DENSITY world=5 expert=false early=2.732/s late=2.673/s
+DENSITY world=5 expert=true early=3.067/s late=3.006/s
+PASS: later worlds retain demanding encounter pressure throughout their stages
+PASS: steering alone cannot bypass the required jump and slide encounters
+PASS: all generated worlds provide a clear landing and portal approach
+PASS: assisted portals keep moving and a precision jump earns an entry bonus
+PASS: relic charges power real abilities with caps and honest collision outcomes
+PASS: medals require actual skill and risky relic collection
+PASS: v3 snapshots migrate new state without losing an active expedition
+PASS: v4 active checkpoints finish their original stage then enter the longer route
+PASS: v5 midair checkpoints keep original speed and length until the next portal
+PASS: daily Odyssey uses a stable date seed and reproduces encounters
+PASS: required world actions are feasible over eight full seeded routes
+27 portal journey tests passed.

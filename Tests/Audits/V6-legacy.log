@@ -1,0 +1,1 @@
+PASS final v6 sources: 356 complete saved-state snapshots across 24 v4/v5 stage/difficulty cases exactly match v5 baseline after normalizing only two unordered Sets. Legacy consistency fixtures use invulnerability to observe the full stage; separate route audits use no protection.

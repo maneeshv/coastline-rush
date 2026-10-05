@@ -1,0 +1,59 @@
+V5 DIFFICULTY VALIDATION
+
+Owned changes:
+- Tests/JourneyTests.swift: 22 tests, including actual 90–120-second Standard stage duration, monotonic bounded acceleration, later-world and Expert escalation, aggregate obstacle pressure, lane-only failure, legacy v4 active-stage preservation and next-world migration, safe approach/relic bounds, and eight complete generated routes.
+- Tests/Audits/RouteAudit.swift: shared visible-geometry action controller, 90,000-frame bound, moving hazard/beam observation, early coin-arc landing-lane commitment, and stage timing output.
+- Scripts/test.sh: JourneyTests compiles optimized with ROUTE_HELPER and RouteAudit.swift.
+
+Generated route audit:
+- 60/60 full expeditions, 30 seeds in Standard and 30 in Expert.
+- 5,250 JSON checkpoint round trips, each comparing a 60-frame future continuation.
+- Maximum 66 live entities.
+- No replaced track, boards, abilities or revives.
+- 11,227 jumps, 2,186 slides, 352 Gold world medals, 1,026 relics.
+
+Relic-priority audit:
+- 60/60 expeditions; 360/360 Gold world medals; all 1,080 possible relics.
+- 5,250 checkpoint round trips; max 66 live entities.
+- 11,227 jumps and 2,219 slides.
+
+Measured stage durations in simulation:
+                   Standard       Expert
+Harbor               97.93 s       82.08 s
+Orbit               100.26 s       85.40 s
+Mars                104.23 s       89.53 s
+Verdant             105.82 s       91.37 s
+Cryo                105.53 s       91.56 s
+Forge               110.47 s       96.46 s
+Total incl portals  633.83 s      545.99 s
+
+Obstacle pressure is the count of distinct generated hazardous entities divided by simulation time in progress windows 15–35% and 65–85%. Five seeds (5,17,23,41,79) are aggregated per stage/difficulty. Late/early ratios:
+                   Standard       Expert
+Harbor                1.950         1.710
+Orbit                 1.232         1.305
+Mars                  1.867         1.789
+Verdant               1.857         1.814
+Cryo                  1.750         1.611
+Forge                 1.738         1.866
+
+The density probe removes approaching hazards solely to inspect the generated distribution without deaths; survival audits never replace the track. Orbit intentionally retains enough time to finish the long low-gravity arc. Expert has faster speeds and shorter encounter intervals; hazard counts vary with randomized compound patterns.
+
+Solver issues fixed during verification:
+1. A moving crate can pull ahead of its neighboring beam. Read the next obstacle in the actual occupied/target lane, even while an earlier off-lane collider passes.
+2. Cryo landing combinations require reading the visible coin arc before jumping; waiting for landing obstacles to become the first row leads to late two-lane corrections.
+No production cadence or obstacle edits were made to pass these solver fixes.
+
+Limitations:
+- This verifies deterministic simulated feasibility, not human difficulty calibration or real-device input latency, sustained FPS, thermals or battery life.
+- The controller reads already-spawned visible geometry and coin markers; it does not inspect RNG or unrevealed generator rows. It makes frame-by-frame decisions and therefore models skilled idealized play.
+- JourneyTests and RouteAudit share the same action controller; these are overlapping checks, not independent player strategies.
+- Safe lane-only rejection is tested separately without jump, slide, boards or artifacts.
+- Wallet/profile migration and native builds are validated by the root task separately.
+
+Evidence:
+journey-tests.log
+mastery-routes.log
+generated-routes.log (also contains stage timing)
+density.log
+DensityProbe.swift
+source-sha256.txt
