@@ -157,21 +157,29 @@ func write(_ pixels: [UInt8], width w: Int, height h: Int, to url: URL) {
     precondition(CGImageDestinationFinalize(destination), "Could not write \(url.path)")
 }
 
-/// Self-check: size, a seamless wrap, and a visible (non-black) horizon.
+/// Self-check: size, a seamless wrap (compared to the ordinary column-to-column change), and a lit horizon.
 func check(_ pixels: [UInt8], width w: Int, height h: Int, name: String) {
     precondition(pixels.count == w * h * 4, "\(name): wrong size")
-    var seam = 0.0
-    for row in 0..<h { for k in 0..<3 {
-        seam += abs(Double(pixels[row * w * 4 + k]) - Double(pixels[(row * w + w - 1) * 4 + k])) / 255
-    } }
-    seam /= Double(h * 3)
-    let horizonRow = h / 2 - 4
-    var horizon = 0.0
-    for col in 0..<w { horizon += Double(pixels[(horizonRow * w + col) * 4 + 1]) / 255 }
-    horizon /= Double(w)
-    precondition(seam < 0.03, "\(name): seam \(seam) too visible")
+    /// Mean per-channel difference between two columns over all rows.
+    func columnDiff(_ a: Int, _ b: Int) -> Double {
+        var sum = 0.0
+        for row in 0..<h { for k in 0..<3 {
+            sum += abs(Double(pixels[(row * w + a) * 4 + k]) - Double(pixels[(row * w + b) * 4 + k])) / 255
+        } }
+        return sum / Double(h * 3)
+    }
+    let seam = columnDiff(w - 1, 0), adjacent = columnDiff(0, 1)
+    let horizonRow = h / 2 - 4, blocks = 16, blockWidth = w / blocks
+    var blockMeans = [Double](repeating: 0, count: blocks)
+    for col in 0..<(blocks * blockWidth) {
+        let i = (horizonRow * w + col) * 4
+        blockMeans[col / blockWidth] += luminance(V3(Double(pixels[i]), Double(pixels[i + 1]), Double(pixels[i + 2])) / 255) / Double(blockWidth)
+    }
+    let horizonMin = blockMeans.min()!, horizon = blockMeans.reduce(0, +) / Double(blocks)
+    precondition(seam < 4 * adjacent + 0.002, "\(name): seam \(seam) vs adjacent \(adjacent) too visible")
+    precondition(horizonMin > 0.06, "\(name): horizon has a dark block (\(horizonMin))")
     precondition(horizon > 0.08, "\(name): horizon too dark (\(horizon))")
-    print(name, String(format: "seam=%.4f horizon=%.3f", seam, horizon))
+    print(name, String(format: "seam=%.4f adjacent=%.4f horizon=%.3f horizonMin=%.3f", seam, adjacent, horizon, horizonMin))
 }
 
 let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "Resources")
