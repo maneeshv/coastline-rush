@@ -17,6 +17,7 @@
 		1159D13A1E86512D8BD6B35C /* CoastalWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC14B585B646C33518A998 /* CoastalWorld.swift */; };
 		158B160CDA15CAE902267B02 /* RunCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55BE61112AB0C9CD4D7E490 /* RunCheckpoint.swift */; };
 		1863C461B1476789BAB737CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 255AA4773792467B5495D9AC /* Assets.xcassets */; };
+		1A79EE8B95C4704759530C56 /* WorldLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5798B9C921967B02E2344CC2 /* WorldLook.swift */; };
 		1B8638EFD395550B94538A8A /* slide.wav in Resources */ = {isa = PBXBuildFile; fileRef = E14384481731928F29E6CE3A /* slide.wav */; };
 		1C0583262DA6D2D27164E5A3 /* ReplayGhost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12758C175AA79FFE91F0250F /* ReplayGhost.swift */; };
 		1CB9B51ED5EC5842EEA437F0 /* portal.wav in Resources */ = {isa = PBXBuildFile; fileRef = 65F5F05B3C6AE028B9157B97 /* portal.wav */; };
@@ -26,6 +27,7 @@
 		2914F33249FEBF1878EF9830 /* crash.wav in Resources */ = {isa = PBXBuildFile; fileRef = 649627708DBFE183BB0D9286 /* crash.wav */; };
 		2921263B996A5747C8FAC738 /* GameUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADB393A954D3BA1F179E369 /* GameUI.swift */; };
 		29EC398CBDCCAFB01A68AE86 /* HarborSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B966A996CE337C575704915C /* HarborSky.png */; };
+		34A291F8A70EC0FF37FAE015 /* WorldLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5798B9C921967B02E2344CC2 /* WorldLook.swift */; };
 		38D533F61AEC355EE973EA30 /* ExpeditionExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EEAFBE58801773659E0174 /* ExpeditionExpansion.swift */; };
 		39BEC587185699AD0E6EA51D /* relic.wav in Resources */ = {isa = PBXBuildFile; fileRef = 26E1E0530DCD6E42C954C5CD /* relic.wav */; };
 		3D18117FE038C013FA86CB20 /* warningDodge.wav in Resources */ = {isa = PBXBuildFile; fileRef = 667CBB548D92694E8037D831 /* warningDodge.wav */; };
@@ -110,6 +112,7 @@
 		4311F61CD9CC4AD6D42422AD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
 		45EC89860E08FD6C19810175 /* jump.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = jump.wav; sourceTree = "<group>"; };
 		460898FD7CCF322E10C5B99A /* RunPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunPresentation.swift; sourceTree = "<group>"; };
+		5798B9C921967B02E2344CC2 /* WorldLook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldLook.swift; sourceTree = "<group>"; };
 		649627708DBFE183BB0D9286 /* crash.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = crash.wav; sourceTree = "<group>"; };
 		65F5F05B3C6AE028B9157B97 /* portal.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = portal.wav; sourceTree = "<group>"; };
 		667CBB548D92694E8037D831 /* warningDodge.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = warningDodge.wav; sourceTree = "<group>"; };
@@ -215,6 +218,7 @@
 				D55BE61112AB0C9CD4D7E490 /* RunCheckpoint.swift */,
 				C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */,
 				460898FD7CCF322E10C5B99A /* RunPresentation.swift */,
+				5798B9C921967B02E2344CC2 /* WorldLook.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -390,6 +394,7 @@
 				158B160CDA15CAE902267B02 /* RunCheckpoint.swift in Sources */,
 				F93254B058966DDF38903465 /* RunPresentation.swift in Sources */,
 				F3C6BA597EB730C49A8C4F4F /* RunnerSimulation.swift in Sources */,
+				34A291F8A70EC0FF37FAE015 /* WorldLook.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -410,6 +415,7 @@
 				5A4AB337A4773943EF708B3D /* RunCheckpoint.swift in Sources */,
 				6919CD1D26E22364BD92F46A /* RunPresentation.swift in Sources */,
 				D35E074519360AC1B4BED4FA /* RunnerSimulation.swift in Sources */,
+				1A79EE8B95C4704759530C56 /* WorldLook.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

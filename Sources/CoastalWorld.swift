@@ -2,12 +2,12 @@ import SceneKit
 import CoreGraphics
 #if os(iOS)
 import UIKit
-private typealias CoastColor = UIColor
-private typealias CoastScalar = Float
+typealias CoastColor = UIColor
+typealias CoastScalar = Float
 #else
 import AppKit
-private typealias CoastColor = NSColor
-private typealias CoastScalar = CGFloat
+typealias CoastColor = NSColor
+typealias CoastScalar = CGFloat
 #endif
 
 /// A procedural, reusable seaside set. Gameplay owns all movement and collisions.
@@ -19,13 +19,14 @@ final class CoastalWorld {
     var highContrastCues = false
     var previewMode: RunMode = .endless
     var previewStage: WorldStage = .harbor
-    private var renderedStage: WorldStage = .harbor
+    var renderedStage: WorldStage = .harbor
     private var journeyRoot = SCNNode()
     private var journeySections: [SCNNode] = []
     private var journeyAnimated: [SCNNode] = []
     private var harborScenery: [SCNNode] = []
-    private var worldSun: SCNLight?
-    private var worldAmbient: SCNLight?
+    var worldSun: SCNLight?
+    var worldAmbient: SCNLight?
+    var worldSunNode: SCNNode?
     private let portal = SCNNode()
     private let warpVeil = SCNNode()
     private var portalSurface: SCNNode?
@@ -46,7 +47,7 @@ final class CoastalWorld {
     private(set) var preparationNode: SCNNode?
     private(set) var preparationRevision = 0
     private var warmedStages: Set<WorldStage> = []
-    private var qualityLevel = 1
+    var qualityLevel = 1
     private let harborFinale = SCNNode()
     private var finaleRoot = SCNNode()
     private let alternateRouteRoot = SCNNode()
@@ -151,6 +152,7 @@ final class CoastalWorld {
         scene.rootNode.addChildNode(harborFinale)
         finaleRoot = harborFinale
         makeAlternateRoute()
+        applyLook(.harbor)
     }
 
     func resize(aspect: Double) {
@@ -163,12 +165,11 @@ final class CoastalWorld {
         worldSun?.shadowMapSize = CGSize(width: qualityLevel == 0 ? 1024 : 2048, height: qualityLevel == 0 ? 1024 : 2048)
         worldSun?.shadowSampleCount = qualityLevel == 0 ? 2 : qualityLevel == 1 ? 4 : 8
         camera.camera?.screenSpaceAmbientOcclusionIntensity = qualityLevel == 0 ? 0 : qualityLevel == 1 ? 0.4 : 0.7
-        camera.camera?.bloomIntensity = qualityLevel == 0 ? 0.12 : 0.28
-        camera.camera?.bloomBlurRadius = qualityLevel == 0 ? 3 : 8
         camera.camera?.zFar = qualityLevel == 0 ? 280 : 380
         for (index, node) in portalSpecks.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
         for (index, node) in spray.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
         for (index, node) in landingSparks.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
+        applyLook(renderedStage)
     }
 
     func updateGhost(sample: GhostSample?) {
@@ -376,7 +377,7 @@ final class CoastalWorld {
 
     // MARK: - Shared art helpers
 
-    private func color(_ hex: String, alpha: Double = 1) -> CoastColor {
+    func color(_ hex: String, alpha: Double = 1) -> CoastColor {
         let value = UInt64(hex, radix: 16) ?? 0xFFFFFF
         return CoastColor(red: CGFloat((value >> 16) & 255) / 255,
                           green: CGFloat((value >> 8) & 255) / 255,
@@ -573,6 +574,7 @@ final class CoastalWorld {
         sunlight.light?.color = color("FFC392")
         sunlight.light?.intensity = 1500
         worldSun = sunlight.light
+        worldSunNode = sunlight
         sunlight.light?.castsShadow = true
         sunlight.light?.shadowColor = color("091529", alpha: 0.9)
         sunlight.light?.shadowRadius = 3
@@ -1806,12 +1808,7 @@ private extension CoastalWorld {
             finaleRoot = harborFinale
             scene.background.contents = harborBackground
             scene.lightingEnvironment.contents = loadAsset("HarborSky") ?? environmentMap()
-            scene.lightingEnvironment.intensity = 0.65
-            scene.fogColor = color("354B66")
-            scene.fogStartDistance = 75; scene.fogEndDistance = 215
-            worldSun?.color = color("FFC392"); worldSun?.intensity = 1500
             worldSun?.shadowBias = 0.01; worldSun?.zFar = 95; worldSun?.orthographicScale = 34
-            worldAmbient?.color = color("8199C9"); worldAmbient?.intensity = 75
         } else {
             // Practice-world selection may arrive without an approach: finish only that destination.
             while destinations[stage]?.sections.count ?? 0 < 9 { buildDestinationSlice(stage) }
@@ -1823,15 +1820,9 @@ private extension CoastalWorld {
                 scene.background.contents = destination.sky
                 scene.lightingEnvironment.contents = destination.sky
             }
-            scene.lightingEnvironment.intensity = stage == .orbit ? 0.75 : 0.85
-            scene.fogColor = color(worldPalette.haze)
-            scene.fogStartDistance = stage == .orbit ? 180 : 95
-            scene.fogEndDistance = stage == .orbit ? 370 : 255
-            worldSun?.color = color(stage == .mars ? "FFD3A2" : stage == .forge ? "FFA675" : stage == .verdant ? "C6FFE6" : "DBEDFF")
-            worldSun?.intensity = stage == .forge ? 1200 : stage == .cryo ? 1750 : 1550
-            worldAmbient?.color = color(worldPalette.glow); worldAmbient?.intensity = 120
             worldSun?.shadowBias = 2.0; worldSun?.zFar = 320; worldSun?.orthographicScale = 60
         }
+        applyLook(stage)
         let stages = WorldStage.allCases
         let next = stages.firstIndex(of: stage).flatMap { $0 + 1 < stages.count ? stages[$0 + 1] : nil }
         destinations = destinations.filter { $0.key == stage || $0.key == next }

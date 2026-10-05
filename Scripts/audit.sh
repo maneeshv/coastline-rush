@@ -18,6 +18,6 @@ swiftc "${flags[@]}" "${core[@]}" Tests/Audits/WaterAudit.swift -o "$audit_work/
 "$audit_work/water"
 swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Sources/ReplayGhost.swift Sources/PlayerProfile.swift Sources/RunCheckpoint.swift Tests/Audits/RouteAudit.swift Tests/Audits/GhostCheckpointAudit.swift -o "$audit_work/checkpoints"
 "$audit_work/checkpoints"
-swiftc "${flags[@]}" "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld.swift Tests/Audits/WorldCacheAudit.swift -o "$audit_work/cache"
+swiftc "${flags[@]}" "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld.swift Sources/WorldLook.swift Tests/Audits/WorldCacheAudit.swift -o "$audit_work/cache"
 "$audit_work/cache"
 printf 'Audit executables retained at %s\n' "$audit_work"
