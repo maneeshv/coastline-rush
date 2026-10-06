@@ -82,8 +82,8 @@ extension CoastalWorld {
             if q.y < -0.35 { q.y = -0.35 + (q.y + 0.35) * 0.2 }   // settle onto the ground
             return q
         }
-        // Normalise so the widest horizontal reach is exactly 1: the footprint stays the old sphere's.
-        let reach = rough.map { max(abs($0.x), abs($0.z)) }.max()!
+        // Normalise so the widest horizontal radius is exactly 1: the footprint stays inside the old sphere's circle.
+        let reach = rough.map { ($0.x * $0.x + $0.z * $0.z).squareRoot() }.max()!
         let displaced = rough.map { $0 / reach }
         let triangles = faces.map { f -> (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>) in
             let a = displaced[f.0], b = displaced[f.1], c = displaced[f.2]

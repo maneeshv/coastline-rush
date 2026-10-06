@@ -37,6 +37,13 @@ import SceneKit
             precondition(rock === world.rockGeometry(variant: variant + 4), "rock variants must be cached modulo 4")
             let b = box(rock)
             print("rock \(variant): lo \(b.lo) hi \(b.hi)")
+            let source = rock.sources(for: .vertex).first!
+            let floats = source.data.withUnsafeBytes { raw in (0..<source.vectorCount).map { i -> SIMD3<Float> in
+                let base = source.dataOffset + i * source.dataStride
+                return SIMD3(raw.load(fromByteOffset: base, as: Float.self), raw.load(fromByteOffset: base + 4, as: Float.self), raw.load(fromByteOffset: base + 8, as: Float.self))
+            } }
+            let radius = floats.map { (Double($0.x) * Double($0.x) + Double($0.z) * Double($0.z)).squareRoot() }.max()!
+            precondition(radius <= 1 + 1e-6, "rock \(variant) horizontal radius \(radius) exceeds 1")
             for axis in [0, 2] {
                 precondition(b.hi[axis] >= 0.75 && b.hi[axis] <= 1 + 1e-6 && b.lo[axis] <= -0.75 && b.lo[axis] >= -1 - 1e-6, "rock \(variant) axis \(axis) out of bounds: \(b)")
             }

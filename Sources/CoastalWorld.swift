@@ -832,7 +832,7 @@ final class CoastalWorld {
         for prop in [wallMat.diffuse, wallMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
         wall.geometry?.firstMaterial = wallMat
         box(5.94, 0.25, 8.24, "89979F", at: vector(0, height + 0.03, 0), radius: 0.04, into: house)
-        box(5.76, 0.3, 0.16, tint, at: vector(0, height + 0.25, 3.95), radius: 0.025, into: house)
+        if variant % 3 != 1 { box(5.76, 0.3, 0.16, tint, at: vector(0, height + 0.25, 3.95), radius: 0.025, into: house) }  // the gable roof replaces the back parapet
         let front = -facing * 2.87
         for level in 0..<Int(height / 2.7) {
             let y = 1.5 + Double(level) * 2.65
@@ -1883,6 +1883,8 @@ private extension CoastalWorld {
         destinations = destinations.filter { $0.key == stage || $0.key == next }
         // Off-world skies are 2048x1024 decoded images; keep only the current and next stage's. HarborSky is never evicted.
         for (other, name) in Self.skyNames where other != stage && other != next { textureCache["asset-" + name] = nil }
+        // Live sections and the forge dais hold their own deck references; this only drops the cache entry.
+        for other in stages where other != stage && other != next { materials["deck-v4-" + other.rawValue] = nil }
         warmedStages = warmedStages.filter { $0 == stage || $0 == next }
         // Pools survive stage changes, but never retain more than 96 entity hierarchies.
         trimEntityPools()
@@ -2227,10 +2229,10 @@ private extension CoastalWorld {
                 let stripe = stage == .orbit ? "E9B44C" : "F08A3C"
                 for edge in [30.0, 954.0] {
                     ctx.saveGState(); ctx.clip(to: CGRect(x: edge, y: 0, width: 40, height: 1024))
-                    for y in stride(from: -40.0, to: 1064, by: 40) {
+                    for y in stride(from: -32.0, to: 1056, by: 32) {  // 32 divides 1024, so the stripes tile
                         ctx.setFillColor(color(stripe, alpha: 0.35).cgColor)
-                        ctx.move(to: CGPoint(x: edge, y: y)); ctx.addLine(to: CGPoint(x: edge + 40, y: y + 20))
-                        ctx.addLine(to: CGPoint(x: edge + 40, y: y + 40)); ctx.addLine(to: CGPoint(x: edge, y: y + 20)); ctx.fillPath()
+                        ctx.move(to: CGPoint(x: edge, y: y)); ctx.addLine(to: CGPoint(x: edge + 40, y: y + 16))
+                        ctx.addLine(to: CGPoint(x: edge + 40, y: y + 32)); ctx.addLine(to: CGPoint(x: edge, y: y + 16)); ctx.fillPath()
                     }
                     ctx.restoreGState()
                 }
