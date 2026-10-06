@@ -6,15 +6,31 @@ import Foundation
 struct SkillAudit {
     static let seeds = Int(ProcessInfo.processInfo.environment["QA_SEEDS"] ?? "30") ?? 30
 
-    /// Steer to the nearest coin ahead; jump for high coins, roll for low ones. Ignores hazards entirely.
+    /// Lane choice comes from coins alone; vertical reflexes are perfect. Steers to the nearest coin ahead and never
+    /// dodges sideways, but jumps or rolls whatever is directly in its current lane with the reader's timing.
     static func followCoins(_ run: inout RunnerSimulation, route: BranchRoute) {
         guard !run.isPortalTransitioning else { return }
         defer { if run.routeChoiceAvailable { run.chooseRoute(route) } }
         if run.isWaterTraversal { RouteAudit.driveWater(&run); return }
+        if run.activePowerUps[.jetpack] != nil { RouteAudit.drive(&run, route: route); return }
         if let d = run.portalDistance, d < 5.5, run.height < 0.05 { run.act(.jump); return }
-        guard let coin = run.entities.filter({ $0.kind == .coin && $0.z > 0.5 }).min(by: { $0.z < $1.z }) else { return }
-        if coin.lane < run.lane { run.act(.left) } else if coin.lane > run.lane { run.act(.right) }
-        guard coin.lane == run.lane, coin.z < run.speed * 0.35 else { return }
+        if let coin = run.entities.filter({ $0.kind == .coin && $0.z > 0.5 }).min(by: { $0.z < $1.z }) {
+            if coin.lane < run.lane { run.act(.left) } else if coin.lane > run.lane { run.act(.right) }
+        }
+        // Perfect reflexes for the nearest hazard in the occupied lane.
+        let ahead = run.entities.filter { RouteAudit.hazards.contains($0.kind) && $0.z > 0 && abs(run.lateral - Double($0.lane)) < 0.55 }
+        if let h = ahead.min(by: { $0.z < $1.z }) {
+            switch h.kind {
+            case .gap: if h.z < run.speed * 0.60, run.height < 0.05 { run.act(.jump) }
+            case .iceCrack: if h.z < run.speed * 0.38, run.height < 0.05 { run.act(.jump) }
+            case .barrier, .root: if h.z < run.speed * 0.32, run.height < 0.05 { run.act(.jump) }
+            case .arch, .laserSweep: if h.z < run.speed * 0.30, !run.isRolling { run.act(.roll) }
+            default: break
+            }
+        }
+        // Fallback: coin height signal.
+        guard let coin = run.entities.filter({ $0.kind == .coin && $0.z > 0.5 }).min(by: { $0.z < $1.z }),
+              coin.lane == run.lane, coin.z < run.speed * 0.35 else { return }
         if coin.y >= 1.4, run.height < 0.05 { run.act(.jump) }
         if coin.y <= 0.6, !run.isRolling { run.act(.roll) }
     }
