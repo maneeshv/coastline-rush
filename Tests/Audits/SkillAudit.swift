@@ -6,8 +6,8 @@ import Foundation
 struct SkillAudit {
     static let seeds = Int(ProcessInfo.processInfo.environment["QA_SEEDS"] ?? "30") ?? 30
 
-    /// Lane choice comes from coins alone; vertical reflexes are perfect. Steers to the nearest coin ahead and never
-    /// dodges sideways, but jumps or rolls whatever is directly in its current lane with the reader's timing.
+    /// Lane choice comes from coins (taking ramps to roof coins); never sideswipes a vehicle; vertical reflexes are
+    /// perfect; never dodges what is ahead. Jumps or rolls whatever is directly in its lane with the reader's timing.
     static func followCoins(_ run: inout RunnerSimulation, route: BranchRoute) {
         guard !run.isPortalTransitioning else { return }
         defer { if run.routeChoiceAvailable { run.chooseRoute(route) } }
@@ -15,7 +15,13 @@ struct SkillAudit {
         if run.activePowerUps[.jetpack] != nil { RouteAudit.drive(&run, route: route); return }
         if let d = run.portalDistance, d < 5.5, run.height < 0.05 { run.act(.jump); return }
         if let coin = run.entities.filter({ $0.kind == .coin && $0.z > 0.5 }).min(by: { $0.z < $1.z }) {
-            if coin.lane < run.lane { run.act(.left) } else if coin.lane > run.lane { run.act(.right) }
+            // A roof coin means take that lane's ramp, aligned before it starts.
+            var target = coin.lane
+            if coin.y >= 3.0, let ramp = run.entities.first(where: { $0.kind == .ramp && $0.lane == coin.lane && $0.z > 0 && $0.z < coin.z }) { target = ramp.lane }
+            let step = target < run.lane ? -1 : (target > run.lane ? 1 : 0)
+            // Never steer into the side of a vehicle or obstacle overlapping the runner.
+            let blocked = run.entities.contains { RouteAudit.hazards.contains($0.kind) && $0.lane == run.lane + step && $0.z - $0.length / 2 < 1.5 && $0.z + $0.length / 2 > -1.5 }
+            if step < 0 && !blocked { run.act(.left) } else if step > 0 && !blocked { run.act(.right) }
         }
         // Perfect reflexes for the nearest hazard in the occupied lane.
         let ahead = run.entities.filter { RouteAudit.hazards.contains($0.kind) && $0.z > 0 && abs(run.lateral - Double($0.lane)) < 0.55 }
