@@ -22,7 +22,10 @@ struct RouteAudit {
         }
         // A jetpack pickup swaps the hazard set: ground hazards are ignored in flight, drones are not.
         let flying = run.activePowerUps[.jetpack] != nil
-        let active = run.entities.filter { (flying ? $0.kind == .airHazard : hazards.contains($0.kind)) && $0.z + $0.length / 2 > -0.5 }.sorted { $0.z < $1.z }
+        // A lane-changer is read from its shift chevron: plan around the lane it will occupy on arrival.
+        let active = run.entities.filter { (flying ? $0.kind == .airHazard : hazards.contains($0.kind)) && $0.z + $0.length / 2 > -0.5 }
+            .map { e -> TrackEntity in var read = e; read.lane = e.arrivalLane; return read }
+            .sorted { $0.z < $1.z }
         guard let first = active.first, first.z < run.speed * 2.1 else { return }
         let row = active.filter { abs($0.z - first.z) < 2 }
         // Plan before a ramp starts. Hold the route until its full collider has passed.

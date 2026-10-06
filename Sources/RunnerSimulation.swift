@@ -267,7 +267,7 @@ struct RunnerSimulation: Codable {
         case .waterTraffic: return "CROSSING TRAFFIC · CARVE OR BRAKE"
         case .arch: return "LOW BEAM · SLIDE"
         case .barrier: return "CARGO LINE · JUMP"
-        case .tram: return worldStage == .mars ? "ROVER TRANSFER · TAKE THE RAMP" : "MOVING CARGO · CHANGE LANES"
+        case .tram: return entity.targetLane != nil ? "SHIFTING CARGO · TAKE THE LANE IT LEAVES" : worldStage == .mars ? "ROVER TRANSFER · TAKE THE RAMP" : "MOVING CARGO · CHANGE LANES"
         default: return ""
         }
     }
@@ -1257,19 +1257,22 @@ struct RunnerSimulation: Codable {
             let z = at - distance
             let row = enhancements.generatedRows
             enhancements.generatedRows += 1
-            let candidates = [-1, 0, 1].filter { abs($0 - challenge.previousSafeLane) <= 1 }
+            let previousSafe = challenge.previousSafeLane
+            let candidates = [-1, 0, 1].filter { abs($0 - previousSafe) <= 1 }
             let safe = candidates[Int(nextRandom() % UInt64(candidates.count))]
             challenge.previousSafeLane = safe
             let blocked = [-1, 0, 1].filter { $0 != safe }
             // No short repeating cycle. Later tiers unlock compound choices and
             // weight them more heavily; the PRNG makes each seeded run reproducible.
-            let pool: [Int]
+            let base: [Int]
             switch tier {
-            case .warmup: pool = [0, 0, 1, 2, 3, 4]
-            case .pressure: pool = [0, 1, 2, 2, 3, 4, 5, 6]
-            case .intense: pool = [0, 1, 2, 3, 3, 4, 5, 6, 7]
-            case .overdrive: pool = [0, 1, 2, 2, 3, 4, 5, 6, 6, 7, 7]
+            case .warmup: base = [0, 0, 1, 2, 3, 4]
+            case .pressure: base = [0, 1, 2, 2, 3, 4, 5, 6]
+            case .intense: base = [0, 1, 2, 3, 3, 4, 5, 6, 7]
+            case .overdrive: base = [0, 1, 2, 2, 3, 4, 5, 6, 6, 7, 7]
             }
+            // New hazards join pressure and later tiers, never a world's first rows.
+            let pool = base + (tier == .warmup || row < 4 ? [] : worldStage.hazardPatterns)
             var pattern = pool[Int(nextRandom() % UInt64(pool.count))]
             // Guarantee an early introduction to each world's vertical action.
             if row == 0 { pattern = 0 }
@@ -1291,6 +1294,8 @@ struct RunnerSimulation: Codable {
             if inBranch && branchRoute == .safe { interval += 0.45 }
             let gap = predictedSpeed * interval
             var relicLane = safe
+            // The lane coins and the next row treat as this row's route; a lane-changer moves it.
+            var routeLane = safe
             var relicZ = z
             var relicY = 0.9
             var relicVelocity = 0.0
@@ -1359,6 +1364,21 @@ struct RunnerSimulation: Codable {
                 if at + landingOffset + solidLength / 2 < localLimit {
                     for lane in blocked { add(solid, lane: lane, z: z + landingOffset, y: 0, length: solidLength) }
                 }
+            case 8: // Lane-changer: a blocked lane's vehicle slides into the open lane, so the open lane swaps.
+                // It leaves a lane next to both the open lane and the previous route: the new exit is one switch away.
+                let origins = blocked.filter { abs($0 - safe) == 1 && abs($0 - previousSafe) <= 1 }
+                let origin = origins[Int(nextRandom() % UInt64(origins.count))]
+                let other = blocked.first { $0 != origin }!
+                let length = worldStage == .mars ? 9.0 : 7.0
+                // The shift completes a reaction (1.0 s, Expert 0.8 s) plus one lane of steering before the runner reaches it.
+                let lead = (expert ? 0.8 : 1.0) + (worldStage == .cryo ? 1 / 3.8 : 1 / 9.0)
+                let complete = predictedSpeed * lead + length / 2 + 0.35
+                add(.tram, lane: origin, z: z, y: 0, length: length, targetLane: safe,
+                    motionStart: complete + predictedSpeed * 0.6, motionLength: predictedSpeed * 0.6)
+                add(solid, lane: other, z: z, y: 0, length: solidLength)
+                challenge.previousSafeLane = origin
+                routeLane = origin
+                relicLane = origin
             default: // Two mixed actions with an open adjacent escape on each beat.
                 add(jumpKind, lane: safe, z: z, y: 0, length: jumpLength)
                 add(solid, lane: blocked[0], z: z, y: 0, length: solidLength)
@@ -1383,13 +1403,13 @@ struct RunnerSimulation: Codable {
                 let solids = rowHazards.filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 }
                 // Landing and follow-beat solids next to the safe lane can anchor bait too (patterns 3, 6 and 7).
                 let laterSolids = entities[rowStart...].filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 &&
-                    $0.z > z + 1 && $0.z <= z + predictedSpeed * 1.2 && abs($0.lane - safe) == 1 }
+                    $0.z > z + 1 && $0.z <= z + predictedSpeed * 1.2 && abs($0.arrivalLane - routeLane) == 1 }
                 // Standard opens each world with four teaching rows: only safe or action lines.
                 let teaching = !expert && row < 4
                 let roll = nextRandom() % 100
                 let line = Self.coinLine(roll: teaching ? roll % 60 : roll, actionable: !(jumpLanes + slideLanes).isEmpty,
                                          solid: !(solids + laterSolids).isEmpty)
-                placeCoins(line, z: z, safe: safe, speed: predictedSpeed, jumpApex: jumpHeight, jumpLanes: jumpLanes,
+                placeCoins(line, z: z, safe: routeLane, speed: predictedSpeed, jumpApex: jumpHeight, jumpLanes: jumpLanes,
                            slideLanes: slideLanes, solids: Array(solids), laterSolids: laterSolids, teaching: teaching)
             }
             let milestones = [0.25, 0.51, 0.77]
@@ -1445,7 +1465,7 @@ struct RunnerSimulation: Codable {
         let floor = worldStage == .orbit ? (expert ? 1.95 : 2.13) : worldStage == .cryo ? (expert ? 1.50 : 1.65) : (expert ? 1.25 : 1.40)
         var interval = max(floor, pressure)
         if pattern == 4 { interval = max(interval, (worldStage == .mars ? 1.75 : 1.65) + (expert ? 0 : 0.12)) }
-        if pattern == 3 { interval = max(interval, (worldStage == .cryo ? 1.60 : 1.30) + (expert ? 0 : 0.14)) }
+        if [3, 8].contains(pattern) { interval = max(interval, (worldStage == .cryo ? 1.60 : 1.30) + (expert ? 0 : 0.14)) }
         return interval
     }
 
@@ -1463,7 +1483,7 @@ struct RunnerSimulation: Codable {
 
     private func laneIsClear(_ lane: Int, from: Double, to: Double) -> Bool {
         !entities.contains { e in
-            Self.isObstacle(e.kind) && e.lane == lane && e.z + e.length / 2 > from && e.z - e.length / 2 < to
+            Self.isObstacle(e.kind) && e.arrivalLane == lane && e.z + e.length / 2 > from && e.z - e.length / 2 < to
         }
     }
 
@@ -1475,7 +1495,7 @@ struct RunnerSimulation: Codable {
                                      teaching: Bool = false, coinLimit: Double = .infinity) {
         let lowLine = [-3.0, -1.5, 0, 1.5, 3]
         func halfLength(_ lane: Int) -> Double {
-            entities.filter { Self.isObstacle($0.kind) && $0.lane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
+            entities.filter { Self.isObstacle($0.kind) && $0.arrivalLane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
         }
         // Action and risk lines only use lanes that stay clear after the hazard, so no line leads into a landing solid.
         // Risk coins sit on both sides of the hazard, so the approach side must be clear too. Every stretch keeps
@@ -1489,7 +1509,7 @@ struct RunnerSimulation: Codable {
         // The resume line starts a lane switch (0.15 s) behind the solid.
         let resume = max(2, speed * 0.15)
         func baitPlan(_ solid: TrackEntity) -> (last: Double, arc: Bool)? {
-            let lane = solid.lane
+            let lane = solid.arrivalLane
             guard abs(lane - safe) == 1 else { return nil }
             let hl = solid.length / 2
             let last = solid.z - hl - speed * reaction
@@ -1539,7 +1559,7 @@ struct RunnerSimulation: Codable {
         case .bait:
             // A greedy line in a solid's lane that ends with time left for one lane switch.
             let (solid, last, arc) = bait!
-            let lane = solid.lane
+            let lane = solid.arrivalLane
             let firstCoin = entities.count
             if arc { addJourneyArc(lane: lane, z: z, apex: jumpApex, speed: speed, until: last) }
             else { for k in 0..<3 { add(.coin, lane: lane, z: last - Double(k) * 3, y: 0.9, length: 0.3) } }
@@ -1730,7 +1750,7 @@ struct RunnerSimulation: Codable {
         var rows: [Int: Set<Int>] = [:]
         for entity in entities where Self.isObstacle(entity.kind)
             && entity.oncomingSpeed == 0 && entity.z < z && entity.z + entity.length / 2 > -1 {
-            rows[Int((entity.z * 1_000).rounded()), default: []].insert(entity.lane)
+            rows[Int((entity.z * 1_000).rounded()), default: []].insert(entity.arrivalLane)
         }
         return rows.values.allSatisfy { $0.count < 2 || $0.contains(lane) }
     }

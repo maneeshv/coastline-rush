@@ -22,11 +22,11 @@ struct SkillAudit {
             if coin.y >= 3.0, let ramp = run.entities.first(where: { $0.kind == .ramp && $0.lane == coin.lane && $0.z > 0 && $0.z < coin.z }) { target = ramp.lane }
             let step = target < run.lane ? -1 : (target > run.lane ? 1 : 0)
             // Never steer into the side of a vehicle or obstacle overlapping the runner.
-            let blocked = run.entities.contains { RouteAudit.hazards.contains($0.kind) && $0.lane == run.lane + step && $0.z - $0.length / 2 < 1.5 && $0.z + $0.length / 2 > -1.5 }
+            let blocked = run.entities.contains { RouteAudit.hazards.contains($0.kind) && $0.arrivalLane == run.lane + step && $0.z - $0.length / 2 < 1.5 && $0.z + $0.length / 2 > -1.5 }
             if step < 0 && !blocked { run.act(.left) } else if step > 0 && !blocked { run.act(.right) }
         }
         // Perfect reflexes for the nearest hazard in the occupied lane.
-        let ahead = run.entities.filter { RouteAudit.hazards.contains($0.kind) && $0.z > 0 && abs(run.lateral - Double($0.lane)) < 0.55 }
+        let ahead = run.entities.filter { RouteAudit.hazards.contains($0.kind) && $0.z > 0 && abs(run.lateral - (Double($0.lane) + $0.laneOffset())) < 0.55 }
         if let h = ahead.min(by: { $0.z < $1.z }) {
             switch h.kind {
             case .gap: if h.z < run.speed * 0.60, run.height < 0.05 { run.act(.jump) }
@@ -53,7 +53,7 @@ struct SkillAudit {
             return !entities.contains { $0.kind == .airHazard && $0.lane == coin.lane &&
                 abs($0.z - coin.z) < $0.length / 2 + margin && abs($0.y - coin.y) < 2.0 }
         }
-        for o in entities where o.lane == coin.lane && RouteAudit.hazards.contains(o.kind) && (atCollection || o.oncomingSpeed == coin.oncomingSpeed) {
+        for o in entities where o.arrivalLane == coin.lane && RouteAudit.hazards.contains(o.kind) && (atCollection || o.oncomingSpeed == coin.oncomingSpeed) {
             guard abs(coin.z - o.z) < o.length / 2 + margin else { continue }
             switch o.kind {
             case .arch, .laserSweep:
@@ -125,7 +125,9 @@ struct SkillAudit {
     }
 
     /// G2 hazards and the Odyssey worlds that must generate them. Each hazard task adds its entry.
-    static let hazardWorlds: [String: Set<WorldStage>] = [:]
+    static let hazardWorlds: [String: Set<WorldStage>] = [
+        "lane-changer": [.harbor, .mars, .cryo],
+    ]
 
     /// Live check of the G2 lead-time rules at the moment each change happens, against the runner's real speed:
     /// a lane shift completes >= 1.0 s (Expert 0.8 s) ahead, a meteor lands >= 1.0 s ahead, a deck opens >= 0.5 s ahead.
@@ -159,9 +161,9 @@ struct SkillAudit {
             // a jump hazard in the same row of the escape lane.
             let jumps: Set<EntityKind> = [.gap, .barrier, .root, .iceCrack]
             let leaps = run.entities.filter { jumps.contains($0.kind) && $0.lane == coin.lane && $0.z + $0.length / 2 > coin.z - 1 && $0.z < solid.z }
-            let escapes = [solid.lane - 1, solid.lane + 1].filter { lane in
+            let escapes = [solid.arrivalLane - 1, solid.arrivalLane + 1].filter { lane in
                 (-1...1).contains(lane) && !run.entities.contains { o in
-                    RouteAudit.hazards.contains(o.kind) && o.lane == lane && o.z + o.length / 2 > from && o.z - o.length / 2 < to &&
+                    RouteAudit.hazards.contains(o.kind) && o.arrivalLane == lane && o.z + o.length / 2 > from && o.z - o.length / 2 < to &&
                         !(jumps.contains(o.kind) && leaps.contains { abs($0.z - o.z) < 1 })
                 }
             }

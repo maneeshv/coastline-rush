@@ -52,7 +52,7 @@ import SceneKit
                     for entity in run.entities {
                         guard let node = entityNodes[entity.id] else { continue }
                         let route = run.routeTransform(atAheadDistance: entity.z)
-                        guard abs(Double(node.position.x) - (Double(entity.lane) * 2.6 + route.lateralOffset)) < 0.001,
+                        guard abs(Double(node.position.x) - ((Double(entity.lane) + entity.laneOffset()) * 2.6 + route.lateralOffset)) < 0.001,
                               abs(Double(node.position.y) - (entity.y + route.elevation)) < 0.10 else {
                             fatalError("Entity \(entity.id) visual detached from its collider route")
                         }

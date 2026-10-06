@@ -1107,20 +1107,30 @@ final class CoastalWorld {
                 } else {
                     node = makeEntity(kind: entity.kind)
                     addActionCue(to: node, kind: entity.kind)
+                    if entity.kind == .tram { addShiftCue(to: node) }
                 }
                 liveNodes[entity.id] = node
                 liveKinds[entity.id] = key
                 scene.rootNode.addChildNode(node)
             }
             let path = simulation.routeTransform(atAheadDistance: entity.z)
-            node.position = vector(Double(entity.lane) * 2.6 + path.lateralOffset, entity.y + path.elevation, -entity.z)
+            // Drawn where it collides: a lane-changer's x follows the same eased offset as its collider.
+            node.position = vector((Double(entity.lane) + entity.laneOffset()) * 2.6 + path.lateralOffset, entity.y + path.elevation, -entity.z)
             switch entity.kind {
             case .tram:
                 node.scale = vector(1, 1, entity.length / 8)
                 let tramColors = ["146B79", "9C4B3E", "C59043"]
                 node.childNode(withName: "tramBody", recursively: false)?.geometry?.firstMaterial?.diffuse.contents = color(tramColors[entity.id % tramColors.count])
+                if let cue = node.childNode(withName: "shiftCue", recursively: false) {
+                    // The chevron points at the lane the vehicle will take and stays until the shift completes.
+                    let remaining = Double(entity.arrivalLane - entity.lane) - entity.laneOffset()
+                    cue.isHidden = entity.arrivalLane == entity.lane || abs(remaining) < 0.001
+                    cue.eulerAngles.y = scalar(entity.arrivalLane > entity.lane ? 0 : .pi)
+                    cue.scale = vector(highContrastCues ? 1.4 : 1, highContrastCues ? 1.4 : 1, 1 / max(0.01, entity.length / 8))
+                    cue.opacity = reducedMotion ? 1 : 0.75 + sin(time * 6) * 0.25
+                }
                 if let beacon = node.childNode(withName: "warningBeacon", recursively: false) {
-                    beacon.isHidden = entity.oncomingSpeed <= 0
+                    beacon.isHidden = entity.oncomingSpeed <= 0 && entity.targetLane == nil
                     beacon.opacity = reducedMotion ? 0.8 : 0.70 + sin(time * 4) * 0.2
                 }
             case .ramp:
@@ -2979,6 +2989,20 @@ private extension CoastalWorld {
         }
         if slide { glowBox(0.07, 0.033, 0.5, tint, at: vector(0, 0.09, -0.22), into: cue).castsShadow = false }
         cue.isHidden = true
+        root.addChildNode(cue)
+    }
+
+    /// A lane-changer's chevron points at the lane it will take: a shape, not a colour. Two radius-0 boxes, pooled with the tram.
+    func addShiftCue(to root: SCNNode) {
+        let cue = SCNNode()
+        cue.name = "shiftCue"
+        cue.isHidden = true
+        // Two strokes form a ">" in plan view pointing toward +x; the sync turns it toward the target lane.
+        for side in [-1.0, 1.0] {
+            let stroke = glowBox(0.62, 0.07, 0.14, "FFE3A1", at: vector(0, 3.25, side * 0.16), into: cue)
+            stroke.eulerAngles.y = scalar(side * 0.54)
+            stroke.castsShadow = false
+        }
         root.addChildNode(cue)
     }
 
