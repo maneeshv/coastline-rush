@@ -262,6 +262,21 @@ import SceneKit
             for _ in 0..<80 { s = RunnerPose.step(s, target: 1, dt: 0.05, stiffness: stiffness, damping: damping); peak = max(peak, abs(s.value)) }
             precondition(abs(s.value - 1) < 0.02 && peak < 1.5, "spring \(stiffness)/\(damping) at dt 0.05 must settle (value \(s.value), peak \(peak))")
         }
+        // A jump can cancel the roll at any moment, and land again: sweep the jump from 1 frame into the roll to 0.55 s and
+        // assert nothing goes under the deck on any frame from the jump until well after the landing.
+        var sweepLow = Double.infinity
+        for offset in [1, 2, 3] + Array(12...33) {
+            let d = Drive(resources, reduced: false)
+            for frame in 0..<20 + offset + 150 {
+                if frame == 20 { d.sim.act(.roll) }
+                if frame == 20 + offset { d.sim.act(.jump) }
+                d.step(1.0 / 60)
+                guard frame > 20 + offset else { continue }
+                sweepLow = min(sweepLow, points(under: d.player, in: d.world.scene.rootNode).map(\.y).min()!)
+                precondition(sweepLow >= -0.07, "jump \(offset) frames into a roll sinks into the deck (\(sweepLow)) at frame \(frame)")
+            }
+        }
+        print(String(format: "jump-cancel sweep: lowest vertex %.3f", sweepLow))
         // Foot plant: through a whole stride (48 phases) the stance boot never goes into the deck, and the plant stays modest.
         let planter = CoastalWorld(assetsURL: resources)
         let plantBoots: [SCNNode] = field(planter, "feet"), plantBody: SCNNode = field(planter, "body"), plantPlayer: SCNNode = field(planter, "player")

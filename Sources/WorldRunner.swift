@@ -296,11 +296,12 @@ extension CoastalWorld {
             var needed = smoothMax(smoothMax(-lowest(feet[0], soles), -lowest(feet[1], soles)), 0)
             // Reduced Motion keeps the body at the stride's peak need instead of bouncing with each footfall.
             if reducedMotion { needed = max(needed, plantHold - dt * 0.03); plantHold = needed }
-            plant = needed * amount * (1 - air) * (1 - fold)
+            plant = needed * (1 - air) * (1 - fold)   // position-based: 0 unless a boot is under the deck, so no `amount` weight (a landing right after a roll has it near 0)
             var all = [-lowest(body, [(0, 2.55, 0), (0, 1.3, 0.3), (0, 1.3, -0.3), (0, 2.0, 0.35), (0, 2.0, -0.35)])]
             all += [-lowest(feet[0], soles), -lowest(feet[1], soles), -lowest(shins[0], [(0, 0, 0)]), -lowest(shins[1], [(0, 0, 0)])]
             let pitched = min(1, max(0, (abs(shownPitch) - 0.2) / 0.3))
-            plant = max(plant, max(0, all.max()!) * (1 - fold) * pitched)
+            // Position-based, so it is 0 whenever the body is already clear of the deck (a full tuck rests above it).
+            plant = max(plant, max(0, all.max()!) * (1 - fold * fold * fold * fold) * pitched)
             body.position.y += scalar(plant)
         }
         // Head stabilisation: counter 90% of the body's pitch, twist, tilt and half its bob; tuck the chin while rolling.
