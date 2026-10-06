@@ -20,4 +20,6 @@ swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Sources/ReplayGhost.swift Sour
 "$audit_work/checkpoints"
 swiftc "${flags[@]}" "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld.swift Sources/World*.swift Tests/Audits/WorldCacheAudit.swift -o "$audit_work/cache"
 "$audit_work/cache"
+swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Tests/Audits/RouteAudit.swift Tests/Audits/SkillAudit.swift -o "$audit_work/skill"
+"$audit_work/skill"
 printf 'Audit executables retained at %s\n' "$audit_work"
