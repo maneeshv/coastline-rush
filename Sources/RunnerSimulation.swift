@@ -770,7 +770,8 @@ struct RunnerSimulation: Codable {
             let near = abs(entity.z) < 0.85
             if entity.kind == .coin {
                 let magnet = activePowerUps[.magnet] != nil && entity.z < 16 && entity.z > -2
-                let reachable = abs(entity.y - (height + 0.9)) < 1.15
+                // Low coins mark a roll: standing runners pass over them.
+                let reachable = entity.y <= 0.6 ? isRolling && height < 0.2 : abs(entity.y - (height + 0.9)) < 1.15
                 if (aligned && near && reachable) || (magnet && abs(entity.y - height) < 8) {
                     let coinValue = routeIsActive && branchRoute == .risky ? 2 : 1
                     coins += coinValue

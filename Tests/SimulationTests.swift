@@ -176,6 +176,19 @@ struct SimulationTests {
                 try expect(simulation.coins == 2 && simulation.keys == 0, "Magnet should attract nearby coins across lanes")
                 try expect(simulation.activePowerUps[.magnet] != nil, "Magnet pickup did not activate")
             }),
+            ("low coins need a roll", {
+                let low = entity(.coin, id: 1, lane: 0, z: 0.4, y: 0.35, length: 0.3)
+                var standing = fixture([low])
+                standing.update(dt: 1.0 / 60)
+                try expect(standing.coins == 0, "A standing runner should pass over a low coin")
+                var rolling = fixture([low])
+                rolling.act(.roll)
+                rolling.update(dt: 1.0 / 60)
+                try expect(rolling.coins == 1, "A rolling runner should collect a low coin")
+                var high = fixture([entity(.coin, id: 1, lane: 0, z: 0.4, y: 0.9, length: 0.3)])
+                high.update(dt: 1.0 / 60)
+                try expect(high.coins == 1, "A standing runner should still collect a chest-high coin")
+            }),
             ("aligned keys are collected once", {
                 var simulation = fixture([entity(.key, z: 0)])
                 simulation.update(dt: 0.1)

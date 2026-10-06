@@ -41,6 +41,42 @@ struct SkillAudit {
         if coin.y <= 0.6, !run.isRolling { run.act(.roll) }
     }
 
+    /// A coin is fair if some non-colliding posture at its position can collect it.
+    static func coinIsFair(_ coin: TrackEntity, among entities: [TrackEntity]) -> Bool {
+        for o in entities where o.lane == coin.lane && RouteAudit.hazards.contains(o.kind) && o.oncomingSpeed == coin.oncomingSpeed {
+            guard abs(coin.z - o.z) < o.length / 2 + 0.35 + 0.3 else { continue }
+            switch o.kind {
+            case .arch, .laserSweep:
+                // Only a roll at height 0 passes; it reaches coins below 2.05 m.
+                if coin.y >= 2.05 { return false }
+            default:
+                let minimumSafeHeight: Double
+                switch o.kind {
+                case .barrier, .root: minimumSafeHeight = 1.03
+                case .gap, .iceCrack: minimumSafeHeight = 0.4
+                case .meteor: minimumSafeHeight = 2.5
+                case .tram: minimumSafeHeight = RunnerSimulation.tramRoofHeight - 0.35
+                case .buoy: minimumSafeHeight = 1.4
+                default: minimumSafeHeight = 1.8 // waterTraffic
+                }
+                // Reachable at a safe height h if |y - (h + 0.9)| < 1.15 for some h >= minimum, and not low.
+                if coin.y <= 0.6 || coin.y <= minimumSafeHeight - 0.25 { return false }
+            }
+        }
+        return true
+    }
+
+    /// Records each newly generated coin once; counts it in `unfair` if it cannot be collected safely.
+    static func checkCoins(_ run: RunnerSimulation, seen: inout Set<Int>, unfair: inout Int) {
+        for coin in run.entities where coin.kind == .coin && !seen.contains(coin.id) {
+            seen.insert(coin.id)
+            if !coinIsFair(coin, among: run.entities) {
+                unfair += 1
+                if unfair <= 5 { print("UNFAIR coin id=\(coin.id) lane=\(coin.lane) z=\(coin.z) y=\(coin.y) mode=\(run.mode) world=\(run.worldStage)") }
+            }
+        }
+    }
+
     static func median(_ values: [Double]) -> Double {
         let sorted = values.sorted()
         return sorted.isEmpty ? 0 : sorted[sorted.count / 2]
@@ -48,6 +84,7 @@ struct SkillAudit {
 
     static func main() {
         setvbuf(stdout, nil, _IOLBF, 0) // flush lines even if the precondition traps
+        var unfair = 0
         for expert in [false, true] {
             // Odyssey: share of coin-follower runs that crash before completing world 2.
             for route in [BranchRoute.safe, .risky] {
@@ -55,8 +92,8 @@ struct SkillAudit {
                 for seed in 1...seeds {
                     var run = RunnerSimulation()
                     run.start(seed: UInt64(seed), boards: 0, mode: .odyssey, expert: expert)
-                    var tick = 0
-                    while run.phase == .running && tick < 90_000 { followCoins(&run, route: route); run.update(dt: 1.0 / 60); tick += 1 }
+                    var tick = 0, seen = Set<Int>()
+                    while run.phase == .running && tick < 90_000 { followCoins(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; checkCoins(run, seen: &seen, unfair: &unfair) }
                     if run.phase == .crashed && run.stageIndex < 2 { failedEarly += 1 }
                     worlds.append(Double(run.stageIndex) + run.stageProgress)
                 }
@@ -69,7 +106,8 @@ struct SkillAudit {
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .endless, expert: expert)
-                while run.phase == .running && run.elapsed < 300 { followCoins(&run, route: .safe); run.update(dt: 1.0 / 60) }
+                var seen = Set<Int>()
+                while run.phase == .running && run.elapsed < 300 { followCoins(&run, route: .safe); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, unfair: &unfair) }
                 survival.append(run.elapsed)
             }
             print(String(format: "COIN-FOLLOWER endless expert=%@: median=%.1fs (target <%ds) mean=%.1fs",
@@ -79,13 +117,16 @@ struct SkillAudit {
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .endless, expert: expert)
-                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60) }
+                var seen = Set<Int>()
+                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, unfair: &unfair) }
                 if run.phase == .running { survived += 1 }
                 else { print("READER-FAIL endless seed=\(seed) expert=\(expert) t=\(String(format: "%.1f", run.elapsed)) lane=\(run.lane) reason=\(run.crashReason)") }
             }
             print("READER endless expert=\(expert): survived=\(survived)/\(seeds) (300s)")
             precondition(survived == seeds, "Hazard reader must survive every Endless seed")
         }
+        print("FAIRNESS unfairCoins=\(unfair)")
+        precondition(unfair == 0, "Every coin must be collectible without a forced collision")
         print("SkillAudit passed")
     }
 }
