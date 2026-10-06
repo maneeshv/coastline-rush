@@ -109,6 +109,8 @@ struct SkillAudit {
         precondition(RunnerSimulation.coinLine(roll: 70, actionable: false, solid: false) == .safe, "Rows without hazards fall back to the safe line")
         print("COIN-LINES safe=\(tally[.safe, default: 0]) action=\(tally[.action, default: 0]) risk=\(tally[.risk, default: 0]) bait=\(tally[.bait, default: 0]) per 100 rows")
         var unfair = 0
+        // Coin lines the generator actually laid in the reader's runs, after fallbacks.
+        var placed: [RunMode: [RunnerSimulation.CoinLine: Int]] = [:]
         for expert in [false, true] {
             // Odyssey: share of coin-follower runs that crash before completing world 2.
             for route in [BranchRoute.safe, .risky] {
@@ -133,6 +135,7 @@ struct SkillAudit {
                     run.start(seed: UInt64(seed), boards: 0, mode: .odyssey, expert: expert)
                     var tick = 0, seen = Set<Int>(), flagged = Set<Int>()
                     while run.phase == .running && tick < 90_000 { RouteAudit.drive(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                    placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
                     if run.phase == .finished { cleared += 1 }
                     else { print("READER-FAIL odyssey seed=\(seed) route=\(route.rawValue) expert=\(expert) world=\(run.worldStage) reason=\(run.crashReason)") }
                 }
@@ -157,6 +160,7 @@ struct SkillAudit {
                 run.start(seed: UInt64(seed), boards: 0, mode: .endless, expert: expert)
                 var seen = Set<Int>(), flagged = Set<Int>()
                 while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
                 if run.phase == .running { survived += 1 }
                 else { print("READER-FAIL endless seed=\(seed) expert=\(expert) t=\(String(format: "%.1f", run.elapsed)) lane=\(run.lane) reason=\(run.crashReason)") }
             }
@@ -169,6 +173,14 @@ struct SkillAudit {
                 while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
             }
             precondition(survived == seeds, "Hazard reader must survive every Endless seed")
+        }
+        for mode in [RunMode.odyssey, .endless] {
+            let lines = placed[mode, default: [:]]
+            let total = Double(max(1, lines.values.reduce(0, +)))
+            func share(_ line: RunnerSimulation.CoinLine) -> Double { Double(lines[line, default: 0]) / total * 100 }
+            print(String(format: "PLACED-LINES mode=%@ safe=%.1f%% action=%.1f%% risk=%.1f%% bait=%.1f%% rows=%d",
+                         mode.rawValue, share(.safe), share(.action), share(.risk), share(.bait), Int(total)))
+            precondition(share(.safe) <= 35, "At most 35% of placed coin lines may mark the safe lane")
         }
         print("FAIRNESS unfairCoins=\(unfair) (coins, keys and power-ups; first sight and collection time)")
         precondition(unfair == 0, "Every coin and pickup must be collectible without a forced collision")

@@ -298,6 +298,8 @@ struct RunnerSimulation: Codable {
     private var powerDurations: [PowerUp: Double] = [:]
     private var preciseScore = 0.0
     private var processedObstacles: Set<Int> = []
+    /// Coin lines actually laid this run, for audits. Not persisted: a restored run starts a new tally.
+    private(set) var placedCoinLines: [CoinLine: Int] = [:]
     private var generateTrack = true
 
     mutating func start(seed: UInt64 = 0xC0A5711E, baseMultiplier: Int = 1,
@@ -1309,14 +1311,21 @@ struct RunnerSimulation: Codable {
                     add(jumpKind, lane: blocked[0], z: followZ, y: 0, length: jumpLength)
                 }
             }
-            if pattern != 4 {
+            if pattern == 4 {
+                // The roof coins ask for a ramp leap: an action line.
+                placedCoinLines[.action, default: 0] += 1
+            } else {
                 let rowHazards = entities[rowStart...].filter { Self.isObstacle($0.kind) && abs($0.z - z) < 1 }
                 let jumpLanes = rowHazards.filter { $0.kind == jumpKind }.map(\.lane)
                 let slideLanes = rowHazards.filter { $0.kind == slideKind }.map(\.lane)
                 let solids = rowHazards.filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 }
-                let line = Self.coinLine(roll: nextRandom() % 100, actionable: !(jumpLanes + slideLanes).isEmpty, solid: !solids.isEmpty)
+                // Landing and follow-beat solids next to the safe lane can anchor bait too (patterns 3, 6 and 7).
+                let laterSolids = entities[rowStart...].filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 &&
+                    $0.z > z + 1 && $0.z <= z + predictedSpeed * 1.2 && abs($0.lane - safe) == 1 }
+                let line = Self.coinLine(roll: nextRandom() % 100, actionable: !(jumpLanes + slideLanes).isEmpty,
+                                         solid: !(solids + laterSolids).isEmpty)
                 placeCoins(line, z: z, safe: safe, speed: predictedSpeed, jumpApex: jumpHeight,
-                           jumpLanes: jumpLanes, slideLanes: slideLanes, solids: Array(solids))
+                           jumpLanes: jumpLanes, slideLanes: slideLanes, solids: Array(solids), laterSolids: laterSolids)
             }
             let milestones = [0.25, 0.51, 0.77]
             if journey.generatedRelics < 3 && local >= stageLength * milestones[journey.generatedRelics] {
@@ -1375,13 +1384,13 @@ struct RunnerSimulation: Codable {
         return interval
     }
 
-    enum CoinLine: Equatable { case safe, action, risk, bait }
+    enum CoinLine: Hashable { case safe, action, risk, bait }
 
     /// Coins are an invitation, not a route marker: at most 30% of rows mark the safe lane.
     static func coinLine(roll: UInt64, actionable: Bool, solid: Bool) -> CoinLine {
         switch roll % 100 {
         case 0..<30: return .safe
-        case 30..<60: return actionable ? .action : .safe
+        case 30..<60: return actionable ? .action : (solid ? .bait : .safe)
         case 60..<85: return actionable ? .risk : (solid ? .bait : .safe)
         default: return solid ? .bait : (actionable ? .risk : .safe)
         }
@@ -1394,8 +1403,9 @@ struct RunnerSimulation: Codable {
     }
 
     /// Lays this row's coins. `safe` is the intended route lane, which may itself need a jump or roll.
+    /// `laterSolids` are landing or follow-beat solids after this row that may also anchor a bait line.
     private mutating func placeCoins(_ line: CoinLine, z: Double, safe: Int, speed: Double, jumpApex: Double,
-                                     jumpLanes: [Int], slideLanes: [Int], solids: [TrackEntity]) {
+                                     jumpLanes: [Int], slideLanes: [Int], solids: [TrackEntity], laterSolids: [TrackEntity] = []) {
         let lowLine = [-3.0, -1.5, 0, 1.5, 3]
         func halfLength(_ lane: Int) -> Double {
             entities.filter { Self.isObstacle($0.kind) && $0.lane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
@@ -1405,45 +1415,69 @@ struct RunnerSimulation: Codable {
         // 1.3 m past its outermost coin: a coin within 1.2 m of a collider's edge overlaps it at collection.
         let open = (jumpLanes + slideLanes).filter { laneIsClear($0, from: z + halfLength($0) + 0.5, to: z + max(speed * 1.2, halfLength($0) + 10.3)) }
         let openBefore = open.filter { laneIsClear($0, from: z - halfLength($0) - 10.3, to: z - halfLength($0) - 0.1) }
-        // Bait stops short of its solid, and only where no other hazard covers the pre-solid, gap and resume stretches.
-        func baitStretchIsClear(_ solid: TrackEntity, last: Double) -> Bool {
-            let hl = solid.length / 2
-            return laneIsClear(solid.lane, from: last - 7.3, to: last + 1.3)
-                && laneIsClear(solid.lane, from: last + 1.3, to: solid.z - hl - 0.1)
-                && laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + 9.3)
-        }
-        let baitSolid = solids.first { abs($0.lane - safe) == 1 }
+        // Bait ends `reaction` seconds before its solid, and only where no other hazard covers the pre-solid,
+        // gap and resume stretches. Behind this row's jump the pre-solid bait is the jump's arc, cut short:
+        // the player leaps, then steers in flight.
         let reaction = mode == .odyssey && worldStage == .cryo ? 0.55 : 0.35
-        let baitLast = baitSolid.map { $0.z - $0.length / 2 - speed * reaction } ?? 0
-        switch line {
-        case .action where !open.isEmpty:
-            let lane = open[Int(nextRandom() % UInt64(open.count))]
+        func baitPlan(_ solid: TrackEntity) -> (last: Double, arc: Bool)? {
+            guard abs(solid.lane - safe) == 1 else { return nil }
+            let hl = solid.length / 2
+            let last = solid.z - hl - speed * reaction
+            let arc = jumpLanes.contains(solid.lane) && solid.z > z + 1
+            let before = arc ? z <= last && laneIsClear(solid.lane, from: z + halfLength(solid.lane) + 0.1, to: solid.z - hl - 0.1)
+                : laneIsClear(solid.lane, from: last - 7.3, to: last + 1.3) && laneIsClear(solid.lane, from: last + 1.3, to: solid.z - hl - 0.1)
+            guard before, laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + 9.3) else { return nil }
+            return (last, arc)
+        }
+        var bait: (solid: TrackEntity, last: Double, arc: Bool)? = nil
+        for solid in solids + laterSolids where bait == nil {
+            if let plan = baitPlan(solid) { bait = (solid, plan.last, plan.arc) }
+        }
+        // Action and risk lines never use the safe lane: there they would mark the route like a safe line.
+        let actionLanes = open.filter { $0 != safe }
+        let riskLanes = openBefore.filter { $0 != safe }
+        func available(_ candidate: CoinLine) -> Bool {
+            switch candidate {
+            case .safe: return true
+            case .action: return !actionLanes.isEmpty
+            case .risk: return !riskLanes.isEmpty
+            case .bait: return bait != nil
+            }
+        }
+        // A requested invitation the row cannot hold falls back to another invitation before the safe line.
+        let placed = ([line] + (line == .safe ? [] : [.action, .risk, .bait])).first(where: available) ?? .safe
+        switch placed {
+        case .action:
+            let lane = actionLanes[Int(nextRandom() % UInt64(actionLanes.count))]
             if jumpLanes.contains(lane) { addJourneyArc(lane: lane, z: z, apex: jumpApex, speed: speed) }
             else { for offset in lowLine { add(.coin, lane: lane, z: z + offset, y: 0.35, length: 0.3) } }
-        case .risk where !openBefore.isEmpty:
+        case .risk:
             // Ground-height coins around a jump or slide hazard: they do not signal the action.
-            let lane = openBefore[Int(nextRandom() % UInt64(openBefore.count))]
+            let lane = riskLanes[Int(nextRandom() % UInt64(riskLanes.count))]
             let clearance = halfLength(lane) + 3
             for k in 0..<3 {
                 add(.coin, lane: lane, z: z - clearance - Double(k) * 3, y: 0.9, length: 0.3)
                 add(.coin, lane: lane, z: z + clearance + Double(k) * 3, y: 0.9, length: 0.3)
             }
-        case .bait where baitSolid != nil && baitStretchIsClear(baitSolid!, last: baitLast):
+        case .bait:
             // A greedy line in a solid's lane that ends with time left for one lane switch.
-            let solid = baitSolid!
-            for k in 0..<3 { add(.coin, lane: solid.lane, z: baitLast - Double(k) * 3, y: 0.9, length: 0.3) }
+            let (solid, last, arc) = bait!
+            if arc { addJourneyArc(lane: solid.lane, z: z, apex: jumpApex, speed: speed, until: last) }
+            else { for k in 0..<3 { add(.coin, lane: solid.lane, z: last - Double(k) * 3, y: 0.9, length: 0.3) } }
             // The line resumes behind the solid: staying in lane for it is fatal, stepping out and back is not.
             for k in 0..<3 { add(.coin, lane: solid.lane, z: solid.z + solid.length / 2 + 2 + Double(k) * 3, y: 0.9, length: 0.3) }
-        default:
+        case .safe:
             if jumpLanes.contains(safe) { addJourneyArc(lane: safe, z: z, apex: jumpApex, speed: speed) }
             else if slideLanes.contains(safe) { for offset in lowLine { add(.coin, lane: safe, z: z + offset, y: 0.35, length: 0.3) } }
             else { for offset in [-6.0, -3, 0, 3] { add(.coin, lane: safe, z: z + offset, y: 0.9, length: 0.3) } }
         }
+        placedCoinLines[placed, default: 0] += 1
     }
 
-    private mutating func addJourneyArc(lane: Int, z: Double, apex: Double, speed: Double) {
+    /// Coins over a jump; `until` cuts the arc short (a bait arc ends before a landing solid).
+    private mutating func addJourneyArc(lane: Int, z: Double, apex: Double, speed: Double, until: Double = .infinity) {
         let extent = min(11, speed * 0.24)
-        for fraction in [-1.0, -0.5, 0, 0.5, 1] {
+        for fraction in [-1.0, -0.5, 0, 0.5, 1] where z + extent * fraction <= until {
             add(.coin, lane: lane, z: z + extent * fraction, y: apex - abs(fraction) * 0.55, length: 0.3)
         }
     }
