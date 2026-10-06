@@ -97,7 +97,7 @@ import SceneKit
                             let image = contents as! CGImage
                             widths.insert(image.width)
                             if image.width == 1024 {
-                                precondition(m.diffuse.mipFilter == .linear && m.diffuse.maxAnisotropy >= 8, "deck textures need trilinear + anisotropic filtering")
+                                precondition(m.diffuse.mipFilter == .linear && m.diffuse.maxAnisotropy >= 4, "deck textures need trilinear + anisotropic filtering")
                             }
                         }
                     }

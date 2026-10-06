@@ -21,7 +21,8 @@ extension CoastalWorld {
     float3 p = local * detailScale;
     float4 broad = detailMap.sample(detailSampler, p.yz) * w.x + detailMap.sample(detailSampler, p.xz) * w.y + detailMap.sample(detailSampler, p.xy) * w.z;
     float3 q = p * \(fineDetailMultiplier) + 0.31;
-    float4 fine = detailMap.sample(detailSampler, q.yz) * w.x + detailMap.sample(detailSampler, q.xz) * w.y + detailMap.sample(detailSampler, q.xy) * w.z;
+    float2 fineUV = (w.x > w.y && w.x > w.z) ? q.yz : (w.y > w.z ? q.xz : q.xy);
+    float4 fine = detailMap.sample(detailSampler, fineUV);
     float breakup = (broad.r - 0.5) * 2.0;
     float grain = (fine.g - 0.5) * 2.0;
     _surface.diffuse.rgb *= max(0.15, 1.0 + detailStrength * (0.22 * breakup + 0.10 * grain - 0.35 * broad.b));

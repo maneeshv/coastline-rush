@@ -706,7 +706,7 @@ final class CoastalWorld {
         for prop in [asphalt.diffuse, asphalt.normal, asphalt.roughness] {
             prop.wrapS = .repeat; prop.wrapT = .repeat
             prop.contentsTransform = SCNMatrix4MakeScale(3, 8, 1)
-            prop.maxAnisotropy = 8
+            prop.maxAnisotropy = 4
             prop.mipFilter = .linear
         }
         surface.geometry?.firstMaterial = asphalt
@@ -718,7 +718,7 @@ final class CoastalWorld {
             stone.normal.intensity = 0.25
             stone.diffuse.wrapS = .repeat; stone.diffuse.wrapT = .repeat
             stone.diffuse.contentsTransform = SCNMatrix4MakeScale(1, 10, 1)
-            for prop in [stone.diffuse, stone.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
+            for prop in [stone.diffuse, stone.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
             pavement.geometry?.firstMaterial = stone
             box(0.13, 0.2, 24, cream, at: vector(side * 4.05, 0.02, -12), radius: 0.025, into: roadway)
             let glow = box(0.035, 0.025, 24, "42E1DE", at: vector(side * 4.01, 0.13, -12), radius: 0, into: roadway)
@@ -730,7 +730,7 @@ final class CoastalWorld {
             quayMat.normal.intensity = 0.3
             quayMat.diffuse.wrapS = .repeat; quayMat.diffuse.wrapT = .repeat
             quayMat.diffuse.contentsTransform = SCNMatrix4MakeScale(3, 8, 1)
-            for prop in [quayMat.diffuse, quayMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
+            for prop in [quayMat.diffuse, quayMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
             quay.geometry?.firstMaterial = quayMat
             box(0.22, 0.18, 24, "8898A4", at: vector(side * 5.98, 0.2, -12), radius: 0.025, into: section)
             for z in stride(from: -1.0, through: -24.0, by: -2.5) {
@@ -829,7 +829,7 @@ final class CoastalWorld {
         wallMat.roughness.contents = 0.82
         wallMat.diffuse.wrapS = .repeat; wallMat.diffuse.wrapT = .repeat
         wallMat.diffuse.contentsTransform = SCNMatrix4MakeScale(2, 2, 1)
-        for prop in [wallMat.diffuse, wallMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
+        for prop in [wallMat.diffuse, wallMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
         wall.geometry?.firstMaterial = wallMat
         box(5.94, 0.25, 8.24, "89979F", at: vector(0, height + 0.03, 0), radius: 0.04, into: house)
         box(5.76, 0.3, 0.16, tint, at: vector(0, height + 0.25, 3.95), radius: 0.025, into: house)
@@ -2280,7 +2280,7 @@ private extension CoastalWorld {
         mat.diffuse.contentsTransform = SCNMatrix4MakeScale(1, 2, 1)
         mat.normal.contents = texture(stage == .cryo ? "water-normal" : "cloth-normal")
         mat.normal.intensity = stage == .cryo ? 0.09 : 0.10
-        for prop in [mat.diffuse, mat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
+        for prop in [mat.diffuse, mat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
         materials[key] = mat
         return mat
     }
@@ -2469,7 +2469,7 @@ private extension CoastalWorld {
         }
         surface.diffuse.wrapS = .repeat; surface.diffuse.wrapT = .repeat
         surface.normal.contents = texture("cloth-normal"); surface.normal.intensity = icy ? 0.08 : 0.28
-        for prop in [surface.diffuse, surface.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
+        for prop in [surface.diffuse, surface.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
         materials[key] = surface
         return surface
     }
