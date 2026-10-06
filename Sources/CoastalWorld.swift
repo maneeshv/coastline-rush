@@ -2353,14 +2353,15 @@ private extension CoastalWorld {
         // Irregular connected ridgelines: each peak has shoulders and secondary erosion features.
         for layer in 0..<3 {
             var vertices: [SCNVector3] = [], indices: [Int32] = []
-            let columns = 72, rows = 5
+            let columns = 144, rows = 7
             for row in 0..<rows { for column in 0..<columns {
                 let x = -230 + Double(column) * 460 / Double(columns - 1)
-                let phase = Double(column) * 0.23 + Double(layer) * 1.7
-                let ridge = 22 + pow(abs(sin(phase)), 1.6) * 22 + sin(phase * 2.7) * 6 + cos(phase * 5.3) * 2.5
-                let crest = 1 - abs(Double(row) - 2) / 2.5
+                let phase = Double(column) * 0.115 + Double(layer) * 1.7
+                let erosion = (Self.valueNoise(Double(column) * 0.09, Double(layer) * 3.1, 11) - 0.5) * 10
+                let ridge = 22 + pow(abs(sin(phase)), 1.6) * 22 + sin(phase * 2.7) * 6 + cos(phase * 5.3) * 2.5 + erosion
+                let crest = 1 - abs(Double(row) - 3) / 3.5
                 let y = -7 + ridge * crest * (0.65 + Double(layer) * 0.22)
-                vertices.append(vector(x, y, -172 - Double(layer) * 29 - Double(row) * 11))
+                vertices.append(vector(x, y, -172 - Double(layer) * 29 - Double(row) * 7.3))
             } }
             for row in 0..<(rows - 1) { for column in 0..<(columns - 1) {
                 let a = Int32(row * columns + column), b = a + Int32(columns)
@@ -2373,17 +2374,9 @@ private extension CoastalWorld {
     }
 
     func makeTerrain(into root: SCNNode, side: Double, index: Int, tint: String, height: Double, icy: Bool) {
-        var vertices: [SCNVector3] = [], indices: [Int32] = []
-        let columns = 25, rows = 7
-        for row in 0..<rows { for column in 0..<columns {
-            let z = -13 + Double(column) * 26 / Double(columns - 1)
-            let position = Double(index) * 26 - z
-            let variation = sin(position * 0.19 + Double(row) * 0.7) * 0.32 + sin(position * 0.77 + Double(row)) * 0.13
-            let heightFraction = Double(row) / Double(rows - 1)
-            let ridgeHeight = (icy ? 11.0 : 12.0) + sin(position * 0.025) * 3
-            let y = row == 0 ? -1.3 : ridgeHeight * heightFraction * (0.82 + variation) + sin(position * 1.8) * heightFraction * 0.35
-            vertices.append(vector(side * (7.5 + Double(row) * 3.6 + variation * 1.7), y, z))
-        } }
+        let columns = 41, rows = 11
+        let vertices = Self.terrainVertices(side: side, index: index, icy: icy, columns: columns, rows: rows).map { vector($0.x, $0.y, $0.z) }
+        var indices: [Int32] = []
         for row in 0..<(rows - 1) { for column in 0..<(columns - 1) {
             let a = Int32(row * columns + column), b = a + Int32(columns)
             if side > 0 { indices += [a, b, a + 1, a + 1, b, b + 1] }

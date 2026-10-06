@@ -56,6 +56,23 @@ import SceneKit
             let reach = [abs(b.lo.x), b.hi.x, abs(b.lo.z), b.hi.z].max()!
             precondition(reach <= 0.45 * height, "crystal \(height) too wide: \(reach)")
         }
+        // Terrain: neighbouring sections share their edge, and the wall never enters the ±5 m corridor.
+        let columns = 41, rows = 11
+        for side in [-1.0, 1.0] { for icy in [false, true] { for index in 0..<8 {
+            let here = CoastalWorld.terrainVertices(side: side, index: index, icy: icy)
+            let next = CoastalWorld.terrainVertices(side: side, index: index + 1, icy: icy)
+            precondition(here.count == columns * rows, "terrain vertex count \(here.count)")
+            for row in 0..<rows {
+                // Section k sits at z = -26k, so local z = -13 of section i meets local z = +13 of section i + 1.
+                let a = here[row * columns], b = next[row * columns + columns - 1]
+                precondition(abs(a.x - b.x) < 1e-9 && abs(a.y - b.y) < 1e-9, "terrain seam between sections \(index) and \(index + 1), row \(row)")
+            }
+            for (i, v) in here.enumerated() {
+                precondition(abs(v.x) >= 7.5 - 1e-9, "terrain enters the track corridor at vertex \(i): \(v.x)")
+                precondition(v.y >= -1.3 - 1e-9 && v.y <= 22, "terrain height out of range: \(v.y)")
+            }
+            precondition(here[0].y == -1.3 && abs(abs(here[0].x) - 7.5) < 1e-9, "row 0 must stay at the track edge")
+        } } }
         print("PropsTests passed")
     }
 }

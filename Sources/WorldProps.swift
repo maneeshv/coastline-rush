@@ -126,4 +126,23 @@ extension CoastalWorld {
         }
         return cluster
     }
+    /// Valley-wall heightfield for one 26 m section. Rows run outward from the track edge (row 0 at |x| = 7.5),
+    /// columns along local z. Noise is keyed by world distance, so neighbouring sections share their edge vertices.
+    static func terrainVertices(side: Double, index: Int, icy: Bool, columns: Int = 41, rows: Int = 11) -> [SIMD3<Double>] {
+        var result: [SIMD3<Double>] = []
+        result.reserveCapacity(columns * rows)
+        let seed = side > 0 ? 7.0 : 0.0
+        for row in 0..<rows { for column in 0..<columns {
+            let z = -13 + Double(column) * 26 / Double(columns - 1)
+            let distance = Double(index) * 26 - z
+            let fraction = Double(row) / Double(rows - 1)
+            let broad = valueNoise(distance * 0.11, fraction * 2.3, seed) - 0.5
+            let detail = valueNoise(distance * 0.43, fraction * 6.1, seed + 3) - 0.5
+            let ridge = (icy ? 11.0 : 12.0) + sin(distance * 0.025) * 3
+            let y = row == 0 ? -1.3 : ridge * pow(fraction, 1.25) * (0.85 + broad * 0.7) + detail * 1.6 * fraction
+            let x = side * (7.5 + fraction * 21.6 + broad * 2.4 * fraction)
+            result.append(SIMD3(x, y, z))
+        } }
+        return result
+    }
 }
