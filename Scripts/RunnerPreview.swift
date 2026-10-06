@@ -97,7 +97,9 @@ import SceneKit
         var last = -1.0
         while run.height > last { last = run.height; step(1) }
         try shoot(land, "jump-apex", time: time, out: out)
-        while run.height > 0 { step(1) }
+        var frames = 0
+        while run.height > 0 && frames < 300 { step(1); frames += 1 }   // cap: a jump that never lands must not hang the harness
+        precondition(run.height <= 0, "jump did not land within 300 frames")
         step(9); try shoot(land, "landing", time: time, out: out)                        // ~0.15 s into the squash
         step(40); run.act(.roll); step(14); try shoot(land, "roll", time: time, out: out)
         step(60); try shoot(land, "milo", time: time, out: out)

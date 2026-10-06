@@ -1,7 +1,8 @@
 import Foundation
 import SceneKit
 
-/// Runner rig: the contracts other code relies on, proportions and node budget, and the pose-curve math.
+/// Runner rig: the contracts other code relies on, bind-pose proportions, node and draw budgets, the clothing tint,
+/// and the pose-curve math (keys, continuity, symmetry, blends, follow-through springs).
 @main struct RunnerTests {
     static func field<T>(_ world: CoastalWorld, _ label: String) -> T {
         Mirror(reflecting: world).children.first { $0.label == label }!.value as! T
@@ -64,7 +65,7 @@ import SceneKit
             precondition(nodes.count == 2, "`\(label)` must hold one node per side (\(nodes.count))")
         }
         let player: SCNNode = field(world, "player")
-        for name in ["leftLeg", "rightLeg", "leftArm", "rightArm", "jetSki", "artifactAura"] {
+        for name in ["leftLeg", "rightLeg", "leftArm", "rightArm", "jetSki", "artifactAura", "deck"] {
             precondition(player.childNode(withName: name, recursively: true) != nil, "node `\(name)` missing under player")
         }
         world.updateGhost(sample: GhostSample(time: 0, distance: 5, stageIndex: 0, stageDistance: 5, x: 0, y: 0, roll: false))
@@ -74,6 +75,7 @@ import SceneKit
         let curves = [RunnerPose.thighKeys, RunnerPose.shinKeys, RunnerPose.footKeys, RunnerPose.armKeys, RunnerPose.forearmKeys,
                       RunnerPose.swayKeys, RunnerPose.yawKeys, RunnerPose.rollKeys, RunnerPose.bobKeys, RunnerPose.leanKeys]
         for (c, keys) in curves.enumerated() {
+            precondition(keys.allSatisfy { abs($0) <= 2.0 }, "curve \(c) has a key outside ±2 (spiked key?)")
             let f = { (p: Double) in RunnerPose.sample(keys, phase: p) }
             let spacing = 2 * Double.pi / Double(keys.count)
             for k in keys.indices {
@@ -85,7 +87,8 @@ import SceneKit
             var p = -2 * Double.pi
             while p < 4 * Double.pi {
                 precondition(abs(f(p) - f(p + 2 * .pi)) < 1e-9, "curve \(c) is not periodic at \(p)")
-                precondition(abs(f(p + 0.001) - f(p)) < 0.01, "curve \(c) steps at \(p)")
+                precondition(abs(f(p + 0.001) - f(p)) < 0.0025, "curve \(c) steps at \(p)")
+                precondition(abs(f(p)) <= 2.0, "curve \(c) leaves ±2 at \(p)")
                 p += 0.001
             }
         }
@@ -106,6 +109,37 @@ import SceneKit
             var s = RunnerPose.Spring(), peak = 0.0
             for _ in 0..<90 { s = RunnerPose.step(s, target: 1, dt: 1.0 / 60, stiffness: stiffness, damping: damping); peak = max(peak, s.value) }
             precondition(abs(s.value - 1) < 0.02 && peak < 1.3, "spring \(stiffness)/\(damping) must settle (value \(s.value), peak \(peak))")
+        }
+        // Proportions in the bind pose (a fresh world, before any update): about 7 heads, hip at half height.
+        let rig = CoastalWorld(assetsURL: resources)
+        let rigPlayer: SCNNode = field(rig, "player"), rigHead: SCNNode = field(rig, "headRig"), rigBody: SCNNode = field(rig, "body")
+        let all = points(under: rigPlayer, in: rigPlayer)
+        let floor = all.map(\.y).min()!, height = all.map(\.y).max()! - floor
+        precondition((2.40...2.65).contains(height), "runner height \(height) m outside 2.40–2.65")
+        let hip = Double(rigPlayer.childNode(withName: "leftLeg", recursively: true)!.convertPosition(SCNVector3Zero, to: rigPlayer).y) - floor
+        precondition((0.46...0.54).contains(hip / height), "hip/height \(hip / height) outside 0.46–0.54")
+        let headYs = points(under: rigHead, in: rigPlayer).map(\.y)
+        let headRatio = (headYs.max()! - headYs.min()!) / height
+        precondition((0.12...0.16).contains(headRatio), "head/height \(headRatio) outside 0.12–0.16")
+        // Budget: at most 100 geometry nodes (old rig 151); visible draws, and so the ghost's, at most the old 119.
+        var geometryNodes = 0
+        rigPlayer.enumerateHierarchy { node, _ in if node.geometry != nil { geometryNodes += 1 } }
+        precondition(geometryNodes <= 100, "runner has \(geometryNodes) geometry nodes (budget 100)")
+        precondition(visibleElements(rigPlayer) <= 119, "runner draws \(visibleElements(rigPlayer)) elements (budget 119)")
+        print(String(format: "runner height %.2f hip %.3f head %.3f geometry %d elements %d", height, hip / height, headRatio, geometryNodes, visibleElements(rigPlayer)))
+        // The character tint recolours the shirt and sleeve shells.
+        let clothing: [SCNMaterial] = field(rig, "clothing")
+        var used = Set<ObjectIdentifier>()
+        rigPlayer.enumerateHierarchy { node, _ in node.geometry?.materials.forEach { used.insert(ObjectIdentifier($0)) } }
+        precondition(clothing.count >= 2 && clothing.allSatisfy { used.contains(ObjectIdentifier($0)) }, "every clothing material must be on a shell")
+        for node in [rigBody, rigPlayer.childNode(withName: "leftArm", recursively: true)!, rigPlayer.childNode(withName: "rightArm", recursively: true)!] {
+            precondition(node.geometry?.materials.contains { m in clothing.contains { $0 === m } } == true, "\(node.name ?? "torso") must wear a clothing material")
+        }
+        rig.update(simulation: RunnerSimulation(), character: "sana", board: "tideline", time: 0)
+        for m in clothing {
+            let c = (m.diffuse.contents as! CoastColor).usingColorSpace(.sRGB)!
+            precondition(abs(c.redComponent - 0xEF / 255.0) < 0.01 && abs(c.greenComponent - 0xB8 / 255.0) < 0.01 && abs(c.blueComponent - 0x4D / 255.0) < 0.01,
+                         "sana tint not applied to every clothing material")
         }
         print("RunnerTests passed")
     }

@@ -60,6 +60,7 @@
 		7F8BEF30AF77969F7F78403F /* ambient-forge.wav in Resources */ = {isa = PBXBuildFile; fileRef = D56BE6DE4338A71F5E2D62FD /* ambient-forge.wav */; };
 		81A3A84EB3820B8D5E38B676 /* ambient-orbit.wav in Resources */ = {isa = PBXBuildFile; fileRef = CC8C0FEAC12434EEA8E10477 /* ambient-orbit.wav */; };
 		82C545E65FB5B02CEF959748 /* GameUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADB393A954D3BA1F179E369 /* GameUI.swift */; };
+		8368EBCD7E116511703BEB51 /* WorldRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4836B90824FCD2F9750815 /* WorldRunner.swift */; };
 		8A440FA0FC718612458060EC /* ambient-verdant.wav in Resources */ = {isa = PBXBuildFile; fileRef = 7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */; };
 		8C203A48D0AB7797966AB1B1 /* warningJump.wav in Resources */ = {isa = PBXBuildFile; fileRef = DFC5115C898DB180660C0790 /* warningJump.wav */; };
 		8EC8F61F79825C807FC42CE1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 255AA4773792467B5495D9AC /* Assets.xcassets */; };
@@ -81,6 +82,7 @@
 		C2E666EF927CD138CFBF8A6E /* ambient-cryo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */; };
 		C66A3F0A4F3223F24B4CD1C9 /* MarsSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B95AAEE3C89EC94468455EC9 /* MarsSky.png */; };
 		C9577625F29F9748B6D2CD7F /* ambient-mars.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */; };
+		CD524D35E06B024DCBE8E82C /* WorldRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4836B90824FCD2F9750815 /* WorldRunner.swift */; };
 		CE5D8E468B5C61DD9F9788D5 /* ambient-harbor.wav in Resources */ = {isa = PBXBuildFile; fileRef = C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */; };
 		D0B6132220B437BC5BDD1A37 /* PlayerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB92C0D967ED794E939A227 /* PlayerProfile.swift */; };
 		D12E1F8832AB5D18F7B60CCB /* crash.wav in Resources */ = {isa = PBXBuildFile; fileRef = 649627708DBFE183BB0D9286 /* crash.wav */; };
@@ -124,6 +126,7 @@
 		667CBB548D92694E8037D831 /* warningDodge.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = warningDodge.wav; sourceTree = "<group>"; };
 		67483A8DB1CBF3097DDCA42D /* WorldMaterials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldMaterials.swift; sourceTree = "<group>"; };
 		6A1573F8B0495D5E7E0EC0DC /* arrival.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = arrival.wav; sourceTree = "<group>"; };
+		6B4836B90824FCD2F9750815 /* WorldRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldRunner.swift; sourceTree = "<group>"; };
 		78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-cryo.wav"; sourceTree = "<group>"; };
 		7E5E98467EA2488FBFF25538 /* GameController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameController.swift; sourceTree = "<group>"; };
 		7E89C74890B941A1F1D1A67C /* ambient-verdant.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-verdant.wav"; sourceTree = "<group>"; };
@@ -230,6 +233,7 @@
 				5798B9C921967B02E2344CC2 /* WorldLook.swift */,
 				67483A8DB1CBF3097DDCA42D /* WorldMaterials.swift */,
 				C766B45856FC49D65BA709C9 /* WorldProps.swift */,
+				6B4836B90824FCD2F9750815 /* WorldRunner.swift */,
 				F4E71B0173D0F07C02339F12 /* WorldRunnerPose.swift */,
 			);
 			path = Sources;
@@ -409,6 +413,7 @@
 				34A291F8A70EC0FF37FAE015 /* WorldLook.swift in Sources */,
 				A6C49A791352732791497B8D /* WorldMaterials.swift in Sources */,
 				D34F1D5E8AAD560AAF542AD4 /* WorldProps.swift in Sources */,
+				8368EBCD7E116511703BEB51 /* WorldRunner.swift in Sources */,
 				AE2752055A2BA6A2F6028AA3 /* WorldRunnerPose.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -433,6 +438,7 @@
 				1A79EE8B95C4704759530C56 /* WorldLook.swift in Sources */,
 				DB9073FF67A5FEEC88C8A35D /* WorldMaterials.swift in Sources */,
 				614B1F5D771D0831910DD03E /* WorldProps.swift in Sources */,
+				CD524D35E06B024DCBE8E82C /* WorldRunner.swift in Sources */,
 				A88E98E9039E61A7AED9ACDF /* WorldRunnerPose.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

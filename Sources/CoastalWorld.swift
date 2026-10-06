@@ -61,16 +61,16 @@ final class CoastalWorld {
     private var currentRouteSimulation: RunnerSimulation?
 
     private let setRoot = SCNNode()
-    private let player = SCNNode()
-    private let body = SCNNode()
-    private let leftArm = SCNNode()
-    private let rightArm = SCNNode()
-    private let leftLeg = SCNNode()
-    private let rightLeg = SCNNode()
-    private var shins: [SCNNode] = []
-    private var forearms: [SCNNode] = []
-    private var feet: [SCNNode] = []
-    private let headRig = SCNNode()
+    let player = SCNNode()
+    let body = SCNNode()
+    let leftArm = SCNNode()
+    let rightArm = SCNNode()
+    let leftLeg = SCNNode()
+    let rightLeg = SCNNode()
+    var shins: [SCNNode] = []
+    var forearms: [SCNNode] = []
+    var feet: [SCNNode] = []
+    let headRig = SCNNode()
     private let landingRoot = SCNNode()
     private var landingRings: [SCNNode] = []
     private var landingSparks: [SCNNode] = []
@@ -81,24 +81,25 @@ final class CoastalWorld {
     private var previousHeight = 0.0
     private var airborneBlend = 0.0
     private var rollBlend = 0.0
-    private let scarf = SCNNode()
-    private let boardNode = SCNNode()
-    private let jetpackNode = SCNNode()
-    private let playerShadow = SCNNode()
+    let scarf = SCNNode()
+    let pack = SCNNode()
+    let boardNode = SCNNode()
+    let jetpackNode = SCNNode()
+    let playerShadow = SCNNode()
     private let drone = SCNNode()
     private let menuProps = SCNNode()
     private let waterMenuProps = SCNNode()
     private var segments: [SCNNode] = []
     private var waterGlints: [SCNNode] = []
     private var gulls: [SCNNode] = []
-    private var exhaust: [SCNNode] = []
+    var exhaust: [SCNNode] = []
     private var rotorNodes: [SCNNode] = []
     private var liveNodes: [Int: SCNNode] = [:]
     private var liveKinds: [Int: String] = [:]
     private var pools: [String: [SCNNode]] = [:]
     private var materials: [String: SCNMaterial] = [:]
     var surfaceDetailEnabled = true
-    private var clothing: [SCNMaterial] = []
+    var clothing: [SCNMaterial] = []
     private var selectedCharacter = ""
     private var selectedBoard = ""
     private var aspect = 0.5
@@ -403,31 +404,14 @@ final class CoastalWorld {
         return result
     }
 
-    private func vector(_ x: Double, _ y: Double, _ z: Double) -> SCNVector3 { SCNVector3(x, y, z) }
-    private func scalar(_ value: Double) -> CoastScalar { CoastScalar(value) }
+    func vector(_ x: Double, _ y: Double, _ z: Double) -> SCNVector3 { SCNVector3(x, y, z) }
+    func scalar(_ value: Double) -> CoastScalar { CoastScalar(value) }
 
-    /// Original smooth surface mesh for tailored suit panels and bracers, articulated by the rig.
-    private func sculptedMesh(rings: [(Double, Double, Double)], tint: String) -> SCNNode {
-        let segments = 24
-        var vertices: [SCNVector3] = [], normals: [SCNVector3] = [], uv: [CGPoint] = []
-        var indices: [Int32] = []
-        for (row, section) in rings.enumerated() {
-            let before = rings[max(0, row - 1)], after = rings[min(rings.count - 1, row + 1)]
-            let dy = max(0.01, after.0 - before.0)
-            for column in 0...segments {
-                let angle = Double(column) / Double(segments) * .pi * 2
-                let c = cos(angle), s = sin(angle)
-                vertices.append(vector(section.1 * c, section.0, section.2 * s))
-                let n = simd_normalize(SIMD3<Float>(Float(c / section.1), Float(-((after.1 - before.1) * c * c / section.1 + (after.2 - before.2) * s * s / section.2) / dy), Float(s / section.2)))
-                normals.append(vector(Double(n.x), Double(n.y), Double(n.z)))
-                uv.append(CGPoint(x: Double(column) / Double(segments), y: Double(row) / Double(max(1, rings.count - 1))))
-                if row < rings.count - 1 && column < segments {
-                    let a = Int32(row * (segments + 1) + column), b = a + Int32(segments + 1)
-                    indices += [a, b, a + 1, a + 1, b, b + 1]
-                }
-            }
-        }
-        let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: vertices), SCNGeometrySource(normals: normals), SCNGeometrySource(textureCoordinates: uv)], elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)])
+    /// Original smooth surface mesh (boat hull, sentinel torso): an open lathe, see `latheMesh`.
+    func sculptedMesh(rings: [(Double, Double, Double)], tint: String) -> SCNNode {
+        let mesh = latheMesh(rings: rings, caps: false)
+        let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: mesh.vertices), SCNGeometrySource(normals: mesh.normals), SCNGeometrySource(textureCoordinates: mesh.uv)],
+                                   elements: [SCNGeometryElement(indices: mesh.indices, primitiveType: .triangles)])
         geometry.firstMaterial = material(tint)
         return SCNNode(geometry: geometry)
     }
@@ -477,7 +461,7 @@ final class CoastalWorld {
         abilityAura.opacity = reducedMotion ? 0.55 : 0.52 + sin(time * 4) * 0.09
     }
 
-    @discardableResult private func box(_ w: Double, _ h: Double, _ d: Double, _ hex: String,
+    @discardableResult func box(_ w: Double, _ h: Double, _ d: Double, _ hex: String,
                                        at position: SCNVector3 = SCNVector3Zero,
                                        radius: Double = 0.025, into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNBox(width: w, height: h, length: d, chamferRadius: radius > 0.04 ? min(radius, min(w, min(h, d)) * 0.45) : 0)
@@ -489,7 +473,7 @@ final class CoastalWorld {
         return node
     }
 
-    @discardableResult private func sphere(_ radius: Double, _ hex: String, at position: SCNVector3,
+    @discardableResult func sphere(_ radius: Double, _ hex: String, at position: SCNVector3,
                                           scale: SCNVector3 = SCNVector3(1, 1, 1), into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNSphere(radius: radius)
         shape.segmentCount = 24
@@ -501,7 +485,7 @@ final class CoastalWorld {
         return node
     }
 
-    @discardableResult private func cylinder(_ radius: Double, _ height: Double, _ hex: String,
+    @discardableResult func cylinder(_ radius: Double, _ height: Double, _ hex: String,
                                             at position: SCNVector3, into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNCylinder(radius: radius, height: height)
         shape.radialSegmentCount = 20
@@ -512,7 +496,7 @@ final class CoastalWorld {
         return node
     }
 
-    @discardableResult private func capsule(_ radius: Double, _ height: Double, _ hex: String,
+    @discardableResult func capsule(_ radius: Double, _ height: Double, _ hex: String,
                                            at position: SCNVector3, into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNCapsule(capRadius: radius, height: height)
         shape.radialSegmentCount = 20
@@ -524,7 +508,7 @@ final class CoastalWorld {
         return node
     }
 
-    private func shadow(width: Double, length: Double) -> SCNNode {
+    func shadow(width: Double, length: Double) -> SCNNode {
         let geometry = SCNPlane(width: width, height: length)
         let mat = SCNMaterial()
         mat.diffuse.contents = shadowTexture()
@@ -935,143 +919,6 @@ final class CoastalWorld {
     }
 
     // MARK: - Courier, board and chase drone
-
-    private func makePlayer() {
-        leftLeg.name = "leftLeg"; rightLeg.name = "rightLeg"
-        leftArm.name = "leftArm"; rightArm.name = "rightArm"
-        scene.rootNode.addChildNode(player)
-        player.addChildNode(body)
-        let shirt = sculptedMesh(rings: [(-0.43, 0.23, 0.16), (-0.30, 0.25, 0.17),
-                                        (0.06, 0.31, 0.20), (0.28, 0.35, 0.19), (0.39, 0.22, 0.14)], tint: coral)
-        shirt.position = vector(0, 1.23, 0)
-        body.addChildNode(shirt)
-        let shirtMat = material(coral, unique: true)
-        shirtMat.normal.contents = texture("cloth-normal")
-        shirtMat.normal.intensity = 0.25
-        shirtMat.roughness.contents = 0.8
-        shirt.geometry?.firstMaterial = shirtMat
-        clothing.append(shirtMat)
-        box(0.55, 0.34, 0.40, "152637", at: vector(0, 0.81, 0), radius: 0.14, into: body)
-        cylinder(0.115, 0.20, "BD846C", at: vector(0, 1.73, 0), into: body)
-        sphere(0.31, "CB977C", at: vector(0, 1.98, -0.005), scale: vector(0.92, 1.1, 0.93), into: body)
-        sphere(0.32, "132435", at: vector(0, 2.08, 0.055), scale: vector(1.01, 0.95, 0.95), into: body)
-        let cap = sphere(0.35, cream, at: vector(0, 2.13, 0), scale: vector(1.04, 0.95, 1.03), into: body)
-        let helmetMat = material("D95238", unique: true)
-        helmetMat.metalness.contents = 0.0
-        helmetMat.roughness.contents = 0.7
-        cap.geometry?.firstMaterial = helmetMat
-        let visor = sphere(0.31, "164F68", at: vector(0, 2.09, -0.115), scale: vector(1.04, 0.48, 1.0), into: body)
-        visor.geometry?.firstMaterial?.metalness.contents = 0.9
-        visor.geometry?.firstMaterial?.roughness.contents = 0.12
-        box(0.08, 0.10, 0.66, coral, at: vector(0, 2.43, 0), radius: 0.03, into: body)
-        for x in [-0.24, 0.24] {
-            box(0.04, 0.36, 0.40, "253A4B", at: vector(x, 2.18, 0.1), radius: 0.02, into: body)
-        }
-        box(0.12, 0.12, 0.035, coral, at: vector(0, 2.26, -0.31), radius: 0.025, into: body)
-        // Ears and face are visible during the three-quarter menu idle.
-        sphere(0.074, "CB977C", at: vector(-0.29, 1.99, 0), into: body)
-        sphere(0.074, "CB977C", at: vector(0.29, 1.99, 0), into: body)
-        for x in [-0.10, 0.10] { sphere(0.024, ink, at: vector(x, 2.02, -0.267), into: body) }
-        sphere(0.046, "D49B75", at: vector(0, 1.95, -0.29), scale: vector(0.8, 1, 1), into: body)
-        // Independent neck rig stabilizes the gaze while the torso counter-rotates.
-        headRig.position = vector(0, 1.65, 0)
-        for node in body.childNodes where Double(node.position.y) >= 1.73 {
-            node.position.y -= scalar(1.65)
-            headRig.addChildNode(node)
-        }
-        body.addChildNode(headRig)
-        for side in [-1.0, 1.0] {
-            let seam = box(0.035, 0.64, 0.04, "C3DDE5", at: vector(side * 0.25, 1.2, -0.18), radius: 0.01, into: body)
-            seam.eulerAngles.z = scalar(side * 0.12)
-            box(0.09, 0.11, 0.045, "182937", at: vector(side * 0.27, 1.41, -0.20), radius: 0.02, into: body)
-            let shoulder = sphere(0.16, side < 0 ? "DCE5E9" : "203B4A", at: vector(side * 0.34, 1.49, 0), scale: vector(1, 0.55, 1.2), into: body)
-            shoulder.geometry?.firstMaterial?.roughness.contents = 0.35
-        }
-        box(0.23, 0.15, 0.06, "193744", at: vector(0.12, 1.42, -0.19), radius: 0.025, into: body)
-        leftArm.position = vector(-0.36, 1.47, 0)
-        rightArm.position = vector(0.36, 1.47, 0)
-        for arm in [leftArm, rightArm] {
-            let sleeve = capsule(0.13, 0.41, coral, at: vector(0, -0.15, 0), into: arm)
-            let mat = material(coral, unique: true)
-            sleeve.geometry?.firstMaterial = mat
-            clothing.append(mat)
-            let elbow = SCNNode(); elbow.position = vector(0, -0.31, 0)
-            sphere(0.098, "243C4A", at: SCNVector3Zero, into: elbow)
-            let bracer = sculptedMesh(rings: [(-0.29, 0.075, 0.085), (-0.10, 0.10, 0.10), (0, 0.09, 0.09)], tint: "213B4B")
-            elbow.addChildNode(bracer)
-            box(0.13, 0.19, 0.06, "A9C0CF", at: vector(0, -0.13, -0.085), radius: 0.035, into: elbow)
-            sphere(0.094, "192F40", at: vector(0, -0.33, -0.025), scale: vector(0.85, 1.16, 0.85), into: elbow)
-            for finger in 0..<3 {
-                capsule(0.018, 0.08, "778D99", at: vector(-0.035 + Double(finger) * 0.035, -0.385, -0.055), into: elbow)
-            }
-            arm.addChildNode(elbow); forearms.append(elbow)
-            body.addChildNode(arm)
-        }
-        leftLeg.position = vector(-0.18, 0.77, 0)
-        rightLeg.position = vector(0.18, 0.77, 0)
-        for leg in [leftLeg, rightLeg] {
-            capsule(0.135, 0.37, "172A3C", at: vector(0, -0.14, 0), into: leg)
-            sphere(0.12, "263F50", at: vector(0, -0.32, 0), into: leg)
-            let shin = SCNNode()
-            shin.position = vector(0, -0.31, 0)
-            capsule(0.105, 0.31, "172A3C", at: vector(0, -0.13, 0), into: shin)
-            box(0.17, 0.16, 0.075, "435A6A", at: vector(0, -0.10, -0.09), radius: 0.05, into: shin)
-            box(0.035, 0.28, 0.05, "7EA5AC", at: vector(0.09, -0.11, 0), radius: 0.01, into: shin)
-            let ankle = SCNNode(); ankle.position = vector(0, -0.35, 0)
-            box(0.24, 0.18, 0.43, cream, at: vector(0, 0, -0.07), radius: 0.075, into: ankle)
-            box(0.245, 0.045, 0.43, coral, at: vector(0, -0.08, -0.07), radius: 0.016, into: ankle)
-            for lace in 0..<3 { box(0.14, 0.014, 0.018, "273F51", at: vector(0, 0.09, -0.06 - Double(lace) * 0.05), radius: 0, into: ankle) }
-            glowBox(0.17, 0.027, 0.025, "A0ECEB", at: vector(0, -0.02, 0.15), into: ankle)
-            shin.addChildNode(ankle); feet.append(ankle)
-            leg.addChildNode(shin)
-            shins.append(shin)
-            body.addChildNode(leg)
-        }
-        // A hard-shell expedition pack has its own frame, inset plates and restrained light strip.
-        let pack = sculptedMesh(rings: [(0.88, 0.19, 0.12), (0.96, 0.29, 0.17), (1.36, 0.27, 0.16), (1.51, 0.19, 0.11)], tint: "293E4E")
-        pack.position.z = scalar(0.29); body.addChildNode(pack)
-        for side in [-1.0, 1.0] {
-            let shell = box(0.19, 0.44, 0.05, "A8B7BF", at: vector(side * 0.16, 1.2, 0.445), radius: 0.07, into: body)
-            shell.eulerAngles.z = scalar(side * 0.08)
-            for seam in 0..<3 { box(0.13, 0.013, 0.02, "223C4B", at: vector(side * 0.16, 1.1 + Double(seam) * 0.07, 0.478), radius: 0, into: body) }
-        }
-        box(0.5, 0.16, 0.265, "1A293A", at: vector(0.08, 1.40, 0.32), radius: 0.06, into: body)
-        box(0.065, 0.19, 0.03, "BA8658", at: vector(0.08, 1.29, 0.449), radius: 0.01, into: body)
-        let spine = box(0.28, 0.035, 0.025, "69F4E0", at: vector(0.08, 1.23, 0.465), radius: 0.01, into: body)
-        spine.geometry?.firstMaterial = material("69F4E0", emissive: true)
-        for x in [-0.21, 0.30] { box(0.045, 0.50, 0.025, "718594", at: vector(x, 1.2, 0.45), radius: 0.015, into: body) }
-        let strap = box(0.08, 0.80, 0.06, "D8BB86", at: vector(-0.17, 1.26, 0.235), radius: 0.015, into: body)
-        strap.eulerAngles.z = scalar(-0.30)
-        cylinder(0.18, 0.16, mint, at: vector(0, 1.66, 0), into: body)
-        scarf.position = vector(0.08, 1.65, 0.14)
-        box(0.16, 0.40, 0.055, mint, at: vector(0, -0.16, 0.12), radius: 0.025, into: scarf)
-        body.addChildNode(scarf)
-        makeCourierArmor()
-        let deck = box(0.73, 0.15, 1.7, "69B8C5", at: vector(0, 0.04, -0.05), radius: 0.2, into: boardNode)
-        deck.name = "deck"
-        deck.geometry?.firstMaterial = material("69B8C5", unique: true)
-        box(0.22, 0.018, 1.45, cream, at: vector(0, 0.125, -0.05), radius: 0.04, into: boardNode)
-        for z in [-0.48, 0.43] {
-            let thruster = cylinder(0.18, 0.08, gold, at: vector(0, -0.065, z), into: boardNode)
-            thruster.geometry?.firstMaterial = material(gold, emissive: true)
-        }
-        player.addChildNode(boardNode)
-        boardNode.isHidden = true
-        for x in [-0.25, 0.25] {
-            capsule(0.15, 0.59, cream, at: vector(x, 1.25, 0.40), into: jetpackNode)
-            cylinder(0.17, 0.12, coral, at: vector(x, 1.03, 0.40), into: jetpackNode)
-            let flame = sphere(0.13, gold, at: vector(x, 0.74, 0.40), scale: vector(1, 2.1, 1), into: jetpackNode)
-            flame.geometry?.firstMaterial = material(gold, emissive: true)
-            exhaust.append(flame)
-        }
-        body.addChildNode(jetpackNode)
-        jetpackNode.isHidden = true
-        playerShadow.geometry = shadow(width: 2.2, length: 1.6).geometry
-        playerShadow.renderingOrder = 5
-        playerShadow.eulerAngles.x = scalar(-.pi / 2)
-        playerShadow.castsShadow = false
-        scene.rootNode.addChildNode(playerShadow)
-    }
 
     private func makeDrone() {
         box(0.60, 0.30, 0.46, cream, radius: 0.14, into: drone)
@@ -1630,7 +1477,7 @@ final class CoastalWorld {
     }
 
     /// Small deterministic texture atlases, generated once. No network or runtime assets.
-    private func texture(_ name: String) -> CGImage? {
+    func texture(_ name: String) -> CGImage? {
         if let cached = textureCache[name] { return cached }
         let size = name.hasPrefix("sign") || name == "asphalt" || name == "paving" ? 512 : 256
         let result = image(width: size, height: size) { ctx in
@@ -3227,52 +3074,6 @@ private extension CoastalWorld {
                 node.position.y = scalar((renderedStage == .cryo ? 16.0 : -1.0) - collapse * (reducedMotion ? 4 : 18))
                 node.eulerAngles = vector(collapse * 0.4, 0, side * collapse * 0.3)
             }
-        }
-    }
-}
-
-private extension CoastalWorld {
-    func makeCourierArmor() {
-        // Independent panels articulate with the joints. The cloth remains visible between
-        // shells, so the runner reads as a person in a suit rather than stacked rigid boxes.
-        for (index, arm) in [leftArm, rightArm].enumerated() {
-            let side = index == 0 ? -1.0 : 1.0
-            let pauldron = sculptedMesh(rings: [(-0.21, 0.12, 0.13), (-0.12, 0.17, 0.18), (0.08, 0.17, 0.17), (0.16, 0.08, 0.10)], tint: index == 0 ? "CBD8DD" : "597888")
-            pauldron.position = vector(side * 0.02, 0, 0)
-            arm.addChildNode(pauldron)
-            box(0.035, 0.22, 0.16, "F6C58A", at: vector(side * 0.16, -0.02, 0), radius: 0.012, into: arm)
-            if index < forearms.count {
-                let wrist = forearms[index]
-                box(0.12, 0.11, 0.06, "0C1E2B", at: vector(0, -0.16, 0.085), radius: 0.025, into: wrist)
-                glowBox(0.065, 0.045, 0.012, "9ADBDC", at: vector(0, -0.15, 0.12), into: wrist)
-                box(0.10, 0.045, 0.055, "A6B8C4", at: vector(0, -0.31, 0.035), radius: 0.015, into: wrist)
-            }
-        }
-        for (index, leg) in [leftLeg, rightLeg].enumerated() {
-            let side = index == 0 ? -1.0 : 1.0
-            let thigh = box(0.16, 0.22, 0.07, "4A6575", at: vector(side * 0.07, -0.16, -0.08), radius: 0.055, into: leg)
-            thigh.eulerAngles.z = scalar(side * 0.08)
-            box(0.15, 0.11, 0.08, "B3C4CB", at: vector(0, -0.31, -0.1), radius: 0.04, into: leg)
-            if index < feet.count {
-                let boot = feet[index]
-                box(0.25, 0.10, 0.16, "3C5262", at: vector(0, 0.025, -0.23), radius: 0.045, into: boot)
-                for tread in 0..<4 { box(0.23, 0.023, 0.026, "233544", at: vector(0, -0.10, -0.21 + Double(tread) * 0.085), radius: 0, into: boot) }
-            }
-        }
-        for side in [-1.0, 1.0] {
-            let collar = box(0.16, 0.11, 0.23, "B4C5CC", at: vector(side * 0.15, 1.6, 0), radius: 0.045, into: body)
-            collar.eulerAngles.z = scalar(-side * 0.22)
-            let helmetRail = box(0.06, 0.27, 0.28, "AAC0CE", at: vector(side * 0.27, 0.49, 0.10), radius: 0.035, into: headRig)
-            helmetRail.eulerAngles.z = scalar(-side * 0.2)
-            cylinder(0.09, 0.055, "2C4659", at: vector(side * 0.31, 0.41, 0.06), into: headRig).eulerAngles.z = scalar(.pi / 2)
-            for i in 0..<3 { box(0.06, 0.018, 0.025, "173141", at: vector(side * 0.15, 0.55 + Double(i) * 0.055, 0.31), radius: 0, into: headRig) }
-        }
-        glowBox(0.21, 0.033, 0.018, "9ADBDD", at: vector(0, 0.55, 0.349), into: headRig)
-        let chest = box(0.30, 0.27, 0.07, "405B6A", at: vector(0, 1.39, -0.195), radius: 0.07, into: body)
-        glowBox(0.16, 0.024, 0.013, "B2E3DB", at: vector(0, 0.015, -0.044), into: chest)
-        for side in [-1.0, 1.0] {
-            let hip = box(0.18, 0.23, 0.24, "6D899A", at: vector(side * 0.27, 0.88, 0.07), radius: 0.055, into: body)
-            hip.eulerAngles.z = scalar(side * 0.1)
         }
     }
 }

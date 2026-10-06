@@ -26,6 +26,9 @@ enum RunnerPose {
     /// Standing pose the run cycle scales from: knees and elbows slightly soft.
     static let rest = Limbs(thigh: 0, shin: -0.10, foot: 0, arm: 0, forearm: 0.35)
 
+    /// Head pivot height in body space, shared by the rig builder and the pose (head counter-bob).
+    static let neckHeight = 2.10
+
     /// Periodic Catmull-Rom through `keys` spaced evenly over 2π: it passes through every key and is C1 (no velocity jump).
     static func sample(_ keys: [Double], phase: Double) -> Double {
         let n = keys.count
