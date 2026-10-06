@@ -1,13 +1,18 @@
 import Foundation
 
-/// Compile once against the archived release and once against the current sources.
-/// Both executables consume identical serialized checkpoints. This is a generator
-/// and physics continuity probe, not a survival test: protection keeps the fixed
-/// input script alive so every old stage is compared through its portal approach.
+/// Legacy checkpoint continuity probe.
+///   create <dir> <out.json>        writes v4/v5/v6 checkpoints for every world and difficulty, drives each to its portal
+///                                   with a fixed input script under protection, and saves the snapshots.
+///   verify <dir> <baseline.json>   drives the same checkpoints with this build. Revision-4 stages use the frozen legacy
+///                                   generator and must match the baseline exactly. v5/v6 stages adopt the current
+///                                   generator (spec: a resumed run builds new rows with new rules), so they must only
+///                                   decode and reach their portal.
+/// Scripts/audit.sh compiles `create` against the pre-overhaul sources (e3049e5) and `verify` against HEAD.
+/// This is a generator and physics continuity probe, not a survival test: protection keeps the fixed input script alive.
 @main struct LegacyContinuityAudit {
     static func main() throws {
-        guard CommandLine.arguments.count == 4 else {
-            fatalError("Usage: legacy-probe create|compare checkpoint-directory output-json")
+        guard CommandLine.arguments.count == 4, ["create", "verify"].contains(CommandLine.arguments[1]) else {
+            fatalError("Usage: legacy-probe create|verify checkpoint-directory json")
         }
         let create = CommandLine.arguments[1] == "create"
         let directory = URL(fileURLWithPath: CommandLine.arguments[2])
@@ -57,7 +62,25 @@ import Foundation
                 }
             }
         }
-        try encoder.encode(samples).write(to: URL(fileURLWithPath: CommandLine.arguments[3]))
-        print("Captured \(samples.count) legacy stages and \(samples.values.reduce(0) { $0 + $1.count }) state snapshots")
+        let output = URL(fileURLWithPath: CommandLine.arguments[3])
+        if create {
+            try encoder.encode(samples).write(to: output)
+            print("Captured \(samples.count) legacy stages and \(samples.values.reduce(0) { $0 + $1.count }) state snapshots")
+            return
+        }
+        let baseline = try decoder.decode([String: [RunnerSimulation]].self, from: Data(contentsOf: output))
+        var compared = 0
+        for (key, snapshots) in samples.sorted(by: { $0.key < $1.key }) where key.hasPrefix("r4-") {
+            guard let old = baseline[key], old.count == snapshots.count else { fatalError("Legacy r4 snapshot count changed: \(key)") }
+            for (index, (a, b)) in zip(old, snapshots).enumerated() {
+                guard a.entities == b.entities, a.distance == b.distance, a.score == b.score, a.coins == b.coins,
+                      a.stageIndex == b.stageIndex, a.phase == b.phase, a.lateral == b.lateral, a.height == b.height else {
+                    fatalError("Legacy r4 stage diverged from the pre-overhaul build: \(key) snapshot \(index)")
+                }
+                compared += 1
+            }
+        }
+        let regenerated = samples.keys.filter { !$0.hasPrefix("r4-") }.count
+        print("PASS legacy continuity: \(compared) r4 snapshots match the pre-overhaul build; \(regenerated) v5/v6 stages decode and reach their portal under the current generator")
     }
 }
