@@ -130,17 +130,18 @@ struct SkillAudit {
     /// Live check of the G2 lead-time rules at the moment each change happens, against the runner's real speed:
     /// a lane shift completes >= 1.0 s (Expert 0.8 s) ahead, a meteor lands >= 1.0 s ahead, a deck opens >= 0.5 s ahead.
     static func checkTelegraphs(_ run: RunnerSimulation, done: inout Set<Int>, violations: inout Int) {
-        let slack = run.speed / 60 + 0.01 // the change is seen up to one frame late
         for e in run.entities where !done.contains(e.id) {
+            let closing = run.speed + e.oncomingSpeed // oncoming entities close faster
+            let slack = closing / 60 + 0.01 // the change is seen up to one frame late
             let need: Double
-            if e.targetLane != nil && e.z <= e.motionStart - e.motionLength { need = run.expert ? 0.8 : 1.0 }
+            if e.targetLane != nil && e.motionLength > 0 && e.z <= e.motionStart - e.motionLength { need = run.expert ? 0.8 : 1.0 }
             else if e.activeFrom.isFinite && e.isActive { need = e.kind == .meteor ? 1.0 : 0.5 }
             else { continue }
             done.insert(e.id)
             let edge = e.z - e.length / 2 - 0.35
-            if edge + slack < run.speed * need {
+            if edge + slack < closing * need {
                 violations += 1
-                if violations <= 5 { print("TELEGRAPH late \(e.kind) id=\(e.id) edge=\(edge) needs=\(run.speed * need) world=\(run.worldStage) expert=\(run.expert)") }
+                if violations <= 5 { print("TELEGRAPH late \(e.kind) id=\(e.id) edge=\(edge) needs=\(closing * need) world=\(run.worldStage) expert=\(run.expert)") }
             }
         }
     }

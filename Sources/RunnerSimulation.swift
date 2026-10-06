@@ -786,7 +786,7 @@ struct RunnerSimulation: Codable {
         }
 
         var support = 0.0
-        for entity in entities where abs(lateral - Double(entity.lane)) < 0.52 {
+        for entity in entities where abs(lateral - (Double(entity.lane) + entity.laneOffset())) < 0.52 {
             if entity.kind == .ramp && abs(entity.z) <= entity.length / 2 + 0.1 {
                 let progress = min(1, max(0, (entity.length / 2 - entity.z) / entity.length))
                 support = max(support, progress * Self.tramRoofHeight)

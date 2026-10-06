@@ -112,6 +112,21 @@ struct SimulationTests {
                 simulation.update(dt: 1.5)
                 try expect(simulation.height == 0, "Runner must fall from the end of the roof")
             }),
+            ("roof support follows a completed lane shift", {
+                func carried(runnerLane: Int) -> RunnerSimulation {
+                    var tram = entity(.tram, id: 2, lane: -1, z: 16, y: 0, length: 12)
+                    tram.targetLane = 0; tram.motionStart = 40; tram.motionLength = 6 // finished long before it arrives
+                    var run = fixture([entity(.ramp, id: 1, lane: runnerLane, z: 6, y: 0, length: 7), tram])
+                    if runnerLane == -1 { run.act(.left) }
+                    run.update(dt: 1.3)
+                    return run
+                }
+                let arrival = carried(runnerLane: 0)
+                try expect(arrival.phase == .running && abs(arrival.height - RunnerSimulation.tramRoofHeight) < 0.01,
+                           "A runner in the arrival lane must stand on the shifted tram's roof")
+                let spawn = carried(runnerLane: -1)
+                try expect(spawn.phase == .running && spawn.height < 0.5, "The spawn lane has no roof once the tram has left it")
+            }),
             ("board consumes inventory and absorbs exactly one hit", {
                 var simulation = fixture([entity(.barrier)], boards: 2)
                 simulation.act(.board)
