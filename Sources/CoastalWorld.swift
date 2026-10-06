@@ -111,7 +111,7 @@ final class CoastalWorld {
     private var trickStartedAt: Double?
     private var bank = 0.0
     private var previousLateral = 0.0
-    private var textureCache: [String: CGImage] = [:]
+    var textureCache: [String: CGImage] = [:]
     private let assetsURL: URL?
 
     private let cream = "D9E1E5"
@@ -381,7 +381,7 @@ final class CoastalWorld {
                           blue: CGFloat(value & 255) / 255, alpha: CGFloat(alpha))
     }
 
-    private func material(_ hex: String, emissive: Bool = false, unique: Bool = false) -> SCNMaterial {
+    func material(_ hex: String, emissive: Bool = false, unique: Bool = false) -> SCNMaterial {
         let key = hex + (emissive ? "-light" : "")
         if !unique, let cached = materials[key] { return cached }
         let result = SCNMaterial()
@@ -394,6 +394,7 @@ final class CoastalWorld {
             result.roughness.contents = 0.27
         }
         if emissive { result.emission.contents = color(hex); result.emission.intensity = 1.8 }
+        if !emissive { applySurfaceDetail(to: result) }
         if !unique { materials[key] = result }
         return result
     }

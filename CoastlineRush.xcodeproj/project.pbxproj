@@ -65,6 +65,7 @@
 		914687837258B80C5A5CE14D /* ExpeditionExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EEAFBE58801773659E0174 /* ExpeditionExpansion.swift */; };
 		95CB711F8D14900673BC9775 /* ReplayGhost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12758C175AA79FFE91F0250F /* ReplayGhost.swift */; };
 		994700D2EE57651FA1405E0C /* GameSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 063B09B53BC5FA43DF976394 /* GameSurface.swift */; };
+		A6C49A791352732791497B8D /* WorldMaterials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67483A8DB1CBF3097DDCA42D /* WorldMaterials.swift */; };
 		A79E86227CCAFF8E8DE2817C /* GameController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5E98467EA2488FBFF25538 /* GameController.swift */; };
 		A8EA5E562121B5A65293DEF2 /* PortalJourney.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55DE9BA6F49492775FE9077 /* PortalJourney.swift */; };
 		AEE42331E0E752B27660598D /* VerdantSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 33A3055EEB7288EA34EE23C8 /* VerdantSky.png */; };
@@ -85,6 +86,7 @@
 		D722AA2F217368C01259A490 /* watercraft.wav in Resources */ = {isa = PBXBuildFile; fileRef = 050AB0FCF4958B193C4A0C9A /* watercraft.wav */; };
 		D7C6F5288AA17CC2F4219EEE /* watercraft.wav in Resources */ = {isa = PBXBuildFile; fileRef = 050AB0FCF4958B193C4A0C9A /* watercraft.wav */; };
 		D8288F14FE035D954CAD109F /* MarsSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B95AAEE3C89EC94468455EC9 /* MarsSky.png */; };
+		DB9073FF67A5FEEC88C8A35D /* WorldMaterials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67483A8DB1CBF3097DDCA42D /* WorldMaterials.swift */; };
 		E7E4CAD78991E5C375665072 /* OrbitSky.png in Resources */ = {isa = PBXBuildFile; fileRef = 0E8EF526EC40D372DED15A81 /* OrbitSky.png */; };
 		E8308DC106A5BB7866E663DD /* jump.wav in Resources */ = {isa = PBXBuildFile; fileRef = 45EC89860E08FD6C19810175 /* jump.wav */; };
 		ECEBD35B9AC1EDF17F92CB1E /* ForgeSky.png in Resources */ = {isa = PBXBuildFile; fileRef = C357AF66191977D65F197FA0 /* ForgeSky.png */; };
@@ -116,6 +118,7 @@
 		649627708DBFE183BB0D9286 /* crash.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = crash.wav; sourceTree = "<group>"; };
 		65F5F05B3C6AE028B9157B97 /* portal.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = portal.wav; sourceTree = "<group>"; };
 		667CBB548D92694E8037D831 /* warningDodge.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = warningDodge.wav; sourceTree = "<group>"; };
+		67483A8DB1CBF3097DDCA42D /* WorldMaterials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldMaterials.swift; sourceTree = "<group>"; };
 		6A1573F8B0495D5E7E0EC0DC /* arrival.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = arrival.wav; sourceTree = "<group>"; };
 		78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ambient-cryo.wav"; sourceTree = "<group>"; };
 		7E5E98467EA2488FBFF25538 /* GameController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameController.swift; sourceTree = "<group>"; };
@@ -219,6 +222,7 @@
 				C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */,
 				460898FD7CCF322E10C5B99A /* RunPresentation.swift */,
 				5798B9C921967B02E2344CC2 /* WorldLook.swift */,
+				67483A8DB1CBF3097DDCA42D /* WorldMaterials.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -395,6 +399,7 @@
 				F93254B058966DDF38903465 /* RunPresentation.swift in Sources */,
 				F3C6BA597EB730C49A8C4F4F /* RunnerSimulation.swift in Sources */,
 				34A291F8A70EC0FF37FAE015 /* WorldLook.swift in Sources */,
+				A6C49A791352732791497B8D /* WorldMaterials.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -416,6 +421,7 @@
 				6919CD1D26E22364BD92F46A /* RunPresentation.swift in Sources */,
 				D35E074519360AC1B4BED4FA /* RunnerSimulation.swift in Sources */,
 				1A79EE8B95C4704759530C56 /* WorldLook.swift in Sources */,
+				DB9073FF67A5FEEC88C8A35D /* WorldMaterials.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
