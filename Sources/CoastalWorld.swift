@@ -84,6 +84,7 @@ final class CoastalWorld {
     var scarfSwing = RunnerPose.Spring()
     var packSwing = RunnerPose.Spring()
     var lastRunnerLift = 0.0
+    var rollSpin = 0.0
     let scarf = SCNNode()
     let pack = SCNNode()
     let boardNode = SCNNode()

@@ -237,8 +237,10 @@ extension CoastalWorld {
                     takeoffAge: Double, speed: Double, height: Double, time: Double, dt: Double) {
         let gaitPose = RunnerPose.limbs(phase: gait), torso = RunnerPose.torso(phase: gait)
         let air = airborneBlend, tuck = rollBlend
-        // Knees give on landing (0.32 s) and dip briefly at takeoff (0.10 s).
-        let crouch = (landingAge < 0.32 ? sin(landingAge / 0.32 * .pi) : 0) + (takeoffAge < 0.10 ? (1 - takeoffAge / 0.10) * 0.45 : 0)
+        // Knees give on landing (0.32 s); takeoff is a stretch, applied below.
+        let crouch = landingAge < 0.32 ? sin(landingAge / 0.32 * .pi) : 0
+        // Reduced Motion keeps the cycle but halves the hip sway, twist, tilt and squash, and drops the roll's spin.
+        let gentle = reducedMotion ? 0.5 : 1.0
         for i in 0..<2 {
             let side = i == 0 ? -1.0 : 1.0
             var j = RunnerPose.mix(RunnerPose.rest, i == 0 ? gaitPose.left : gaitPose.right, amount)
@@ -254,19 +256,29 @@ extension CoastalWorld {
             forearms[i].eulerAngles.x = scalar(j.forearm)
         }
         let bob = reducedMotion ? 0 : torso.bob * amount
+        let sway = torso.sway * amount * gentle, yaw = torso.yaw * amount * gentle, tilt = torso.roll * amount * gentle
         let lean = waterMode ? RunnerPose.rideLean : flying ? 0.12 : torso.lean * amount - air * 0.08
         let lift = waterMode ? RunnerPose.rideDrop : bob - crouch * 0.14
-        body.position = vector(torso.sway * amount, lift + tuck * 0.38, waterMode ? RunnerPose.rideShift : 0)
-        body.eulerAngles = vector(-lean * (1 - tuck) - tuck * .pi / 2, torso.yaw * amount, torso.roll * amount - bank * (waterMode ? 0.22 : 0.20))
-        body.scale = vector(1, 1 - tuck * 0.24, 1)
+        let squash = RunnerPose.volumeScale(1 + (RunnerPose.squash(landingAge: landingAge, takeoffAge: takeoffAge) - 1) * gentle)
+        let ball = 1 + (RunnerPose.tuckScale - 1) * tuck
+        rollSpin = RunnerPose.advanceSpin(rollSpin, rolling: tuck > 0.5 && !reducedMotion, dt: dt)
+        // The tuck spins about the ball's centre (body-space y), which rests tuckRadius above the deck. SceneKit's
+        // `pivot` offsets after rotating, so the centre is compensated in `position`. With tuck 0 the centre is the soles.
+        let centre = tuck * RunnerPose.tuckCentre * squash.y * ball
+        let pitch = -lean * (1 - tuck) - rollSpin
+        body.position = vector(sway, lift + (RunnerPose.tuckRadius - lift) * tuck - centre * cos(pitch),
+                               (waterMode ? RunnerPose.rideShift : 0) - centre * sin(pitch))
+        body.eulerAngles = vector(pitch, yaw, tilt - bank * (waterMode ? 0.22 : 0.20))
+        body.scale = vector(squash.x * ball, squash.y * ball, squash.z * ball)
         // Head stabilisation: counter 90% of the body's pitch, twist, tilt and half its bob; tuck the chin while rolling.
         let steady = 1 - tuck
         headRig.position.y = scalar(RunnerPose.neckHeight - bob * 0.5 * steady)
-        headRig.eulerAngles = vector(lean * 0.9 * steady - tuck * 0.9, -torso.yaw * amount * 0.9,
-                                     waterMode ? -bank * 0.12 : -(torso.roll * amount - bank * 0.20) * 0.9)
+        headRig.eulerAngles = vector(lean * 0.9 * steady - tuck * 0.9, -yaw * 0.9,
+                                     waterMode ? -bank * 0.12 : -(tilt - bank * 0.20) * 0.9)
         // Follow-through: the scarf streams back with speed and lags vertical motion; the pack swings on its strap.
-        let rise = height + lift
-        let riseVelocity = dt > 0 ? (rise - lastRunnerLift) / dt : 0
+        // The water drop is a constant offset, not motion, so entering or leaving water does not kick the springs.
+        let rise = height + (waterMode ? 0 : lift)
+        let riseVelocity = RunnerPose.riseVelocity(from: lastRunnerLift, to: rise, dt: dt)
         lastRunnerLift = rise
         let flutter = reducedMotion ? 0 : sin(time * 9) * 0.05
         scarfSwing = RunnerPose.step(scarfSwing, target: 0.30 + 0.55 * min(1, speed / 40) - max(-0.4, min(0.4, riseVelocity * 0.05)) + flutter,

@@ -52,6 +52,28 @@ import SceneKit
         return (root.geometry?.elements.count ?? 0) + root.childNodes.reduce(0) { $0 + visibleElements($1) }
     }
 
+    /// A live world driven by a running simulation, one frame per `step`.
+    final class Drive {
+        let world: CoastalWorld
+        var sim = RunnerSimulation()
+        var clock = 0.0
+        init(_ resources: URL, reduced: Bool) {
+            world = CoastalWorld(assetsURL: resources)
+            world.reducedMotion = reduced
+            sim.start(seed: 3, boards: 0, mode: .odyssey, startStage: 0)
+        }
+        func step(_ dt: Double = 1.0 / 60) {
+            sim.replaceTrackForTesting([], generate: false)
+            sim.update(dt: dt); clock += dt
+            world.update(simulation: sim, character: "milo", board: "tideline", time: clock)
+        }
+        var player: SCNNode { field(world, "player") }
+        var body: SCNNode { field(world, "body") }
+        var pack: SCNNode { field(world, "pack") }
+        var scarf: SCNNode { field(world, "scarf") }
+        var rollSpin: Double { field(world, "rollSpin") }
+    }
+
     static func main() {
         let resources = URL(fileURLWithPath: "Resources")
         // Contracts: stored properties that Mirror-based tests and audits read, and node names looked up by string.
@@ -170,7 +192,9 @@ import SceneKit
             }
         }
         tick(60, measure: false)
+        packSwing = 0
         tick(120, measure: true)
+        let runPackPeak = packSwing
         precondition(sway > 0.015, "no hip sway on body (\(sway) m)")
         precondition(twist > 0.05, "no torso twist (\(twist) rad)")
         precondition(headYaw < 0.03 && headPitch < 0.05, "head not stabilised (yaw \(headYaw), pitch \(headPitch))")
@@ -178,7 +202,115 @@ import SceneKit
         packSwing = 0
         sim.act(.jump)
         tick(60, measure: false)
-        precondition(packSwing > 0.02, "pack shows no follow-through on a jump (\(packSwing))")
+        precondition(packSwing > max(0.02, 2 * runPackPeak), "pack follow-through on a jump (\(packSwing)) must clearly exceed the run bob alone (\(runPackPeak))")
+        // Squash and stretch keep volume; landing squashes, takeoff stretches, and both start and end at 1.
+        var sy = 0.7
+        while sy <= 1.3 {
+            let s = RunnerPose.volumeScale(sy)
+            precondition(abs(s.x * s.y * s.z - 1) < 1e-9, "squash must keep volume at \(sy)")
+            sy += 0.05
+        }
+        precondition(RunnerPose.squash(landingAge: 0.16, takeoffAge: 9) < 0.9, "landing must squash")
+        precondition(RunnerPose.squash(landingAge: 9, takeoffAge: 0.06) > 1.05, "takeoff must stretch")
+        for (landing, takeoff) in [(0.0, 9.0), (0.32, 9.0), (9.0, 0.0), (9.0, 0.12), (9.0, 9.0)] {
+            precondition(abs(RunnerPose.squash(landingAge: landing, takeoffAge: takeoff) - 1) < 1e-9, "squash must start and end at 1 (\(landing), \(takeoff))")
+        }
+        // Spin: continuous while rolling; afterwards it finishes the turn and rests upright at 0.
+        var spin = 0.0
+        for _ in 0..<24 {
+            let next = RunnerPose.advanceSpin(spin, rolling: true, dt: 1.0 / 60)
+            let turned = (next - spin + 2 * .pi).truncatingRemainder(dividingBy: 2 * .pi)
+            precondition(turned <= RunnerPose.spinRate / 60 + 1e-9, "spin must advance continuously")
+            spin = next
+        }
+        var settled = -1
+        for frame in 0..<60 {
+            let next = RunnerPose.advanceSpin(spin, rolling: false, dt: 1.0 / 60)
+            precondition(next == 0 || next > spin, "after a roll the spin finishes its turn forward, never rewinds")
+            spin = next
+            if spin == 0 && settled < 0 { settled = frame }
+        }
+        precondition(settled >= 0 && settled <= 48 && spin == 0, "spin must come to rest upright within one roll time")
+        // Live roll: a compact spinning ball resting on the deck, under the 1.30 m roll ceiling.
+        let roller = CoastalWorld(assetsURL: resources)
+        let rollPlayer: SCNNode = field(roller, "player")
+        var rollRun = RunnerSimulation()
+        rollRun.start(seed: 3, boards: 0, mode: .odyssey, startStage: 0)
+        var rollClock = 0.0, checked = 0, low = Double.infinity, high = -Double.infinity, maxSpin = 0.0
+        for frame in 0..<120 {
+            if frame == 60 { rollRun.act(.roll) }
+            rollRun.replaceTrackForTesting([], generate: false)
+            rollRun.update(dt: 1.0 / 60); rollClock += 1.0 / 60
+            roller.update(simulation: rollRun, character: "milo", board: "tideline", time: rollClock)
+            let blend: Double = field(roller, "rollBlend"), spun: Double = field(roller, "rollSpin")
+            maxSpin = max(maxSpin, spun)
+            guard blend >= 0.95 else { continue }
+            let ys = points(under: rollPlayer, in: rollPlayer).map(\.y)
+            low = min(low, ys.min()!); high = max(high, ys.max()!); checked += 1
+        }
+        precondition(checked >= 20, "roll never reached full tuck (\(checked) frames)")
+        precondition(low >= -0.05, "roll tuck sinks into the deck (lowest \(low))")
+        precondition(high <= 1.30, "roll tuck too tall (highest \(high))")
+        precondition(maxSpin > 2.5, "roll tuck does not spin (\(maxSpin))")
+        print(String(format: "roll tuck: %d frames, y %.2f…%.2f, spin %.2f", checked, low, high, maxSpin))
+        // Rise velocity feeding the springs is clamped: a hitch or a one-frame jump cannot overshoot them.
+        precondition(RunnerPose.riseVelocity(from: 0, to: 1, dt: 0.05) == 8 && RunnerPose.riseVelocity(from: 1, to: 0, dt: 0.05) == -8, "rise velocity must clamp at ±8 m/s")
+        precondition(RunnerPose.riseVelocity(from: 0, to: 0.05, dt: 0.05) == 1 && RunnerPose.riseVelocity(from: 0, to: 1, dt: 0) == 0, "rise velocity: plain ratio, and 0 at dt 0")
+        // Springs at the worst frame step the world allows (dt 0.05, both gain sets) stay stable and bounded, in the pure math and live.
+        for (stiffness, damping) in [(160.0, 14.0), (60.0, 7.0)] {
+            var s = RunnerPose.Spring(), peak = 0.0
+            for _ in 0..<80 { s = RunnerPose.step(s, target: 1, dt: 0.05, stiffness: stiffness, damping: damping); peak = max(peak, abs(s.value)) }
+            precondition(abs(s.value - 1) < 0.02 && peak < 1.5, "spring \(stiffness)/\(damping) at dt 0.05 must settle (value \(s.value), peak \(peak))")
+        }
+        let slow = Drive(resources, reduced: false)
+        var slowPeak = 0.0
+        for frame in 0..<160 {
+            if frame == 40 { slow.sim.act(.jump) }
+            if frame == 100 { slow.sim.act(.roll) }
+            slow.step(0.05)
+            for node in [slow.pack, slow.scarf] {
+                let x = Double(node.eulerAngles.x)
+                precondition(x.isFinite && abs(x) < 1.2, "spring node unstable at dt 0.05 (\(x)) frame \(frame)")
+                slowPeak = max(slowPeak, abs(x))
+            }
+        }
+        // Reduced Motion halves hip sway, twist and tilt, drops the bob, keeps the squash gentle and does not spin the roll.
+        let calm = Drive(resources, reduced: true), full = Drive(resources, reduced: false)
+        var calmSway = 0.0, calmTwist = 0.0, calmTilt = 0.0, calmBob = 0.0, fullSway = 0.0, fullTwist = 0.0, fullTilt = 0.0
+        for frame in 0..<240 {
+            calm.step(); full.step()
+            guard frame >= 60 else { continue }
+            calmSway = max(calmSway, abs(Double(calm.body.position.x))); calmBob = max(calmBob, abs(Double(calm.body.position.y)))
+            calmTwist = max(calmTwist, abs(Double(calm.body.eulerAngles.y))); calmTilt = max(calmTilt, abs(Double(calm.body.eulerAngles.z)))
+            fullSway = max(fullSway, abs(Double(full.body.position.x)))
+            fullTwist = max(fullTwist, abs(Double(full.body.eulerAngles.y))); fullTilt = max(fullTilt, abs(Double(full.body.eulerAngles.z)))
+        }
+        precondition(calmBob < 1e-6, "Reduced Motion must not bob (\(calmBob))")
+        precondition(calmSway > 0.006 && abs(calmSway - fullSway / 2) < 0.002, "Reduced Motion sway must be half (\(calmSway) vs \(fullSway))")
+        precondition(calmTwist > 0.025 && abs(calmTwist - fullTwist / 2) < 0.005, "Reduced Motion twist must be half (\(calmTwist) vs \(fullTwist))")
+        precondition(calmTilt > 0.01 && calmTilt < fullTilt * 0.6, "Reduced Motion tilt must be half (\(calmTilt) vs \(fullTilt))")
+        var calmSquash = 1.0, fullSquash = 1.0, fullStretch = 1.0, calmMaxSpin = 0.0, calmLow = Double.infinity, calmHigh = -Double.infinity
+        for frame in 0..<160 {
+            if frame == 0 { calm.sim.act(.jump); full.sim.act(.jump) }
+            if frame == 90 { calm.sim.act(.roll); full.sim.act(.roll) }
+            calm.step(); full.step()
+            if frame < 80 {
+                calmSquash = min(calmSquash, Double(calm.body.scale.y)); fullSquash = min(fullSquash, Double(full.body.scale.y))
+                fullStretch = max(fullStretch, Double(full.body.scale.y))
+            }
+            calmMaxSpin = max(calmMaxSpin, calm.rollSpin)
+            let blend: Double = field(calm.world, "rollBlend")
+            if blend >= 0.95 {
+                let ys = points(under: calm.player, in: calm.player).map(\.y)
+                calmLow = min(calmLow, ys.min()!); calmHigh = max(calmHigh, ys.max()!)
+            }
+        }
+        precondition(fullSquash < 0.9 && fullStretch > 1.05, "live landing must squash and takeoff stretch (\(fullSquash), \(fullStretch))")
+        precondition(calmSquash > 0.915 && calmSquash < 0.99, "Reduced Motion squash must be half (\(calmSquash))")
+        precondition(calmMaxSpin == 0, "Reduced Motion roll must not spin (\(calmMaxSpin))")
+        precondition(calmLow >= -0.05 && calmHigh <= 1.30, "Reduced Motion roll leaves the roll bounds (\(calmLow)…\(calmHigh))")
+        print(String(format: "reduced motion: sway %.3f/%.3f twist %.3f/%.3f squash %.2f/%.2f roll y %.2f…%.2f; dt 0.05 peak %.2f",
+                     calmSway, fullSway, calmTwist, fullTwist, calmSquash, fullSquash, calmLow, calmHigh, slowPeak))
         print("RunnerTests passed")
     }
 }

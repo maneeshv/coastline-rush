@@ -38,6 +38,40 @@ enum RunnerPose {
     static let ride = Limbs(thigh: 0.80, shin: -1.20, foot: 0.28, arm: 1.00, forearm: 0.22)
     static let rideLean = 0.38, rideDrop = -0.32, rideShift = 0.0, rideSplay = 0.02
 
+    /// The body's vertical scale: landing squash (0.32 s, down to 0.84) and takeoff stretch (0.12 s, up to 1.10).
+    static func squash(landingAge: Double, takeoffAge: Double) -> Double {
+        var s = 1.0
+        if landingAge < 0.32 { s -= 0.16 * sin(landingAge / 0.32 * .pi) }
+        if takeoffAge < 0.12 { s += 0.10 * sin(takeoffAge / 0.12 * .pi) }
+        return s
+    }
+
+    /// Volume-preserving scale for vertical factor `y`: x and z take 1/√y.
+    static func volumeScale(_ y: Double) -> (x: Double, y: Double, z: Double) {
+        let w = 1 / y.squareRoot()
+        return (w, y, w)
+    }
+
+    /// Roll tuck ball: spin centre in body space (1.5–1.9), its height above the deck (0.55–0.70) and
+    /// the ball's scale (0.65–0.85; the 2.5 m figure must fit under the 1.30 m roll ceiling).
+    static let tuckCentre = 1.75, tuckRadius = 0.65, tuckScale = 0.74
+    /// One forward revolution per 0.8 s roll.
+    static let spinRate = 2 * Double.pi / 0.8
+
+    /// Roll spin in 0..<2π. While rolling it keeps turning; afterwards it finishes the turn and rests at 0 (upright).
+    static func advanceSpin(_ angle: Double, rolling: Bool, dt: Double) -> Double {
+        guard rolling || angle > 0 else { return 0 }
+        let next = angle + dt * spinRate
+        if next < 2 * .pi { return next }
+        return rolling ? next - 2 * .pi : 0
+    }
+
+    /// Vertical speed (m/s) feeding the follow-through springs. Clamped so a frame hitch (where `dt` is already capped)
+    /// or a one-frame jump in the rise cannot overshoot the springs.
+    static func riseVelocity(from last: Double, to rise: Double, dt: Double) -> Double {
+        dt > 0 ? max(-8, min(8, (rise - last) / dt)) : 0
+    }
+
     /// Periodic Catmull-Rom through `keys` spaced evenly over 2π: it passes through every key and is C1 (no velocity jump).
     static func sample(_ keys: [Double], phase: Double) -> Double {
         let n = keys.count
