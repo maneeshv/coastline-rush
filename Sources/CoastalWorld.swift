@@ -2770,6 +2770,14 @@ private extension CoastalWorld {
             let gapHeight = top - 0.55 - 0.96
             for x in [-0.45, 0.45] { glowBox(0.07, gapHeight, 0.03, "FFF0D1", at: vector(x, 0.96 + gapHeight / 2, 0.37), into: root) }
             glowBox(1.75, 0.08, 0.03, "FFB369", at: vector(0, 0.9, 0.49), into: root)
+            // Bright edge and slanted stripes on the beam face so it reads against dark skies (Orbit, Forge, Cryo).
+            // The slant is a pattern, so the hazard does not depend on colour alone.
+            glowBox(2.3, 0.1, 0.04, "FFB369", at: vector(0, top - 0.5, 0.37), into: root)
+            glowBox(2.3, 0.07, 0.04, "FFB369", at: vector(0, top - 0.035, 0.37), into: root)
+            for x in [-0.8, 0, 0.8] {
+                let stripe = glowBox(0.2, 0.42, 0.04, "FFE3A1", at: vector(x, top - 0.275, 0.37), into: root)
+                stripe.eulerAngles.z = scalar(-0.45)
+            }
         default: return nil
         }
         return root
@@ -3066,7 +3074,8 @@ private extension CoastalWorld {
         // Two strokes stand upright in the xy plane, facing the camera, and form a ">" pointing toward +x;
         // the sync yaws it by pi toward a -x target lane.
         for side in [-1.0, 1.0] {
-            let stroke = glowBox(0.62, 0.07, 0.14, "FFE3A1", at: vector(0, 3.25 + side * 0.16, 0), into: cue)
+            // About 1.8x the first size, lifted so the lower stroke clears the roof; still well inside the 2.1-wide roof.
+            let stroke = glowBox(1.1, 0.13, 0.25, "FFE3A1", at: vector(0, 3.65 + side * 0.29, 0), into: cue)
             stroke.eulerAngles.z = scalar(-side * 0.54)
             stroke.castsShadow = false
         }
