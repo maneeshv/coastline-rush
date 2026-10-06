@@ -84,7 +84,7 @@ Each hazard has a real time- or motion-dependent collider. It telegraphs at leas
   - After the speed cap, spacing keeps tightening toward a floor over the next 120 s.
   - Compound patterns begin at 60 s on Standard and 30 s on Expert.
 - **Forgiveness.**
-  - Expert: collision padding 0.35 → 0.20 and lateral tolerance 0.55 → 0.45.
+  - Expert: collision padding 0.35 → 0.50 and lateral tolerance 0.55 → 0.65. (Corrected during G3 planning: in this code these are hitbox extents, so larger values are stricter; the original 0.20 / 0.45 would have made Expert easier, contradicting "Expert noticeably tougher".)
   - Board protection window: 30 s → 20 s on Standard, 12 s on Expert.
   - The board's 18 m clear radius applies only in Endless and Sprint, not Odyssey.
   - Revive and portal invulnerability are unchanged.
