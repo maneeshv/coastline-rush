@@ -113,6 +113,8 @@ struct SkillAudit {
         if run.mode == .odyssey {
             for e in run.entities where watch.features.insert(e.id).inserted {
                 if let feature = hazardFeature(e) { coverage[feature, default: []].insert(run.worldStage) }
+                // Pattern 12's rock has already landed at first sight (activeFrom beyond its z); ordinary strike rocks have not.
+                if e.kind == .meteor && e.activeFrom.isFinite && e.activeFrom > e.z { coverage["meteor-landed", default: []].insert(run.worldStage) }
             }
         }
     }
@@ -135,6 +137,7 @@ struct SkillAudit {
         "gap-wall": Set(WorldStage.allCases),
         "stacked": Set(WorldStage.allCases),
         "real-meteor": [.mars],
+        "meteor-landed": [.mars],
         "collapsing-deck": [.orbit, .cryo],
     ]
 

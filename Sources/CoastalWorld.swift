@@ -1150,7 +1150,7 @@ final class CoastalWorld {
                 let impact = entity.activeFrom.isFinite ? entity.activeFrom : 18
                 let descent = max(0, min(1, (entity.z - impact) / 36))
                 node.childNode(withName: "impactRock", recursively: false)?.position.y = scalar(1.05 + descent * 16)
-                node.childNode(withName: "impactRock", recursively: false)?.eulerAngles = vector(time * 0.55, time * 0.35, 0.24)
+                node.childNode(withName: "impactRock", recursively: false)?.eulerAngles = reducedMotion ? vector(0.3, 0.2, 0.24) : vector(time * 0.55, time * 0.35, 0.24)
                 node.childNode(withName: "target", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.65 + sin(time * 4) * 0.15
             case .root:
                 node.childNode(withName: "rootCrown", recursively: false)?.scale.y = scalar(0.90 + sin(time * 2 + Double(entity.id)) * 0.10)
@@ -2705,7 +2705,10 @@ private extension CoastalWorld {
             plate.geometry?.firstMaterial = iceMaterial()
             let crack = SCNNode(); crack.name = "crackDecal"; crack.isHidden = true; root.addChildNode(crack)
             for i in 0..<3 {
-                let stroke = glowBox(0.08, 0.02, 1.1, "E6FBFF", at: vector(i % 2 == 0 ? -0.2 : 0.2, 0.065, -1.0 + Double(i) * 1.0), into: crack)
+                // Dark and unlit: a pale emissive stroke vanishes on pale ice (about 1.4:1); this is about 5:1.
+                let stroke = box(0.10, 0.02, 1.1, "143A52", at: vector(i % 2 == 0 ? -0.2 : 0.2, 0.065, -1.0 + Double(i) * 1.0), radius: 0, into: crack)
+                stroke.geometry?.firstMaterial = material("143A52", unique: true)
+                stroke.geometry?.firstMaterial?.lightingModel = .constant
                 stroke.eulerAngles.y = scalar(i % 2 == 0 ? 0.5 : -0.5)
                 stroke.castsShadow = false
             }
