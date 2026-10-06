@@ -64,6 +64,21 @@ struct RunChallenge: Codable {
     var nextAirPattern = 0.0
 }
 
+/// Odyssey shuffle-bag state, persisted so a restored run draws exactly the patterns the original would have.
+struct PatternBag: Codable, Equatable {
+    var key = -1
+    var remaining: [Int] = []
+    var recent: [Int] = []
+}
+
+/// One generated Odyssey row, for audits. Not persisted.
+struct PatternRecord: Equatable {
+    let world: WorldStage
+    let pattern: Int
+    /// Drawn from the shuffle bag: not a forced opening row, a fork row or a finale row.
+    let fromBag: Bool
+}
+
 /// Longitudinal positions and lengths are centered. Positive z is ahead of the runner.
 struct TrackEntity: Identifiable, Equatable, Codable {
     var id: Int
@@ -367,6 +382,9 @@ struct RunnerSimulation: Codable {
     private(set) var placedCoinLines: [CoinLine: Int] = [:]
     /// Last bait coin id → its solid's id, for the bait-escape audit. Not persisted: a restored run starts empty.
     private(set) var baitEscapes: [Int: Int] = [:]
+    private var patternBag = PatternBag()
+    /// Every generated Odyssey row, for audits. Not persisted: a restored run starts a new log.
+    private(set) var patternLog: [PatternRecord] = []
     private var generateTrack = true
 
     mutating func start(seed: UInt64 = 0xC0A5711E, baseMultiplier: Int = 1,
@@ -1292,25 +1310,34 @@ struct RunnerSimulation: Codable {
             case .intense: base = [0, 1, 2, 3, 3, 4, 5, 6, 7]
             case .overdrive: base = [0, 1, 2, 2, 3, 4, 5, 6, 6, 7, 7]
             }
+            let world = worldStage
+            let canTransfer = [.harbor, .mars, .forge].contains(world)
+            // World remaps come first, so the bag holds the patterns this world actually builds. Verdant keeps
+            // charging cargo (5), which gives every world at least ten effective patterns.
+            func effective(_ p: Int) -> Int {
+                if p == 4 && !canTransfer { return 2 }
+                if p == 5 && ![.forge, .harbor, .verdant].contains(world) { return 7 }
+                return p
+            }
             // New hazards join pressure and later tiers, never a world's first rows.
-            let pool = base + (tier == .warmup || row < 4 ? [] : worldStage.hazardPatterns)
-            var pattern = pool[Int(nextRandom() % UInt64(pool.count))]
+            let pool = (base + (tier == .warmup || row < 4 ? [] : world.hazardPatterns)).map(effective)
+            var pattern = drawPattern(from: pool, key: stageIndex * 16 + tier.rawValue * 2 + (row < 4 ? 0 : 1))
             // Guarantee an early introduction to each world's vertical action.
             if row == 0 { pattern = 0 }
-            if row == 1 { pattern = worldStage == .orbit ? 3 : 1 }
+            if row == 1 { pattern = world == .orbit ? 3 : 1 }
+            // Forks and finales keep their authored sets, in a per-seed order (Daily: per date).
+            let salt = UInt64(stageIndex * 8 + expeditionCycle * 64)
             if inBranch {
-                if branchRoute == .safe { pattern = row % 3 == 0 ? 0 : 3 }
-                else if worldStage == .mars || worldStage == .harbor { pattern = row % 2 == 0 ? 4 : 7 }
-                else { pattern = [2, 6, 7, 3][row % 4] }
+                if branchRoute == .safe { pattern = seededOrder([0, 3, 3], salt: salt + 1)[row % 3] }
+                else if world == .mars || world == .harbor { pattern = seededOrder([4, 7], salt: salt + 2)[row % 2] }
+                else { pattern = seededOrder([2, 6, 7, 3], salt: salt + 3)[row % 4] }
             }
             if inFinale {
-                let phrase = worldStage.finalePatterns
+                let phrase = seededOrder(world.finalePatterns, salt: salt + 4)
                 pattern = phrase[expansion.finaleRows % phrase.count]
                 expansion.finaleRows += 1
             }
-            let canTransfer = [.harbor, .mars, .forge].contains(worldStage)
-            if pattern == 4 && !canTransfer { pattern = 2 }
-            if pattern == 5 && worldStage != .forge && worldStage != .harbor { pattern = 7 }
+            pattern = effective(pattern)
             // A gap wall's opening always moves one lane from the previous route.
             if pattern == 10 && safe == previousSafe {
                 safe = previousSafe == 0 ? (nextRandom() % 2 == 0 ? -1 : 1) : 0
@@ -1338,6 +1365,9 @@ struct RunnerSimulation: Codable {
                 nextPatternDistance = localLimit + changeClearance * 2
                 continue
             }
+            // The 3-row window covers every built row, forced and authored ones included.
+            patternBag.recent = Array((patternBag.recent + [pattern]).suffix(3))
+            patternLog.append(PatternRecord(world: worldStage, pattern: pattern, fromBag: row >= 2 && !inBranch && !inFinale))
             let rowStart = entities.count
             switch pattern {
             case 0: // Full-width leap: lane changes alone cannot solve the route.
@@ -1510,6 +1540,33 @@ struct RunnerSimulation: Codable {
             add(.relic, lane: gateLane, z: z, y: 0.9, length: 0.6)
             journey.generatedRelics += 1
         }
+    }
+
+    /// Shuffle-bag pattern choice: each pool entry is used once per bag, and a pattern from the last three rows is
+    /// skipped while the bag (refilled as needed) holds another. Draws use the course RNG, so seeds and Daily replay.
+    private mutating func drawPattern(from pool: [Int], key: Int) -> Int {
+        if patternBag.key != key { patternBag.key = key; patternBag.remaining = [] }
+        let recent = patternBag.recent
+        if !patternBag.remaining.contains(where: { !recent.contains($0) }) {
+            var fresh = pool
+            for i in stride(from: fresh.count - 1, to: 0, by: -1) { fresh.swapAt(i, Int(nextRandom() % UInt64(i + 1))) }
+            patternBag.remaining += fresh
+        }
+        // Every pool holds at least four distinct patterns, so a fresh bag always has one outside the 3-row window.
+        let index = patternBag.remaining.firstIndex { !recent.contains($0) }!
+        return patternBag.remaining.remove(at: index)
+    }
+
+    /// A per-seed permutation of an authored fork or finale set. It reads runSeed (Daily: the date seed) and never
+    /// draws from the course RNG, so it needs no persisted state.
+    private func seededOrder(_ items: [Int], salt: UInt64) -> [Int] {
+        var state = (runSeed ^ (salt &* 0x9E37_79B9_7F4A_7C15)) | 1
+        var order = items
+        for i in stride(from: order.count - 1, to: 0, by: -1) {
+            state ^= state >> 12; state ^= state << 25; state ^= state >> 27
+            order.swapAt(i, Int((state &* 2_685_821_657_736_338_717) % UInt64(i + 1)))
+        }
+        return order
     }
 
     private func journeyEncounterInterval(progress: Double, pattern: Int) -> Double {
@@ -1868,7 +1925,7 @@ struct RunnerSimulation: Codable {
 
 extension RunnerSimulation {
     private enum CodingKeys: String, CodingKey {
-        case expansion, enhancements, phase, lane, lateral, height, isRolling, distance, speed, coins, keys, score, multiplier, boardTime, invulnerableTime, activePowerUps, entities, elapsed, jumps, rolls, dodges, boardsUsed, availableBoards, crashReason, challenge, journey, randomState, nextID, nextPatternDistance, verticalVelocity, rollTime, grounded, baseMultiplier, powerDurations, preciseScore, processedObstacles, generateTrack
+        case expansion, enhancements, phase, lane, lateral, height, isRolling, distance, speed, coins, keys, score, multiplier, boardTime, invulnerableTime, activePowerUps, entities, elapsed, jumps, rolls, dodges, boardsUsed, availableBoards, crashReason, challenge, journey, randomState, nextID, nextPatternDistance, verticalVelocity, rollTime, grounded, baseMultiplier, powerDurations, preciseScore, processedObstacles, generateTrack, patternBag
     }
 
     init(from decoder: Decoder) throws {
@@ -1919,5 +1976,6 @@ extension RunnerSimulation {
         preciseScore = try values.decodeIfPresent(Double.self, forKey: .preciseScore) ?? preciseScore
         processedObstacles = try values.decodeIfPresent(Set<Int>.self, forKey: .processedObstacles) ?? processedObstacles
         generateTrack = try values.decodeIfPresent(Bool.self, forKey: .generateTrack) ?? generateTrack
+        patternBag = try values.decodeIfPresent(PatternBag.self, forKey: .patternBag) ?? patternBag
     }
 }

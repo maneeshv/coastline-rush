@@ -6,6 +6,23 @@ import Foundation
 /// coins and pickups (first sight and collection time). Compile with -D ROUTE_HELPER and RouteAudit.swift.
 @main
 struct SkillAudit {
+    static var patternsByWorld: [WorldStage: Set<Int>] = [:]
+    static var bagRepeats = 0
+    /// Every world must build 10+ effective patterns (14+ overall), and a bag row never repeats one of the
+    /// previous three rows of its world.
+    static func checkPatterns(_ log: [PatternRecord]) {
+        var window: [Int] = [], world: WorldStage? = nil
+        for record in log {
+            if record.world != world { window = []; world = record.world }
+            patternsByWorld[record.world, default: []].insert(record.pattern)
+            if record.fromBag && window.contains(record.pattern) {
+                bagRepeats += 1
+                if bagRepeats <= 5 { print("BAG-REPEAT world=\(record.world) pattern=\(record.pattern) after \(window)") }
+            }
+            window = Array((window + [record.pattern]).suffix(3))
+        }
+    }
+
     static let seeds = Int(ProcessInfo.processInfo.environment["QA_SEEDS"] ?? "30") ?? 30
 
     /// Lane choice comes from coins (taking ramps to roof coins); never sideswipes a vehicle; vertical reflexes are
@@ -232,6 +249,7 @@ struct SkillAudit {
                     var tick = 0, watch = Watch()
                     while run.phase == .running && tick < 90_000 { RouteAudit.drive(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; check(run, &watch) }
                     placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
+                    checkPatterns(run.patternLog)
                     if run.phase == .finished { cleared += 1 }
                     else { print("READER-FAIL odyssey seed=\(seed) route=\(route.rawValue) expert=\(expert) world=\(run.worldStage) reason=\(run.crashReason)") }
                 }
@@ -280,6 +298,11 @@ struct SkillAudit {
         }
         let missing = hazardWorlds.filter { coverage[$0.key] != $0.value }
         let leaks = coverage.filter { hazardWorlds[$0.key] != $0.value }
+        let distinct = Set(patternsByWorld.values.flatMap { $0 })
+        print("PATTERNS total=\(distinct.count) " + WorldStage.allCases.map { "\($0.rawValue)=\(patternsByWorld[$0, default: []].count)" }.joined(separator: " ") + " bagRepeats=\(bagRepeats)")
+        precondition(distinct.count >= 14 && WorldStage.allCases.allSatisfy { patternsByWorld[$0, default: []].count >= 10 },
+                     "Odyssey needs 14+ patterns and 10+ effective patterns per world")
+        precondition(bagRepeats == 0, "A bag row must not repeat a pattern from the last three rows")
         print("HAZARD-COVERAGE " + hazardWorlds.keys.sorted().map { key in
             "\(key)=\(coverage[key, default: []].map(\.rawValue).sorted().joined(separator: "+"))" }.joined(separator: " "))
         precondition(missing.isEmpty && leaks.isEmpty, "Each G2 hazard must appear in exactly its worlds: missing=\(missing.keys.sorted()) leaks=\(leaks.keys.sorted())")
@@ -298,6 +321,14 @@ struct SkillAudit {
             return run.entities
         }
         precondition(trackAfterReaderRun() == trackAfterReaderRun(), "Same seed must generate the same track")
+        // Daily follows its date alone: any launch seed rebuilds the same course, forks and finales included.
+        func dailyTrack(seed: UInt64) -> [TrackEntity] {
+            var run = RunnerSimulation()
+            run.start(seed: seed, boards: 0, mode: .odyssey, dailyID: "2026-10-06")
+            for _ in 0..<3_000 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60) }
+            return run.entities
+        }
+        precondition(dailyTrack(seed: 1) == dailyTrack(seed: 2), "Daily Odyssey must reproduce from its date alone")
         print("SkillAudit passed")
     }
 }
