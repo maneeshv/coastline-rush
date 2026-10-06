@@ -30,8 +30,8 @@ enum RunMode: String, CaseIterable, Codable {
     }
     var instructions: String {
         switch self {
-        case .odyssey: return "Master six worlds: jump gaps, slide beams and read moving hazards. Risky relic routes charge your artifact ability (E). Jump at a portal for a precision bonus, or let Portal Assist carry you through. Gold requires a clean stage, two relics, two skill actions and a precision entry."
-        case .endless: return "Swipe to dodge, jump and slide. Double-tap or B activates your hoverboard. Close calls and clean escapes build your combo. Airborne drones can hit your jetpack."
+        case .odyssey: return "Master six worlds: jump gaps, slide beams and read moving hazards. Watch for vehicles that shift lanes, timed lasers, gap walls, stacked barriers, meteor rings and cracking decks. Coins tempt; they do not mark the safe lane. Risky relic routes charge your artifact ability (E). Jump at a portal for a precision bonus, or let Portal Assist carry you through. Gold requires a clean stage, two relics, two skill actions and a precision entry."
+        case .endless: return "Swipe to dodge, jump and slide. Double-tap or B activates your hoverboard. Rows grow to full width, chain a jump into a slide and add shifting trams, walls and timed lasers as the run goes on. Close calls and clean escapes build your combo. Airborne drones can hit your jetpack."
         case .harborSprint: return "Reach 1,500 m before time runs out. Cross the illuminated checkpoints for extra time. Keep moving to keep your combo."
         case .jetSki: return "Carve through gates and moving boats. Down brakes and tightens steering; B boosts. Wakes launch you. In the air, chain Up, Left and Right tricks, then release before landing to bank the score. Currents push your craft; missed gates cost time."
         }

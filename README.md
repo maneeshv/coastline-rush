@@ -1,4 +1,4 @@
-# Coastline Rush — Portal Odyssey · v7
+# Coastline Rush — Portal Odyssey · v8
 
 An original native 3D runner for iPhone, iPad, and Mac. Cross six worlds in Portal Odyssey: a dusk harbor, orbital causeway, Mars outpost, alien ruins, frozen moon, and stellar forge. Complete each stage and jump through its portal without leaving the run. Campaign and Endless Odyssey now include branching routes, run perks and authored finales. The Atlas offers short finale practice; the original Coastal Rush, Sprint and Jet Ski modes are also included.
 
@@ -34,9 +34,9 @@ On iPad, attached keyboards also support arrows, WASD, Space, B, E, and Escape.
 
 Select **Portal Odyssey**, then **Begin Odyssey**. The Star Atlas shows the six destinations, their mechanics, recovered artifacts and unlocked starting points. Each stage has a fixed distance and a clear final approach. Jump within the final 14m for a precision entry and bonus. Portal assist is enabled by default and carries the runner through automatically; turning it off preserves safe waiting at the gateway. Forward motion and combos continue through the protected transition. Opening Loadout pauses the run. Portal arrivals offer optional perk tradeoffs.
 
-The worlds change geometry, lighting, soundtrack and gameplay: long low-gravity leaps in orbit, rover routes on Mars, laser arches in alien ruins, slower steering on ice, and moving cargo at the stellar forge. Three optional relic pickups appear in each world, placed on action routes or riskier alternatives. Each normally earns one of up to three artifact charges; run perks can change capacity and recharge rules. Choose Air Dash, Phase Step, or Aegis Shield before a run or in a safe gateway/landing zone. Bronze rewards completion; Silver requires no impacts and two clean obstacle actions; Gold also requires two relics and a precision portal entry. Recovered artifact types and unlocked destinations save during the run, independently from the coins banked at its end.
+The worlds change geometry, lighting, soundtrack and gameplay: long low-gravity leaps in orbit, rover routes on Mars, laser arches in alien ruins, slower steering on ice, and moving cargo at the stellar forge. Every world also mixes in hazards that change as you approach: vehicles that shift lanes, timed laser gates, gap walls, stacked barriers, real meteor impacts and collapsing decks, each telegraphed at least a second ahead. Three optional relic pickups appear in each world, placed on action routes or riskier alternatives. Each normally earns one of up to three artifact charges; run perks can change capacity and recharge rules. Choose Air Dash, Phase Step, or Aegis Shield before a run or in a safe gateway/landing zone. Bronze rewards completion; Silver requires no impacts and two clean obstacle actions; Gold also requires two relics and a precision portal entry. Recovered artifact types and unlocked destinations save during the run, independently from the coins banked at its end.
 
-In Campaign, crossing the sixth portal finishes the route. Endless Odyssey loops into a faster next cycle with separate records. Atlas Practice starts the final segment of a world without changing progression or currency. A full expedition requires starting at The Departure and crossing all six portals; a late-world practice finish does not count as a full expedition. Read `V7.md` for the seven-part expansion, `V6.md` for continuous speed across portals, `V5.md` for the extended-stage upgrade, and `V4.md` for earlier upgrade details and `JOURNEY.md` for the original stage plan.
+In Campaign, crossing the sixth portal finishes the route. Endless Odyssey loops into a faster next cycle with separate records. Atlas Practice starts the final segment of a world without changing progression or currency. A full expedition requires starting at The Departure and crossing all six portals; a late-world practice finish does not count as a full expedition. Read `V8.md` for the gameplay overhaul (coins, new hazards, variety), `V7.md` for the seven-part expansion, `V6.md` for continuous speed across portals, `V5.md` for the extended-stage upgrade, and `V4.md` for earlier upgrade details and `JOURNEY.md` for the original stage plan.
 
 ## Continuous momentum across worlds
 
@@ -52,7 +52,7 @@ Select a mode at the harbor, then choose **Standard** or **Expert**. Each combin
 
 | Mode | Objective | What changes |
 |---|---|---|
-| Endless / Coastal Rush | Chase a score for as long as you survive | Denser lane decisions, jump/slide risks, roof routes, near misses, aerial rings and collidable drones |
+| Endless / Coastal Rush | Chase a score for as long as you survive | Denser lane decisions, jump/slide risks, roof routes, near misses, aerial rings and collidable drones. From 30 s (15 s Expert) full-width jump and slide rows; from 60 s (30 s Expert) jump-then-slide compounds, shifting trams, gap walls, stacked barriers and timed lasers; after the speed cap, rows keep tightening for two minutes |
 | Harbor Sprint | Reach 1,500m before the clock expires | 60s Standard / 45s Expert; correctly crossed checkpoints add 4s / 3s. Jetpacks are excluded so flight cannot force missed checkpoints |
 | Jet Ski / Wave Rider | Finish the 1,800m slalom | 60s / 45s; gates add 0.8s / 0.5s; a missed gate costs 4s and breaks the chain. Boost and clean ramp tricks buy a faster finish |
 
@@ -76,9 +76,10 @@ This remains a stylized native 3D game. It does not use photoreal character scan
 
 - Three lanes, responsive lane transitions, jump physics, fast-fall rolls, progressive speed, and earlier obstacles with readable safe paths.
 - Cargo barriers, low signs, stationary trams, oncoming trams, and connected roof ramps with elevated coin trails.
-- Seeded courses with validated action sequences: Odyssey includes full-width jumps and slides, moving rover roof transfers, meteor warnings, cracked ice, and sentinel sweeps. Endless retains lane escape routes.
+- Seeded courses with validated action sequences: Odyssey draws at least ten encounter patterns per world from a shuffle bag (no pattern within three rows of itself), shuffles fork and finale order per seed, and includes full-width jumps and slides, rover roof transfers, lane-changing vehicles, timed lasers, gap walls, stacked barriers, real meteor impacts and collapsing decks. Every row keeps a reachable exit.
 - Coins, rare rescue keys, a coin magnet, jetpack with aerial rings, coin trails and drone hazards, super sneakers, and a double-score pickup.
-- Consumable boards lasting up to 30 seconds and absorbing one crash; short protection after a board breaks.
+- Consumable boards lasting up to 20 seconds (12 on Expert) and absorbing one crash, with short protection after a board breaks. In Endless and Harbor Sprint the break also clears hazards within 18 m.
+- Coins are an invitation, not a route marker: lines arc over jumps, run low under slides, sit beside hazards or bait a late lane change. Low coins need a roll.
 - One key-based revive per run with a protected restart, pause/resume, results, and local personal bests.
 - Three selectable/unlockable runner colorways and three board styles.
 - Five upgrade levels for each power-up, board/key purchases with earned coins, three tiered missions, and an increasing score multiplier.
@@ -98,6 +99,7 @@ Daily courses reset at midnight UTC. Rewards and scores stay on this device. The
 - `PlayerProfile.swift` / `RunCheckpoint.swift` / `ReplayGhost.swift`: mastery, persistent saves, course identity, bounded recording and ghost playback.
 - `GameUI.swift` / `GameSurface.swift`: responsive SwiftUI interface and platform input/rendering bridge.
 - `Resources`: icons, privacy manifest, original skies, and music/ambiences/effects.
+- `V8.md`: gameplay overhaul: coin lines, moving hazards, pattern variety, Endless escalation and Expert rules.
 - `V7.md`: authored finales, branches, perk tradeoffs, practice, Endless, skill contracts and replay.
 - `V6.md`: continuous portal momentum, stage progression, speed boundaries and migration.
 - `V5.md`: historical extended-stage design and save migration.
