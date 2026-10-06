@@ -240,7 +240,7 @@ extension CoastalWorld {
     /// Poses the rig for one frame. `amount` scales the run cycle (1 running on foot, a small idle otherwise);
     /// air, roll, landing and water layers blend over it. Hip sway and bob move `body`, never `player`.
     func poseRunner(gait: Double, amount: Double, waterMode: Bool, surfing: Bool, flying: Bool, landingAge: Double,
-                    takeoffAge: Double, speed: Double, height: Double, time: Double, dt: Double) {
+                    takeoffAge: Double, speed: Double, height: Double, time: Double, dt: Double, craftPitch: Double = 0) {
         let gaitPose = RunnerPose.limbs(phase: gait), torso = RunnerPose.torso(phase: gait)
         let air = airborneBlend, tuck = rollBlend
         // Knees give on landing (0.32 s); takeoff is a stretch, applied below.
@@ -285,9 +285,15 @@ extension CoastalWorld {
         shownPitch += max(-30 * dt, min(30 * dt, gap))
         shownPitch -= (shownPitch / (2 * .pi)).rounded() * 2 * .pi
         let pitch = shownPitch
-        body.position = vector(sway, lift + (RunnerPose.tuckRadius - lift) * fold - centre * cos(pitch),
-                               (waterMode ? RunnerPose.rideShift : 0) - centre * sin(pitch))
-        body.eulerAngles = vector(pitch, yaw, tilt - bank * (waterMode ? 0.22 : 0.20))
+        var seatY = lift + (RunnerPose.tuckRadius - lift) * fold - centre * cos(pitch)
+        var seatZ = (waterMode ? RunnerPose.rideShift : 0) - centre * sin(pitch)
+        // The rider pitches with the craft about its origin (player space y -0.35), so the bar stays under the hands and the boots on the footrests.
+        if craftPitch != 0 {
+            let (cosP, sinP, pivot) = (cos(craftPitch), sin(craftPitch), -0.35)
+            (seatY, seatZ) = (pivot + (seatY - pivot) * cosP - seatZ * sinP, (seatY - pivot) * sinP + seatZ * cosP)
+        }
+        body.position = vector(sway, seatY, seatZ)
+        body.eulerAngles = vector(pitch + craftPitch, yaw, tilt - bank * (waterMode ? 0.22 : 0.20))
         body.scale = vector(squash.x * ball, squash.y * ball, squash.z * ball)
         // Foot plant: the run cycle's bob and toe-down keys sink the stance boot up to 0.14 m into the deck, so lift the body
         // by however far the lower boot's sole (toe, middle, heel) is below it, with a smooth max over both feet.
@@ -313,7 +319,7 @@ extension CoastalWorld {
         // Head stabilisation: counter 90% of the body's pitch, twist, tilt and half its bob; tuck the chin while rolling.
         let steady = 1 - tuck
         headRig.position.y = scalar(RunnerPose.neckHeight - bob * 0.5 * steady)
-        headRig.eulerAngles = vector(lean * 0.9 * steady - tuck * 0.9, -yaw * 0.9,
+        headRig.eulerAngles = vector((lean - craftPitch) * 0.9 * steady - tuck * 0.9, -yaw * 0.9,
                                      waterMode ? -bank * 0.12 : -(tilt - bank * 0.20) * 0.9)
         // Follow-through: the scarf streams back with speed and lags vertical motion; the pack swings on its strap.
         // The water drop is a constant offset, not motion, so entering or leaving water does not kick the springs.

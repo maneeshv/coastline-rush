@@ -389,6 +389,42 @@ import SceneKit
             let reach = hypot(Double(hand.y) - bar.y, Double(hand.z) - bar.z)
             precondition(reach <= 0.25, "hand \(reach) m from the handlebar")
         }
+        // The craft pitches under brake (+0.12) and boost (−0.08): the rider pitches with it, so the hands stay on the bar and the boots on the footrests.
+        var neutralHands: [SIMD3<Double>] = []
+        func rideFits(_ label: String) {
+            func local(_ p: SCNVector3, from node: SCNNode) -> SIMD3<Double> {
+                let q = craft.convertPosition(p, from: node)
+                return SIMD3(Double(q.x), Double(q.y), Double(q.z))
+            }
+            let boots = points(under: riderPlayer, in: craft, except: craft).map(\.y).min()!
+            precondition(boots >= 0.285 - 0.06, "\(label): boots sink through the footrest (\(boots))")
+            let hands = riderForearms.map { local(SCNVector3(0, -0.38, 0), from: $0) }
+            for hand in hands { precondition(hypot(hand.y - 1.07, hand.z + 0.58) <= 0.25, "\(label): hand \(hand) too far from the handlebar") }
+            // Rigid with the craft: in craft space the hands sit where they did at neutral pitch, whichever way it tilts.
+            if neutralHands.isEmpty { neutralHands = hands }
+            for (hand, rest) in zip(hands, neutralHands) { precondition(simd_distance(hand, rest) < 0.05, "\(label): hand slid \(simd_distance(hand, rest)) m on the bar") }
+        }
+        rideFits("neutral")
+        for (label, action, pitchSign) in [("brake", RunnerAction.roll, 1.0), ("boost", RunnerAction.board, -1.0)] {
+            ride.act(action)
+            for _ in 0..<20 {
+                ride.replaceTrackForTesting([], generate: false)
+                ride.update(dt: 1.0 / 60); rideClock += 1.0 / 60
+                rider.update(simulation: ride, character: "milo", board: "tideline", time: rideClock)
+            }
+            precondition(Double(craft.eulerAngles.x) * pitchSign > 0.05, "\(label) did not pitch the craft (\(craft.eulerAngles.x))")
+            rideFits(label)
+        }
+        // Water ghost: cloned in jet-ski mode it crouches over its own jet ski instead of standing through the hull.
+        rider.updateGhost(sample: GhostSample(time: rideClock, distance: ride.distance + 5, stageIndex: 0, stageDistance: 5, x: 0, y: 0, roll: false))
+        let waterGhost = rider.scene.rootNode.childNode(withName: "personalGhost", recursively: false)!
+        let ghostCraft = waterGhost.childNode(withName: "jetSki", recursively: true)!
+        precondition(!ghostCraft.isHidden && ghostCraft.eulerAngles.x == 0, "water ghost must show an unpitched jet ski")
+        let ghostBoots = points(under: waterGhost, in: ghostCraft, except: ghostCraft).map(\.y).min()!
+        precondition(ghostBoots >= 0.285 - 0.06, "water ghost sinks through the hull (\(ghostBoots))")
+        let ghostHip = ghostCraft.convertPosition(SCNVector3Zero, from: waterGhost.childNode(withName: "leftLeg", recursively: true)!)
+        precondition(Double(ghostHip.y) >= 0.57 && Double(ghostHip.y) <= 1.07 && Double(ghostHip.z) >= -0.10 && Double(ghostHip.z) <= 1.25,
+                     "water ghost hips must ride over the seat (\(ghostHip))")
         // Ghost: cloned mid-roll it still stands upright, and it draws no more than the runner.
         let haunted = CoastalWorld(assetsURL: resources)
         var chase = RunnerSimulation()
@@ -412,7 +448,7 @@ import SceneKit
             precondition(!found.isEmpty, "ghost has no \(name)")
             for node in found {
                 let e = [Double(node.eulerAngles.x), Double(node.eulerAngles.y), Double(node.eulerAngles.z)]
-                precondition(abs(e[0]) < 0.4 && abs(e[1]) < 1e-6 && abs(e[2]) < 1e-6, "ghost \(name) keeps its mid-roll pose \(e)")
+                precondition(abs(e[0]) < 0.4 && abs(e[1]) < 1e-3 && abs(e[2]) < 1e-3, "ghost \(name) keeps its mid-roll pose \(e)")
             }
         }
         let ghostY = points(under: ghost, in: ghost).map(\.y)

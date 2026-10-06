@@ -136,6 +136,21 @@ import SceneKit
             water.world.update(simulation: ride, character: "milo", board: "tideline", time: rideTime)
         }
         try shoot(water, "jetski", time: rideTime, out: out)
+        // Ghost on its jet ski: cloned in water mode, it crouches over its own craft (the unrelated land clone is ghost.png).
+        water.world.updateGhost(sample: GhostSample(time: rideTime, distance: ride.distance + 3, stageIndex: 0, stageDistance: 3, x: 0.45, y: 0, roll: false))
+        let waterGhost = water.world.scene.rootNode.childNode(withName: "personalGhost", recursively: false)!
+        try shoot((water.world, waterGhost, water.close), "ghost-jetski", time: rideTime, out: out)
+        water.player.isHidden = true   // the ghost alone, so the live rider and craft cannot be mistaken for it
+        try shoot((water.world, waterGhost, water.close), "ghost-jetski-alone", time: rideTime, out: out)
+        water.player.isHidden = false
+        water.world.updateGhost(sample: nil)
+
+        // Jet-ski menu preview: the rider on the craft in the real menu camera, then a close-up.
+        let menuWater = makeWorld()
+        menuWater.world.previewMode = .jetSki
+        for frame in 1...90 { menuWater.world.update(simulation: idle, character: "milo", board: "tideline", time: Double(frame) / 60) }
+        try shoot(menuWater, "menu-water", time: 1.5, out: out, gameplay: true)
+        try shoot(menuWater, "menu-water-pose", time: 1.5, out: out)
         print("wrote", out.path)
     }
 }

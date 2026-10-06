@@ -184,11 +184,9 @@ final class CoastalWorld {
             let ghost = player.clone() // shares the player's flat (detail-free) materials
             ghost.name = "personalGhost"
             ghost.opacity = 0.24
-            // The clone froze the runner's clone-time pose (mid-roll, mid-air, a boot on the deck). Return the pose root and the
-            // joints the per-frame sync below does not drive to the standing rest pose; the sync keeps swinging the four limbs.
-            ghost.childNode(withName: "runnerBody", recursively: false)?.transform = SCNMatrix4Identity
-            for (name, x) in [("runnerShin", RunnerPose.rest.shin), ("runnerForearm", RunnerPose.rest.forearm), ("runnerFoot", 0.0),
-                              ("runnerHead", 0), ("runnerPack", 0), ("runnerScarf", -0.6)] {
+            // The clone froze the runner's clone-time pose (mid-roll, mid-air, a boot on the deck). Rest the pack and scarf and hide the
+            // cloned board and jetpack; the body, limbs and head are posed every frame below.
+            for (name, x) in [("runnerPack", 0.0), ("runnerScarf", -0.6)] {
                 ghost.childNodes { node, _ in node.name == name }.forEach { $0.eulerAngles = vector(x, 0, 0) }
             }
             for name in ["runnerJetpack", "runnerBoard"] { ghost.childNode(withName: name, recursively: true)?.isHidden = true }
@@ -203,10 +201,28 @@ final class CoastalWorld {
         ghost.position = vector(sample.x * 2.6 + (route?.lateralOffset ?? 0), sample.y + (route?.elevation ?? 0), -separation)
         ghost.scale = vector(1, sample.roll ? 0.45 : 1, 1)
         ghost.eulerAngles = SCNVector3Zero
-        for (name, sign) in [("leftLeg", 1.0), ("rightLeg", -1.0), ("leftArm", -0.8), ("rightArm", 0.8)] {
-            ghost.childNode(withName: name, recursively: true)?.eulerAngles.x = scalar(sample.y > 0.15 ? sign * 0.45 : sin(sample.time * 13) * sign * 0.7)
+        // Pose the clone each frame: standing swing on land, the crouched ride pose over its jet ski in water.
+        let water = lastWaterMode
+        let ride = RunnerPose.ride
+        if let body = ghost.childNode(withName: "runnerBody", recursively: false) {
+            body.transform = SCNMatrix4Identity
+            if water { body.position = vector(0, RunnerPose.rideDrop, RunnerPose.rideShift); body.eulerAngles.x = scalar(-RunnerPose.rideLean) }
         }
-        ghost.childNode(withName: "jetSki", recursively: true)?.isHidden = !lastWaterMode
+        ghost.childNode(withName: "runnerHead", recursively: true)?.eulerAngles.x = scalar(water ? RunnerPose.rideLean * 0.9 : 0)
+        for (name, sign) in [("leftLeg", 1.0), ("rightLeg", -1.0), ("leftArm", -0.8), ("rightArm", 0.8)] {
+            let side = name.hasPrefix("left") ? -1.0 : 1.0
+            let swing = scalar(sample.y > 0.15 ? sign * 0.45 : sin(sample.time * 13) * sign * 0.7)
+            let limb = ghost.childNode(withName: name, recursively: true)
+            let leg = name.hasSuffix("Leg")
+            if water { limb?.eulerAngles = vector(leg ? ride.thigh : ride.arm, 0, side * (leg ? RunnerPose.rideSplay : 0.06)) }
+            else { limb?.eulerAngles = vector(Double(swing), 0, side * (leg ? 0.02 : 0.10)) }
+        }
+        for (name, stand, sit) in [("runnerShin", RunnerPose.rest.shin, ride.shin), ("runnerForearm", RunnerPose.rest.forearm, ride.forearm), ("runnerFoot", 0, ride.foot)] {
+            ghost.childNodes { node, _ in node.name == name }.forEach { $0.eulerAngles.x = scalar(water ? sit : stand) }
+        }
+        let craft = ghost.childNode(withName: "jetSki", recursively: true)
+        craft?.isHidden = !water
+        craft?.eulerAngles.x = 0   // the clone froze the runner's brake or boost pitch
         ghost.childNode(withName: "artifactAura", recursively: true)?.isHidden = true
     }
 
@@ -315,13 +331,14 @@ final class CoastalWorld {
         let takeoffAge = max(0, time - takeoffStarted)
         // Run cycle at full strength only while running on foot; a small idle otherwise.
         let gaitAmount = running && !waterMode && !surfing && !flying ? (1 - airborneBlend) * (1 - rollBlend) : isMenu ? 0.06 : 0.10
+        let craftPitch = waterMode ? simulation.isBraking ? 0.12 : boosting ? -0.08 : 0.0 : 0.0
         poseRunner(gait: gait, amount: gaitAmount, waterMode: waterMode, surfing: surfing, flying: flying, landingAge: landingAge,
-                   takeoffAge: takeoffAge, speed: simulation.speed, height: height, time: time, dt: dt)
+                   takeoffAge: takeoffAge, speed: simulation.speed, height: height, time: time, dt: dt, craftPitch: craftPitch)
         updateMotionEffects(simulation: simulation, time: time, waterMode: waterMode)
         ski.isHidden = !waterMode
         wake.isHidden = !waterMode
         ski.position.y = scalar(-0.35)
-        ski.eulerAngles.x = scalar(simulation.isBraking ? 0.12 : boosting ? -0.08 : 0)
+        ski.eulerAngles.x = scalar(craftPitch)   // the rider pitches with it (poseRunner)
         for (index, particle) in spray.enumerated() where waterMode {
             let age = (time * (boosting ? 1.8 : 1.1) + Double(index) / Double(spray.count)).truncatingRemainder(dividingBy: 1)
             let side = index % 2 == 0 ? -1.0 : 1.0
