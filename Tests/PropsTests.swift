@@ -36,10 +36,11 @@ import SceneKit
             precondition(rock.sources(for: .vertex).first?.vectorCount == 960, "rock \(variant): expected 960 flat-shaded vertices")
             precondition(rock === world.rockGeometry(variant: variant + 4), "rock variants must be cached modulo 4")
             let b = box(rock)
+            print("rock \(variant): lo \(b.lo) hi \(b.hi)")
             for axis in [0, 2] {
-                precondition(b.hi[axis] > 0.6 && b.hi[axis] < 1.4 && b.lo[axis] < -0.6 && b.lo[axis] > -1.4, "rock \(variant) axis \(axis) out of bounds: \(b)")
+                precondition(b.hi[axis] >= 0.75 && b.hi[axis] <= 1 + 1e-6 && b.lo[axis] <= -0.75 && b.lo[axis] >= -1 - 1e-6, "rock \(variant) axis \(axis) out of bounds: \(b)")
             }
-            precondition(b.hi.y > 0.6 && b.hi.y < 1.4 && b.lo.y >= -0.6 && b.lo.y <= -0.3, "rock \(variant) height out of bounds: \(b)")
+            precondition(b.hi.y > 0.5 && b.hi.y <= 1.05 && b.lo.y >= -0.6 && b.lo.y <= -0.2, "rock \(variant) height out of bounds: \(b)")
             let t = box(twin.rockGeometry(variant: variant))
             precondition(simd_length(t.lo - b.lo) + simd_length(t.hi - b.hi) < 1e-5, "rock \(variant) must be deterministic")
             boxes.append(b)

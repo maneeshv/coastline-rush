@@ -75,13 +75,16 @@ extension CoastalWorld {
             faces = next
         }
         let seed = Double(slot) * 17.3
-        let displaced = points.map { p -> SIMD3<Double> in
+        let rough = points.map { p -> SIMD3<Double> in
             let broad = Self.valueNoise(p.x * 1.6 + seed, p.y * 1.6, p.z * 1.6) - 0.5
             let fine = Self.valueNoise(p.x * 4.1, p.y * 4.1 + seed, p.z * 4.1) - 0.5
             var q = p * (1 + broad * 0.55 + fine * 0.16)
             if q.y < -0.35 { q.y = -0.35 + (q.y + 0.35) * 0.2 }   // settle onto the ground
             return q
         }
+        // Normalise so the widest horizontal reach is exactly 1: the footprint stays the old sphere's.
+        let reach = rough.map { max(abs($0.x), abs($0.z)) }.max()!
+        let displaced = rough.map { $0 / reach }
         let triangles = faces.map { f -> (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>) in
             let a = displaced[f.0], b = displaced[f.1], c = displaced[f.2]
             // Strong displacement can fold a face inward; keep every face outward-wound.

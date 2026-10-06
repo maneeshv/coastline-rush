@@ -2406,7 +2406,7 @@ private extension CoastalWorld {
         cluster.position = position
         cluster.eulerAngles.z = scalar(sin(Double(position.z)) * 0.22)
         root.addChildNode(cluster)
-        let spark = sphere(0.06, tint, at: vector(Double(position.x), Double(position.y) + height, Double(position.z)), into: root)
+        let spark = sphere(0.06, tint, at: vector(0, height, 0), into: cluster)
         spark.geometry?.firstMaterial = material(tint, emissive: true)
     }
 
