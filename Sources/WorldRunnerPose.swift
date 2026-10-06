@@ -12,7 +12,7 @@ enum RunnerPose {
     /// then left toe-off, recoil, passing and reach. The right side samples the same curves at phase + π.
     static let thighKeys: [Double] = [0.45, 0.25, -0.05, -0.40, -0.55, -0.20, 0.45, 0.70]
     static let shinKeys: [Double] = [-0.15, -0.45, -0.35, -0.15, -0.60, -1.70, -1.50, -0.55]
-    static let footKeys: [Double] = [0.20, 0.00, -0.05, -0.45, -0.60, -0.30, 0.10, 0.25]
+    static let footKeys: [Double] = [0.20, 0.12, 0.08, -0.45, -0.60, -0.30, 0.10, 0.25]
     static let armKeys: [Double] = [-0.50, -0.35, 0.00, 0.40, 0.55, 0.35, -0.10, -0.45]
     static let forearmKeys: [Double] = [0.70, 0.80, 1.00, 1.30, 1.40, 1.25, 0.95, 0.75]
     /// Per stride: hip sway toward the stance foot (metres on body x; the left foot is at −x), torso twist

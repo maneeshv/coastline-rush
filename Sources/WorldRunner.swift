@@ -271,11 +271,38 @@ extension CoastalWorld {
         let foldT = min(1, max(0, (tuck - 0.55) / 0.40))
         let fold = foldT * foldT * (3 - 2 * foldT)
         let centre = fold * RunnerPose.tuckCentre * squash.y * ball
-        let pitch = -lean * (1 - fold) - rollSpin * fold
+        // A jump can cancel a roll mid-spin, which drops the target pitch by up to 2.4 rad in a frame or two; the shown pitch
+        // follows it at no more than 30 rad/s (the roll itself turns at 7.9), so the unroll takes five or more frames.
+        let pitchTarget = -lean * (1 - fold) - rollSpin * fold
+        var gap = pitchTarget - shownPitch
+        gap -= (gap / (2 * .pi)).rounded() * 2 * .pi   // a full turn is the same pose, so close the gap the short way
+        shownPitch += max(-30 * dt, min(30 * dt, gap))
+        shownPitch -= (shownPitch / (2 * .pi)).rounded() * 2 * .pi
+        let pitch = shownPitch
         body.position = vector(sway, lift + (RunnerPose.tuckRadius - lift) * fold - centre * cos(pitch),
                                (waterMode ? RunnerPose.rideShift : 0) - centre * sin(pitch))
         body.eulerAngles = vector(pitch, yaw, tilt - bank * (waterMode ? 0.22 : 0.20))
         body.scale = vector(squash.x * ball, squash.y * ball, squash.z * ball)
+        // Foot plant: the run cycle's bob and toe-down keys sink the stance boot up to 0.14 m into the deck, so lift the body
+        // by however far the lower boot's sole (toe, middle, heel) is below it, with a smooth max over both feet.
+        // The same lift keeps head, shoulders and hips off the deck while a cancelled roll is still unrolling.
+        var plant = 0.0
+        if !waterMode && !surfing && !flying {
+            func smoothMax(_ a: Double, _ b: Double) -> Double { (a + b + ((a - b) * (a - b) + 0.0004).squareRoot()) / 2 }
+            func lowest(_ node: SCNNode, _ points: [(Double, Double, Double)]) -> Double {
+                points.map { Double(node.convertPosition(vector($0.0, $0.1, $0.2), to: player).y) }.min()!
+            }
+            let soles = [(0.0, -0.12, -0.285), (0, -0.12, -0.07), (0, -0.12, 0.145)]   // toe, middle, heel, 0.12 below the ankle
+            var needed = smoothMax(smoothMax(-lowest(feet[0], soles), -lowest(feet[1], soles)), 0)
+            // Reduced Motion keeps the body at the stride's peak need instead of bouncing with each footfall.
+            if reducedMotion { needed = max(needed, plantHold - dt * 0.03); plantHold = needed }
+            plant = needed * amount * (1 - air) * (1 - fold)
+            var all = [-lowest(body, [(0, 2.55, 0), (0, 1.3, 0.3), (0, 1.3, -0.3), (0, 2.0, 0.35), (0, 2.0, -0.35)])]
+            all += [-lowest(feet[0], soles), -lowest(feet[1], soles), -lowest(shins[0], [(0, 0, 0)]), -lowest(shins[1], [(0, 0, 0)])]
+            let pitched = min(1, max(0, (abs(shownPitch) - 0.2) / 0.3))
+            plant = max(plant, max(0, all.max()!) * (1 - fold) * pitched)
+            body.position.y += scalar(plant)
+        }
         // Head stabilisation: counter 90% of the body's pitch, twist, tilt and half its bob; tuck the chin while rolling.
         let steady = 1 - tuck
         headRig.position.y = scalar(RunnerPose.neckHeight - bob * 0.5 * steady)
@@ -283,7 +310,7 @@ extension CoastalWorld {
                                      waterMode ? -bank * 0.12 : -(tilt - bank * 0.20) * 0.9)
         // Follow-through: the scarf streams back with speed and lags vertical motion; the pack swings on its strap.
         // The water drop is a constant offset, not motion, so entering or leaving water does not kick the springs.
-        let rise = height + (waterMode ? 0 : lift)
+        let rise = height + (waterMode ? 0 : lift + plant)
         let riseVelocity = RunnerPose.riseVelocity(from: lastRunnerLift, to: rise, dt: dt)
         lastRunnerLift = rise
         let flutter = reducedMotion ? 0 : sin(time * 9) * 0.05

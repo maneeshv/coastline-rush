@@ -262,12 +262,25 @@ import SceneKit
             for _ in 0..<80 { s = RunnerPose.step(s, target: 1, dt: 0.05, stiffness: stiffness, damping: damping); peak = max(peak, abs(s.value)) }
             precondition(abs(s.value - 1) < 0.02 && peak < 1.5, "spring \(stiffness)/\(damping) at dt 0.05 must settle (value \(s.value), peak \(peak))")
         }
+        // Foot plant: through a whole stride (48 phases) the stance boot never goes into the deck, and the plant stays modest.
+        let planter = CoastalWorld(assetsURL: resources)
+        let plantBoots: [SCNNode] = field(planter, "feet"), plantBody: SCNNode = field(planter, "body"), plantPlayer: SCNNode = field(planter, "player")
+        var bootLow = Double.infinity, bobLow = Double.infinity, bobHigh = -Double.infinity
+        for k in 0..<48 {
+            planter.poseRunner(gait: Double(k) / 48 * 2 * .pi, amount: 1, waterMode: false, surfing: false, flying: false, landingAge: 9,
+                               takeoffAge: 9, speed: 17, height: 0, time: 1, dt: 1.0 / 60)
+            for boot in plantBoots { bootLow = min(bootLow, points(under: boot, in: plantPlayer).map(\.y).min()!) }
+            bobLow = min(bobLow, Double(plantBody.position.y)); bobHigh = max(bobHigh, Double(plantBody.position.y))
+        }
+        precondition(bootLow >= -0.01, "stance boot sinks into the deck (\(bootLow) m)")
+        precondition(bobHigh - bobLow > 0.03 && bobHigh < 0.2, "run bounce lost or too large (\(bobLow)…\(bobHigh))")
+        print(String(format: "foot plant: lowest boot vertex %.3f over a stride, body y %.3f…%.3f", bootLow, bobLow, bobHigh))
         // Roll finishes cleanly at any frame step, and when a jump cancels it: nothing dips below the deck after the
         // roll ends, the pitch is back near upright within a few frames, and no spin is left over.
         var slowPeak = 0.0
         for (dt, cancel) in [(1.0 / 60, false), (1.0 / 30, false), (0.05, false), (1.0 / 60, true), (1.0 / 30, true), (0.05, true)] {
             let d = Drive(resources, reduced: false)
-            var rolled = false, ended = -1, low = Double.infinity, runLow = Double.infinity, pitchAfter = 0.0
+            var lastPitch = 0.0, maxStep = 0.0, rolled = false, ended = -1, low = Double.infinity, runLow = Double.infinity, pitchAfter = 0.0
             for frame in 0..<400 {
                 if frame == 20 { d.sim.act(.roll) }
                 if cancel && frame == 20 + Int(0.3 / dt) { d.sim.act(.jump) }
@@ -277,31 +290,35 @@ import SceneKit
                     precondition(x.isFinite && abs(x) < 1.2, "spring node unstable at dt \(dt) (\(x)) frame \(frame)")
                     slowPeak = max(slowPeak, abs(x))
                 }
+                var step = Double(d.body.eulerAngles.x) - lastPitch
+                step -= (step / (2 * .pi)).rounded() * 2 * .pi
+                lastPitch = Double(d.body.eulerAngles.x)
+                if rolled { maxStep = max(maxStep, abs(step) / (dt * 60)) }
                 if d.sim.isRolling { rolled = true }
                 else if rolled && ended < 0 { ended = frame }
                 guard ended >= 0 else { continue }
-                let floor = points(under: d.player, in: d.player).map(\.y).min()!
+                let floor = points(under: d.player, in: d.world.scene.rootNode).map(\.y).min()!   // world space: the deck is y 0
                 if Double(frame - ended) * dt < 0.5 { low = min(low, floor) } else { runLow = min(runLow, floor) }
                 if frame - ended >= 10 { pitchAfter = max(pitchAfter, abs(Double(d.body.eulerAngles.x))) }
                 precondition(frame - ended < 10 || d.rollSpin == 0, "spin left over \(frame - ended) frames after the roll (dt \(dt))")
             }
+            precondition(maxStep < 0.55, "pitch pops \(maxStep) rad per 1/60 s after the roll (dt \(dt), cancel \(cancel))")
             precondition(rolled && ended >= 0, "roll never ran (dt \(dt), cancel \(cancel))")
-            // The run cycle's own dip (runLow, measured once the roll is long over) is the floor; the roll must not add to it.
-            precondition(low >= min(-0.05, runLow) - 0.02, "runner sinks into the deck after the roll (lowest \(low), running \(runLow), dt \(dt), cancel \(cancel))")
+            precondition(low >= -0.07 && runLow >= -0.07, "runner sinks into the deck after the roll (lowest \(low), running \(runLow), dt \(dt), cancel \(cancel))")
             precondition(pitchAfter < 0.25, "runner not upright after the roll (pitch \(pitchAfter), dt \(dt), cancel \(cancel))")
         }
         // Reduced Motion halves hip sway, twist and tilt, drops the bob, keeps the squash gentle and does not spin the roll.
         let calm = Drive(resources, reduced: true), full = Drive(resources, reduced: false)
-        var calmSway = 0.0, calmTwist = 0.0, calmTilt = 0.0, calmBob = 0.0, fullSway = 0.0, fullTwist = 0.0, fullTilt = 0.0
+        var calmSway = 0.0, calmTwist = 0.0, calmTilt = 0.0, calmLo = Double.infinity, calmHi = -Double.infinity, fullSway = 0.0, fullTwist = 0.0, fullTilt = 0.0
         for frame in 0..<240 {
             calm.step(); full.step()
             guard frame >= 60 else { continue }
-            calmSway = max(calmSway, abs(Double(calm.body.position.x))); calmBob = max(calmBob, abs(Double(calm.body.position.y)))
+            calmSway = max(calmSway, abs(Double(calm.body.position.x))); calmLo = min(calmLo, Double(calm.body.position.y)); calmHi = max(calmHi, Double(calm.body.position.y))
             calmTwist = max(calmTwist, abs(Double(calm.body.eulerAngles.y))); calmTilt = max(calmTilt, abs(Double(calm.body.eulerAngles.z)))
             fullSway = max(fullSway, abs(Double(full.body.position.x)))
             fullTwist = max(fullTwist, abs(Double(full.body.eulerAngles.y))); fullTilt = max(fullTilt, abs(Double(full.body.eulerAngles.z)))
         }
-        precondition(calmBob < 1e-6, "Reduced Motion must not bob (\(calmBob))")
+        precondition(calmHi - calmLo < 0.015, "Reduced Motion must not bounce (\(calmLo)…\(calmHi))")
         precondition(calmSway > 0.006 && abs(calmSway - fullSway / 2) < 0.002, "Reduced Motion sway must be half (\(calmSway) vs \(fullSway))")
         precondition(calmTwist > 0.025 && abs(calmTwist - fullTwist / 2) < 0.005, "Reduced Motion twist must be half (\(calmTwist) vs \(fullTwist))")
         precondition(calmTilt > 0.01 && calmTilt < fullTilt * 0.6, "Reduced Motion tilt must be half (\(calmTilt) vs \(fullTilt))")
