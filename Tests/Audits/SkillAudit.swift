@@ -54,7 +54,7 @@ struct SkillAudit {
             if step < 0 && !blocked { run.act(.left) } else if step > 0 && !blocked { run.act(.right) }
         }
         // Perfect reflexes for the nearest hazard in the occupied lane.
-        let ahead = run.entities.filter { RouteAudit.hazards.contains($0.kind) && $0.z > 0 && abs(run.lateral - (Double($0.lane) + $0.laneOffset())) < 0.55 }
+        let ahead = run.entities.filter { RouteAudit.hazards.contains($0.kind) && $0.z > 0 && abs(run.lateral - (Double($0.lane) + $0.laneOffset())) < run.lateralTolerance }
         if let h = ahead.min(by: { $0.z < $1.z }) {
             switch h.kind {
             case .gap: if h.z < run.speed * 0.60, run.height < 0.05 { run.act(.jump) }
@@ -73,9 +73,9 @@ struct SkillAudit {
 
     /// A coin or pickup is fair if some non-colliding posture at its position can collect it.
     /// First sight compares hazards moving with the item, with a small margin. At collection time every hazard in
-    /// the lane counts at its live position, and the window is the true collect/collide overlap (0.85 + 0.35).
-    static func coinIsFair(_ coin: TrackEntity, among entities: [TrackEntity], atCollection: Bool = false) -> Bool {
-        let margin = atCollection ? 1.2 : 0.65
+    /// the lane counts at its live position, and the window is the true collect/collide overlap (0.85 + the difficulty's collision padding).
+    static func coinIsFair(_ coin: TrackEntity, among entities: [TrackEntity], expert: Bool, atCollection: Bool = false) -> Bool {
+        let margin = atCollection ? RunnerSimulation.coinOverlap(expert: expert) : 0.65
         // Flight coins (jetpack trails) are only reachable in flight, where ground colliders are inert. They are fair unless a drone overlaps them.
         if coin.y >= 5 {
             return !entities.contains { $0.kind == .airHazard && $0.lane == coin.lane &&
@@ -121,8 +121,8 @@ struct SkillAudit {
                   + (hazard.map { " near \($0.kind) id=\($0.id) z=\($0.z) length=\($0.length) oncoming=\($0.oncomingSpeed)" } ?? ""))
         }
         for item in run.entities where isPickup(item) {
-            if seen.insert(item.id).inserted && !coinIsFair(item, among: run.entities) { report(item, "first-sight") }
-            if abs(item.z) < 1.2 && !flagged.contains(item.id) && !coinIsFair(item, among: run.entities, atCollection: true) {
+            if seen.insert(item.id).inserted && !coinIsFair(item, among: run.entities, expert: run.expert) { report(item, "first-sight") }
+            if abs(item.z) < RunnerSimulation.coinOverlap(expert: run.expert) && !flagged.contains(item.id) && !coinIsFair(item, among: run.entities, expert: run.expert, atCollection: true) {
                 flagged.insert(item.id)
                 report(item, "collection")
             }
@@ -184,7 +184,7 @@ struct SkillAudit {
             }
             else { continue }
             done.insert(e.id)
-            let edge = e.z - e.length / 2 - 0.35
+            let edge = e.z - e.length / 2 - run.collisionPadding
             if edge + slack < closing * need {
                 violations += 1
                 if violations <= 5 { print("TELEGRAPH late \(e.kind) id=\(e.id) edge=\(edge) needs=\(closing * need) world=\(run.worldStage) expert=\(run.expert)") }
@@ -200,7 +200,7 @@ struct SkillAudit {
             guard let coin = run.entities.first(where: { $0.id == coinID }), coin.z < run.speed * 2,
                   let solid = run.entities.first(where: { $0.id == solidID }) else { continue }
             checked.insert(coinID)
-            let from = coin.z - 0.35, to = solid.z + solid.length / 2 + max(2, run.speed * 0.15) + 0.35
+            let from = coin.z - run.collisionPadding, to = solid.z + solid.length / 2 + max(2, run.speed * 0.15) + run.collisionPadding
             // A jump in the bait lane before the solid (an arc bait's row) is leapt anyway; that leap also clears
             // a jump hazard in the same row of the escape lane.
             let jumps: Set<EntityKind> = [.gap, .barrier, .root, .iceCrack]

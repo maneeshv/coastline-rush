@@ -367,6 +367,20 @@ struct RunnerSimulation: Codable {
     var eventTime: Double { challenge.eventTime }
     var courseTarget: Double { mode == .harborSprint ? 1_500 : mode == .jetSki ? 1_800 : 0 }
 
+    /// Collider padding along the track and the lateral overlap that counts as a hit. Coins keep 0.55.
+    /// Larger is stricter: Expert hitboxes are bigger. Audits and generator margins derive from these, never from literals.
+    static func collisionPadding(expert: Bool) -> Double { expert ? 0.50 : 0.35 }
+    static func lateralTolerance(expert: Bool) -> Double { expert ? 0.65 : 0.55 }
+    /// How far past Standard padding this difficulty reaches: exactly 0 on Standard, so Standard margins stay bit-identical.
+    static func paddingExcess(expert: Bool) -> Double { collisionPadding(expert: expert) - 0.35 }
+    /// Closest a coin may sit to a collider's edge: collection reaches 0.85, the collider 0.35 (Standard) beyond its edge.
+    static func coinOverlap(expert: Bool) -> Double { 1.2 + paddingExcess(expert: expert) }
+    /// What the generator keeps clear around a collider (the overlap plus 0.1 m).
+    static func coinMargin(expert: Bool) -> Double { 1.3 + paddingExcess(expert: expert) }
+    var collisionPadding: Double { Self.collisionPadding(expert: expert) }
+    var lateralTolerance: Double { Self.lateralTolerance(expert: expert) }
+    var coinMargin: Double { Self.coinMargin(expert: expert) }
+
     static let tramRoofHeight = 2.8
     static let laneWidth = 2.6
     /// Endless row spacing (m) before the speed cap, and the floor reached 120 s after it. Balance-pass knobs.
@@ -519,7 +533,7 @@ struct RunnerSimulation: Codable {
             guard availableBoards > 0, boardTime <= 0 else { return }
             availableBoards -= 1
             boardsUsed += 1
-            boardTime = 30
+            boardTime = expert ? 12 : 20
             if isExpansionActive { expansion.usedProtection = true }
         case .ability:
             guard canActivateAbility, let ability = selectedAbility else { return }
@@ -720,7 +734,7 @@ struct RunnerSimulation: Codable {
                 processedObstacles.insert(entity.id)
                 dodges += 1
                 if let closest = challenge.closestApproaches[entity.id], closest < 0.98 {
-                    if closest >= 0.55 {
+                    if closest >= lateralTolerance {
                         challenge.nearMisses += 1
                         rewardSkill(points: 45, message: "CLOSE CALL +45")
                     } else {
@@ -942,7 +956,7 @@ struct RunnerSimulation: Codable {
                 continue
             }
             guard Self.isObstacle(entity.kind),
-                  abs(entity.z) < entity.length / 2 + 0.35,
+                  abs(entity.z) < entity.length / 2 + collisionPadding,
                   !processedObstacles.contains(entity.id) else { continue }
             let inFlight = activePowerUps[.jetpack] != nil
             if inFlight && entity.kind != .airHazard { continue }
@@ -954,7 +968,7 @@ struct RunnerSimulation: Codable {
             guard entity.isOn(at: elapsed) else { continue }
             challenge.closestApproaches[entity.id] = min(challenge.closestApproaches[entity.id] ?? 100,
                                                          abs(lateral - (Double(entity.lane) + entity.laneOffset())))
-            guard aligned else { continue }
+            guard abs(lateral - (Double(entity.lane) + entity.laneOffset())) < lateralTolerance else { continue }
             let collides: Bool
             switch entity.kind {
             case .barrier, .root: collides = height < 1.03
@@ -987,9 +1001,12 @@ struct RunnerSimulation: Codable {
                 } else if boardTime > 0 {
                     boardTime = 0
                     invulnerableTime = 2
-                    // A shield burst clears nearby obstacles so a long tram cannot hit twice.
-                    for nearby in entities where Self.isObstacle(nearby.kind) && abs(nearby.z) < 18 {
-                        collected.insert(nearby.id)
+                    // In Endless and Sprint a board burst clears nearby obstacles. Odyssey keeps its track; the
+                    // 2 s of protection still covers a long tram, which cannot hit twice (processedObstacles).
+                    if mode == .endless || mode == .harborSprint {
+                        for nearby in entities where Self.isObstacle(nearby.kind) && abs(nearby.z) < 18 {
+                            collected.insert(nearby.id)
+                        }
                     }
                 } else {
                     phase = .crashed
@@ -1083,16 +1100,17 @@ struct RunnerSimulation: Codable {
             case 3: // Lane-changer: a blocked lane's tram shifts into the open lane, so the open lane swaps.
                 // It leaves a lane next to both the open lane and the previous route.
                 let origin = obstacleLanes.first { abs($0 - safeLane) == 1 && abs($0 - previousSafe) <= 1 }!
-                let complete = arrivalSpeed * ((expert ? 0.8 : 1.0) + 1 / 9.0) + 6 + 0.35
+                let complete = arrivalSpeed * ((expert ? 0.8 : 1.0) + 1 / 9.0) + 6 + collisionPadding
                 add(.tram, lane: origin, z: centerZ, y: 0, length: 12, targetLane: safeLane,
                     motionStart: complete + arrivalSpeed * 0.6, motionLength: arrivalSpeed * 0.6)
                 add(secondary, lane: obstacleLanes.first { $0 != origin }!, z: centerZ, y: 0, length: secondaryLength)
                 challenge.previousSafeLane = origin
                 routeLane = origin
                 // The tram still fills its origin lane until the shift: coins wait before its near edge (as in Odyssey).
-                // Rows are at least baseSpacing apart, so a coin more than 7.3 - baseSpacing behind this row's centre
-                // would sit within 1.3 m of the previous row's tram edge: drop it (the 20 m Expert floor keeps two).
-                safeOffsets = [0.0, 3, 6, 9].map { -(12 / 2 + 1.3) - $0 }.filter { $0 >= 7.3 - baseSpacing }
+                // Rows are at least baseSpacing apart, so a coin more than (6 + margin) - baseSpacing behind this row's centre
+                // would sit within the coin margin (1.3 m, 1.45 m Expert) of the previous row's tram edge: drop it
+                // (the 20 m Expert floor keeps two).
+                safeOffsets = [0.0, 3, 6, 9].map { -(12 / 2 + coinMargin) - $0 }.filter { $0 >= 12 / 2 + coinMargin - baseSpacing }
             case 4: // Gap wall: one opening, one lane from the previous route.
                 for lane in obstacleLanes { add(.wall, lane: lane, z: centerZ, y: 0, length: 1.0) }
             case 5, 6: // A stacked barrier or a timed laser takes the primary slot.
@@ -1136,8 +1154,8 @@ struct RunnerSimulation: Codable {
             placeCoins(line, z: centerZ, safe: routeLane, speed: arrivalSpeed, jumpApex: 1.45,
                        jumpLanes: rowHazards.filter { $0.kind == .barrier }.map(\.lane),
                        slideLanes: rowHazards.filter(isSlide).map(\.lane), solids: solids, teaching: teaching,
-                       // The next row starts at least baseSpacing on; its tram reaches 6 m back, plus the 1.3 m coin margin.
-                       coinLimit: centerZ + baseSpacing - 7.3, safeOffsets: safeOffsets)
+                       // The next row starts at least baseSpacing on; its tram reaches 6 m back, plus the coin margin.
+                       coinLimit: centerZ + baseSpacing - (12 / 2 + coinMargin), safeOffsets: safeOffsets)
             // Pickups sit off the safe lane, behind this row's hazards: collecting one is a choice.
             var pickupChoices = obstacleLanes
             if escalation == 3 { pickupChoices.removeAll { $0 == routeLane } } // the tram's arrival lane is the real exit
@@ -1150,8 +1168,8 @@ struct RunnerSimulation: Codable {
                 add(EntityKind(rawValue: power.rawValue)!, lane: pickupLane, z: centerZ + 10, y: 1, length: 0.8)
             }
             if at > 250 && nextRandom() % 18 == 0 {
-                // 13 m on, or less where the next row's tram (6 m back from a row >= baseSpacing on, plus 1.3 m) comes first.
-                add(.key, lane: pickupLane, z: centerZ + min(13, baseSpacing - 7.3), y: 1, length: 0.5)
+                // 13 m on, or less where the next row's tram (6 m back from a row >= baseSpacing on, plus the coin margin) comes first.
+                add(.key, lane: pickupLane, z: centerZ + min(13, baseSpacing - (12 / 2 + coinMargin)), y: 1, length: 0.5)
             }
             // Only on ordinary-shaped rows (4+): not inside a full-width row or a lane-changer's origin-lane tram.
             if mode == .harborSprint && escalation >= 4 && at >= challenge.nextCheckpointDistance {
@@ -1509,7 +1527,7 @@ struct RunnerSimulation: Codable {
                 let length = worldStage == .mars ? 9.0 : 7.0
                 // The shift completes a reaction (1.0 s, Expert 0.8 s) plus one lane of steering before the runner reaches it.
                 let lead = (expert ? 0.8 : 1.0) + (worldStage == .cryo ? 1 / 3.8 : 1 / 9.0)
-                let complete = predictedSpeed * lead + length / 2 + 0.35
+                let complete = predictedSpeed * lead + length / 2 + collisionPadding
                 add(.tram, lane: origin, z: z, y: 0, length: length, targetLane: safe,
                     motionStart: complete + predictedSpeed * 0.6, motionLength: predictedSpeed * 0.6)
                 add(solid, lane: other, z: z, y: 0, length: solidLength)
@@ -1517,7 +1535,7 @@ struct RunnerSimulation: Codable {
                 routeLane = origin
                 relicLane = origin
                 // The vehicle still fills its origin lane until the shift: coins and relic wait before its near edge.
-                safeOffsets = [0.0, 3, 6, 9].map { -(length / 2 + 1.3) - $0 }
+                safeOffsets = [0.0, 3, 6, 9].map { -(length / 2 + coinMargin) - $0 }
                 relicZ = z + safeOffsets[0]
             case 9: // Timed laser gate: on 0.9 s, off 0.9 s. Rolling is always safe; a reader can time a run-through.
                 let phase = Double(nextRandom() % 18) / 10
@@ -1534,7 +1552,7 @@ struct RunnerSimulation: Codable {
                 add(.stack, lane: blocked[1], z: z, y: 0, length: 1.0)
                 relicY = jumpHeight
             case 13: // Collapsing deck: every lane cracks, then opens late; at intense tiers the landing has solids too.
-                let opens = predictedSpeed * 0.5 + jumpLength / 2 + 0.35
+                let opens = predictedSpeed * 0.5 + jumpLength / 2 + collisionPadding
                 for lane in -1...1 { add(jumpKind, lane: lane, z: z, y: 0, length: jumpLength, activeFrom: opens) }
                 relicY = jumpHeight
                 if tier.rawValue >= JourneyDifficultyTier.intense.rawValue {
@@ -1559,7 +1577,7 @@ struct RunnerSimulation: Codable {
             }
             // Meteors land late: the ring warns, the rock falls, and only then does the collider exist (>= 1.0 s ahead).
             for index in rowStart..<entities.count where entities[index].kind == .meteor && !entities[index].activeFrom.isFinite {
-                entities[index].activeFrom = predictedSpeed * 1.0 + entities[index].length / 2 + 0.35
+                entities[index].activeFrom = predictedSpeed * 1.0 + entities[index].length / 2 + collisionPadding
             }
             if pattern == 4 {
                 // The roof coins ask for a ramp leap: an action line.
@@ -1699,9 +1717,10 @@ struct RunnerSimulation: Codable {
         }
         // Action and risk lines only use lanes that stay clear after the hazard, so no line leads into a landing solid.
         // Risk coins sit on both sides of the hazard, so the approach side must be clear too. Every stretch keeps
-        // 1.3 m past its outermost coin: a coin within 1.2 m of a collider's edge overlaps it at collection.
-        let open = (jumpLanes + slideLanes).filter { laneIsClear($0, from: z + halfLength($0) + 0.5, to: z + max(speed * 1.2, halfLength($0) + 10.3)) }
-        let openBefore = open.filter { laneIsClear($0, from: z - halfLength($0) - 10.3, to: z - halfLength($0) - 0.1) }
+        // the coin margin (1.3 m, 1.45 m Expert) past its outermost coin: a coin within the overlap (1.2 m, 1.35 m Expert)
+        // of a collider's edge overlaps it at collection. The outermost risk coin is 9 m out, the bait line's 6 m back.
+        let open = (jumpLanes + slideLanes).filter { laneIsClear($0, from: z + halfLength($0) + 0.5, to: z + max(speed * 1.2, halfLength($0) + (9 + coinMargin))) }
+        let openBefore = open.filter { laneIsClear($0, from: z - halfLength($0) - (9 + coinMargin), to: z - halfLength($0) - 0.1) }
         // Bait ends `reaction` seconds before its solid, and only where no other hazard covers the pre-solid,
         // gap and resume stretches. Behind this row's jump the pre-solid bait is the jump's arc, cut short:
         // the player leaps, then steers in flight.
@@ -1717,11 +1736,11 @@ struct RunnerSimulation: Codable {
             // One adjacent switch out and back: the escape lane stays clear from the last bait coin, past the solid's
             // far edge, until the runner has stepped back in behind it (the resume switch), with collision padding.
             // An arc bait's runner is airborne over this row's jump, which also clears the escape lane's jump beside it.
-            let escapeFrom = arc ? max(last - 0.35, z + halfLength(safe) + 0.1) : last - 0.35
-            guard laneIsClear(safe, from: escapeFrom, to: solid.z + hl + resume + 0.35) else { return nil }
+            let escapeFrom = arc ? max(last - collisionPadding, z + halfLength(safe) + 0.1) : last - collisionPadding
+            guard laneIsClear(safe, from: escapeFrom, to: solid.z + hl + resume + collisionPadding) else { return nil }
             let before = arc ? z <= last && laneIsClear(lane, from: z + halfLength(lane) + 0.1, to: solid.z - hl - 0.1)
-                : laneIsClear(lane, from: last - 7.3, to: last + 1.3) && laneIsClear(lane, from: last + 1.3, to: solid.z - hl - 0.1)
-            guard before, laneIsClear(lane, from: solid.z + hl + 0.1, to: solid.z + hl + resume + 7.3) else { return nil }
+                : laneIsClear(lane, from: last - (6 + coinMargin), to: last + coinMargin) && laneIsClear(lane, from: last + coinMargin, to: solid.z - hl - 0.1)
+            guard before, laneIsClear(lane, from: solid.z + hl + 0.1, to: solid.z + hl + resume + (6 + coinMargin)) else { return nil }
             return (last, arc)
         }
         var bait: (solid: TrackEntity, last: Double, arc: Bool)? = nil

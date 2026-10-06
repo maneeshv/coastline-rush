@@ -143,13 +143,37 @@ struct SimulationTests {
                 empty.act(.board)
                 try expect(empty.boardTime == 0 && empty.availableBoards == 0, "Empty board inventory must be respected")
             }),
-            ("board naturally expires after thirty active seconds", {
+            ("board naturally expires after twenty active seconds, twelve on Expert", {
                 var simulation = fixture(boards: 1)
                 simulation.act(.board)
-                simulation.update(dt: 29)
+                simulation.update(dt: 19)
                 try expect(simulation.boardTime > 0.9, "Board expired early")
                 simulation.update(dt: 1.1)
-                try expect(simulation.boardTime == 0, "Board should expire after thirty seconds")
+                try expect(simulation.boardTime == 0, "Board should expire after twenty seconds")
+                var expert = RunnerSimulation()
+                expert.start(seed: 42, boards: 1, expert: true)
+                expert.replaceTrackForTesting([])
+                expert.act(.board)
+                try expect(expert.boardTime == 12, "Expert boards protect for twelve seconds")
+            }),
+            ("board clear radius applies only in Endless and Sprint", {
+                let track = [entity(.barrier, id: 1, z: 5, y: 0, length: 0.8), entity(.barrier, id: 2, lane: 1, z: 12, y: 0, length: 0.8)]
+                var endless = fixture(track, boards: 1)
+                endless.act(.board)
+                endless.update(dt: 0.6)
+                try expect(endless.phase == .running && !endless.entities.contains { $0.id == 2 }, "An Endless board burst clears nearby hazards")
+                var odyssey = RunnerSimulation()
+                odyssey.start(seed: 42, boards: 1, mode: .odyssey)
+                odyssey.replaceTrackForTesting(track)
+                odyssey.act(.board)
+                odyssey.update(dt: 0.4)
+                try expect(odyssey.phase == .running && odyssey.entities.contains { $0.id == 2 }, "An Odyssey board absorbs the hit without clearing the track")
+            }),
+            ("expert collisions use the spec's padding and lateral tolerance", {
+                var standard = RunnerSimulation(); standard.start(seed: 1)
+                var expert = RunnerSimulation(); expert.start(seed: 1, expert: true)
+                try expect(standard.collisionPadding == 0.35 && standard.lateralTolerance == 0.55, "Standard hitboxes are unchanged")
+                try expect(expert.collisionPadding == 0.50 && expert.lateralTolerance == 0.65, "Expert hitboxes are larger (stricter)")
             }),
             ("pause freezes world, power timers and controls", {
                 var simulation = fixture([entity(.magnet, z: 0)], durations: [.magnet: 5])

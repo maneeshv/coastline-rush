@@ -81,7 +81,7 @@ struct RouteAudit {
         guard allowVerticalActions, let obstacle = active.first(where: {
             let reach = steeringRate * max(0, $0.z) / max(1, run.speed)
             let arriving = run.lateral + max(-reach, min(reach, remaining))
-            return $0.z > 0 && ($0.lane == target || abs(arriving - Double($0.lane)) < 0.55)
+            return $0.z > 0 && ($0.lane == target || abs(arriving - Double($0.lane)) < run.lateralTolerance)
         }) else { return }
         switch obstacle.kind {
         case .gap:
@@ -100,7 +100,7 @@ struct RouteAudit {
     /// predicting arrival as elapsed + z / speed. Untimed slide hazards are always on.
     static func laserOnDuringPass(_ e: TrackEntity, _ run: RunnerSimulation) -> Bool {
         let arrival = run.elapsed + e.z / max(1, run.speed)
-        let window = (e.length / 2 + 0.35) / max(1, run.speed) + 0.05
+        let window = (e.length / 2 + run.collisionPadding) / max(1, run.speed) + 0.05
         return [arrival - window, arrival, arrival + window].contains { e.isOn(at: $0) }
     }
 
