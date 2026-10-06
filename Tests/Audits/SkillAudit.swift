@@ -43,6 +43,11 @@ struct SkillAudit {
 
     /// A coin is fair if some non-colliding posture at its position can collect it.
     static func coinIsFair(_ coin: TrackEntity, among entities: [TrackEntity]) -> Bool {
+        // Flight coins (jetpack trails) are only reachable in flight, where ground colliders are inert. They are fair unless a drone overlaps them.
+        if coin.y >= 5 {
+            return !entities.contains { $0.kind == .airHazard && $0.lane == coin.lane &&
+                abs($0.z - coin.z) < $0.length / 2 + 0.65 && abs($0.y - coin.y) < 2.0 }
+        }
         for o in entities where o.lane == coin.lane && RouteAudit.hazards.contains(o.kind) && o.oncomingSpeed == coin.oncomingSpeed {
             guard abs(coin.z - o.z) < o.length / 2 + 0.35 + 0.3 else { continue }
             switch o.kind {

@@ -1540,7 +1540,9 @@ struct RunnerSimulation: Codable {
             challenge.previousAirLane = lane
             challenge.nextAirPattern = distance + max(38, speed * 2.2)
             showEvent("FLIGHT ROUTE · DODGE THE DRONES")
-            for index in 0..<(mode == .odyssey ? 0 : 30) {
+            // The trail leads into the flight route and stops before the first drone row; air rings mark the way after that.
+            let firstDroneRow = max(38, speed * 2.2)
+            for index in 0..<(mode == .odyssey ? 0 : 30) where 13 + Double(index) * 3 < firstDroneRow - 3 {
                 let trailLane = ((index / 6) % 3) - 1
                 add(.coin, lane: trailLane, z: 13 + Double(index) * 3,
                     y: 7.1, length: 0.3)
