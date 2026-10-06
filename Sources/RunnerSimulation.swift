@@ -71,7 +71,7 @@ struct PatternBag: Codable, Equatable {
     var recent: [Int] = []
 }
 
-/// One generated Odyssey row, for audits. Not persisted.
+/// One generated Odyssey row, for audits (compiled only with ROUTE_HELPER). Not persisted.
 struct PatternRecord: Equatable {
     let world: WorldStage
     let pattern: Int
@@ -384,7 +384,9 @@ struct RunnerSimulation: Codable {
     private(set) var baitEscapes: [Int: Int] = [:]
     private var patternBag = PatternBag()
     /// Every generated Odyssey row, for audits. Not persisted: a restored run starts a new log.
+    #if ROUTE_HELPER
     private(set) var patternLog: [PatternRecord] = []
+    #endif
     private var generateTrack = true
 
     mutating func start(seed: UInt64 = 0xC0A5711E, baseMultiplier: Int = 1,
@@ -1321,20 +1323,24 @@ struct RunnerSimulation: Codable {
             }
             // New hazards join pressure and later tiers, never a world's first rows.
             let pool = (base + (tier == .warmup || row < 4 ? [] : world.hazardPatterns)).map(effective)
-            var pattern = drawPattern(from: pool, key: stageIndex * 16 + tier.rawValue * 2 + (row < 4 ? 0 : 1))
+            let fromBag = row >= 2 && !inBranch && !inFinale
+            // Opening, fork and finale rows are authored below, so only bag rows draw from the bag.
+            var pattern = fromBag ? drawPattern(from: pool, key: stageIndex * 16 + tier.rawValue * 2 + (row < 4 ? 0 : 1)) : 0
             // Guarantee an early introduction to each world's vertical action.
             if row == 0 { pattern = 0 }
             if row == 1 { pattern = world == .orbit ? 3 : 1 }
-            // Forks and finales keep their authored sets, in a per-seed order (Daily: per date).
+            // Forks keep their authored sets in a per-seed order; a finale keeps its authored phrase and starts at a
+            // per-seed offset, so authored spacing never gains adjacent duplicates (Daily: per date).
             let salt = UInt64(stageIndex * 8 + expeditionCycle * 64)
             if inBranch {
-                if branchRoute == .safe { pattern = seededOrder([0, 3, 3], salt: salt + 1)[row % 3] }
-                else if world == .mars || world == .harbor { pattern = seededOrder([4, 7], salt: salt + 2)[row % 2] }
-                else { pattern = seededOrder([2, 6, 7, 3], salt: salt + 3)[row % 4] }
+                if branchRoute == .safe { pattern = Self.seededOrder([0, 3, 3], salt: salt + 1, seed: runSeed)[row % 3] }
+                else if world == .mars || world == .harbor { pattern = Self.seededOrder([4, 7], salt: salt + 2, seed: runSeed)[row % 2] }
+                else { pattern = Self.seededOrder([2, 6, 7, 3], salt: salt + 3, seed: runSeed)[row % 4] }
             }
             if inFinale {
-                let phrase = seededOrder(world.finalePatterns, salt: salt + 4)
-                pattern = phrase[expansion.finaleRows % phrase.count]
+                let phrase = world.finalePatterns
+                let offset = Self.seededOrder(Array(phrase.indices), salt: salt + 4, seed: runSeed)[0]
+                pattern = phrase[(expansion.finaleRows + offset) % phrase.count]
                 expansion.finaleRows += 1
             }
             pattern = effective(pattern)
@@ -1367,7 +1373,9 @@ struct RunnerSimulation: Codable {
             }
             // The 3-row window covers every built row, forced and authored ones included.
             patternBag.recent = Array((patternBag.recent + [pattern]).suffix(3))
-            patternLog.append(PatternRecord(world: worldStage, pattern: pattern, fromBag: row >= 2 && !inBranch && !inFinale))
+            #if ROUTE_HELPER
+            patternLog.append(PatternRecord(world: worldStage, pattern: pattern, fromBag: fromBag))
+            #endif
             let rowStart = entities.count
             switch pattern {
             case 0: // Full-width leap: lane changes alone cannot solve the route.
@@ -1553,14 +1561,16 @@ struct RunnerSimulation: Codable {
             patternBag.remaining += fresh
         }
         // Every pool holds at least four distinct patterns, so a fresh bag always has one outside the 3-row window.
-        let index = patternBag.remaining.firstIndex { !recent.contains($0) }!
+        // ponytail: the fallback allows a repeat (SkillAudit then flags bagRepeats) rather than crashing a shipping run.
+        guard let index = patternBag.remaining.firstIndex(where: { !recent.contains($0) }) else { return pool[0] }
         return patternBag.remaining.remove(at: index)
     }
 
-    /// A per-seed permutation of an authored fork or finale set. It reads runSeed (Daily: the date seed) and never
-    /// draws from the course RNG, so it needs no persisted state.
-    private func seededOrder(_ items: [Int], salt: UInt64) -> [Int] {
-        var state = (runSeed ^ (salt &* 0x9E37_79B9_7F4A_7C15)) | 1
+    /// A per-seed permutation of an authored fork set (and, as an index permutation, the finale rotation). It takes
+    /// the run seed (Daily: the date seed) and never draws from the course RNG, so it needs no persisted state.
+    static func seededOrder(_ items: [Int], salt: UInt64, seed: UInt64) -> [Int] {
+        var state = seed ^ (salt &* 0x9E37_79B9_7F4A_7C15)
+        if state == 0 { state = 0x9E37_79B9_7F4A_7C15 } // xorshift needs only a non-zero state, so every seed bit counts
         var order = items
         for i in stride(from: order.count - 1, to: 0, by: -1) {
             state ^= state >> 12; state ^= state << 25; state ^= state >> 27

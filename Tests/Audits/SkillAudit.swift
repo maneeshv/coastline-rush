@@ -329,6 +329,14 @@ struct SkillAudit {
             return run.entities
         }
         precondition(dailyTrack(seed: 1) == dailyTrack(seed: 2), "Daily Odyssey must reproduce from its date alone")
+        // The fork/finale order depends on the run seed (every bit of it), and Daily's seed comes from its date.
+        let order = { (seed: UInt64) in RunnerSimulation.seededOrder(WorldStage.harbor.finalePatterns, salt: 4, seed: seed) }
+        precondition(order(2) != order(3), "Seeds 2 and 3 must not share a fork/finale order")
+        precondition(Set((1...8).map(order)).count > 1, "seededOrder must depend on the run seed")
+        let day = RunnerSimulation.dailyOdysseySeed
+        precondition(order(day("2026-10-06")) == order(day("2026-10-06")), "The same Daily date must give the same order")
+        precondition(order(day("2026-10-06")) != order(day("2026-10-07")), "The next Daily date must give a different order")
+        print("SEEDED-ORDER seeds1...8 distinct=\(Set((1...8).map(order)).count) seed2==seed3: \(order(2) == order(3))")
         print("SkillAudit passed")
     }
 }
