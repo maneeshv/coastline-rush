@@ -300,6 +300,8 @@ struct RunnerSimulation: Codable {
     private var processedObstacles: Set<Int> = []
     /// Coin lines actually laid this run, for audits. Not persisted: a restored run starts a new tally.
     private(set) var placedCoinLines: [CoinLine: Int] = [:]
+    /// Last bait coin id → its solid's id, for the bait-escape audit. Not persisted: a restored run starts empty.
+    private(set) var baitEscapes: [Int: Int] = [:]
     private var generateTrack = true
 
     mutating func start(seed: UInt64 = 0xC0A5711E, baseMultiplier: Int = 1,
@@ -1397,8 +1399,8 @@ struct RunnerSimulation: Codable {
     /// Coins are an invitation, not a route marker: at most 30% of rows mark the safe lane.
     static func coinLine(roll: UInt64, actionable: Bool, solid: Bool) -> CoinLine {
         switch roll % 100 {
-        case 0..<30: return .safe
-        case 30..<60: return actionable ? .action : (solid ? .bait : .safe)
+        case 0..<25: return .safe
+        case 25..<60: return actionable ? .action : (solid ? .bait : .safe)
         case 60..<85: return actionable ? .risk : (solid ? .bait : .safe)
         default: return solid ? .bait : (actionable ? .risk : .safe)
         }
@@ -1432,15 +1434,19 @@ struct RunnerSimulation: Codable {
         // The resume line starts a lane switch (0.15 s) behind the solid.
         let resume = max(2, speed * 0.15)
         func baitPlan(_ solid: TrackEntity) -> (last: Double, arc: Bool)? {
-            guard abs(solid.lane - safe) == 1 else { return nil }
+            let lane = solid.lane
+            guard abs(lane - safe) == 1 else { return nil }
             let hl = solid.length / 2
             let last = solid.z - hl - speed * reaction
-            // The lane the player switches to must be clear until the solid.
-            guard laneIsClear(safe, from: last, to: solid.z - hl) else { return nil }
-            let arc = jumpLanes.contains(solid.lane) && solid.z > z + 1
-            let before = arc ? z <= last && laneIsClear(solid.lane, from: z + halfLength(solid.lane) + 0.1, to: solid.z - hl - 0.1)
-                : laneIsClear(solid.lane, from: last - 7.3, to: last + 1.3) && laneIsClear(solid.lane, from: last + 1.3, to: solid.z - hl - 0.1)
-            guard before, laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + resume + 7.3) else { return nil }
+            let arc = jumpLanes.contains(lane) && solid.z > z + 1
+            // One adjacent switch out and back: the escape lane stays clear from the last bait coin, past the solid's
+            // far edge, until the runner has stepped back in behind it (the resume switch), with collision padding.
+            // An arc bait's runner is airborne over this row's jump, which also clears the escape lane's jump beside it.
+            let escapeFrom = arc ? max(last - 0.35, z + halfLength(safe) + 0.1) : last - 0.35
+            guard laneIsClear(safe, from: escapeFrom, to: solid.z + hl + resume + 0.35) else { return nil }
+            let before = arc ? z <= last && laneIsClear(lane, from: z + halfLength(lane) + 0.1, to: solid.z - hl - 0.1)
+                : laneIsClear(lane, from: last - 7.3, to: last + 1.3) && laneIsClear(lane, from: last + 1.3, to: solid.z - hl - 0.1)
+            guard before, laneIsClear(lane, from: solid.z + hl + 0.1, to: solid.z + hl + resume + 7.3) else { return nil }
             return (last, arc)
         }
         var bait: (solid: TrackEntity, last: Double, arc: Bool)? = nil
@@ -1478,11 +1484,15 @@ struct RunnerSimulation: Codable {
         case .bait:
             // A greedy line in a solid's lane that ends with time left for one lane switch.
             let (solid, last, arc) = bait!
-            if arc { addJourneyArc(lane: solid.lane, z: z, apex: jumpApex, speed: speed, until: last) }
-            else { for k in 0..<3 { add(.coin, lane: solid.lane, z: last - Double(k) * 3, y: 0.9, length: 0.3) } }
+            let lane = solid.lane
+            let firstCoin = entities.count
+            if arc { addJourneyArc(lane: lane, z: z, apex: jumpApex, speed: speed, until: last) }
+            else { for k in 0..<3 { add(.coin, lane: lane, z: last - Double(k) * 3, y: 0.9, length: 0.3) } }
+            // The audit checks the escape from the last pre-solid coin.
+            if let lastCoin = entities[firstCoin...].max(by: { $0.z < $1.z }) { baitEscapes[lastCoin.id] = solid.id }
             // The line resumes behind the solid: staying in lane for it is fatal, stepping out and back is not.
             for k in 0..<3 where solid.z + solid.length / 2 + resume + Double(k) * 3 <= coinLimit {
-                add(.coin, lane: solid.lane, z: solid.z + solid.length / 2 + resume + Double(k) * 3, y: 0.9, length: 0.3)
+                add(.coin, lane: lane, z: solid.z + solid.length / 2 + resume + Double(k) * 3, y: 0.9, length: 0.3)
             }
         case .safe:
             if jumpLanes.contains(safe) { addJourneyArc(lane: safe, z: z, apex: jumpApex, speed: speed) }

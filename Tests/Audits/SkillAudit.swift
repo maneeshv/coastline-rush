@@ -97,6 +97,43 @@ struct SkillAudit {
         }
     }
 
+    /// Per-run audit state. Violation counters are global across runs.
+    struct Watch { var seen: Set<Int> = [], flagged: Set<Int> = [], bait: Set<Int> = [] }
+    static var unfair = 0, baitViolations = 0
+
+    static func check(_ run: RunnerSimulation, _ watch: inout Watch) {
+        checkCoins(run, seen: &watch.seen, flagged: &watch.flagged, unfair: &unfair)
+        checkBaitEscapes(run, checked: &watch.bait, violations: &baitViolations)
+    }
+
+    /// A bait line's last coin must leave one adjacent lane clear of every hazard, from that coin until the runner
+    /// has passed the solid and stepped back in behind it (far edge + resume switch), with collision padding.
+    /// Checked once the coin is within 2 s, when every row that could block the escape has been generated.
+    static func checkBaitEscapes(_ run: RunnerSimulation, checked: inout Set<Int>, violations: inout Int) {
+        for (coinID, solidID) in run.baitEscapes where !checked.contains(coinID) {
+            guard let coin = run.entities.first(where: { $0.id == coinID }), coin.z < run.speed * 2,
+                  let solid = run.entities.first(where: { $0.id == solidID }) else { continue }
+            checked.insert(coinID)
+            let from = coin.z - 0.35, to = solid.z + solid.length / 2 + max(2, run.speed * 0.15) + 0.35
+            // A jump in the bait lane before the solid (an arc bait's row) is leapt anyway; that leap also clears
+            // a jump hazard in the same row of the escape lane.
+            let jumps: Set<EntityKind> = [.gap, .barrier, .root, .iceCrack]
+            let leaps = run.entities.filter { jumps.contains($0.kind) && $0.lane == coin.lane && $0.z + $0.length / 2 > coin.z - 1 && $0.z < solid.z }
+            let escapes = [solid.lane - 1, solid.lane + 1].filter { lane in
+                (-1...1).contains(lane) && !run.entities.contains { o in
+                    RouteAudit.hazards.contains(o.kind) && o.lane == lane && o.z + o.length / 2 > from && o.z - o.length / 2 < to &&
+                        !(jumps.contains(o.kind) && leaps.contains { abs($0.z - o.z) < 1 })
+                }
+            }
+            if escapes.isEmpty {
+                violations += 1
+                if violations <= 5 {
+                    print("BAIT-ESCAPE blocked coin=\(coinID) lane=\(coin.lane) z=\(coin.z) solid=\(solid.kind) lane=\(solid.lane) z=\(solid.z) length=\(solid.length) mode=\(run.mode) world=\(run.worldStage) expert=\(run.expert)")
+                }
+            }
+        }
+    }
+
     static func median(_ values: [Double]) -> Double {
         let sorted = values.sorted()
         return sorted.isEmpty ? 0 : sorted[sorted.count / 2]
@@ -110,7 +147,6 @@ struct SkillAudit {
         precondition(tally[.action, default: 0] > 0 && tally[.risk, default: 0] > 0 && tally[.bait, default: 0] > 0, "Every coin line type must occur")
         precondition(RunnerSimulation.coinLine(roll: 70, actionable: false, solid: false) == .safe, "Rows without hazards fall back to the safe line")
         print("COIN-LINES safe=\(tally[.safe, default: 0]) action=\(tally[.action, default: 0]) risk=\(tally[.risk, default: 0]) bait=\(tally[.bait, default: 0]) per 100 rows")
-        var unfair = 0
         // Coin lines the generator actually laid in the reader's runs, after fallbacks.
         var placed: [RunMode: [RunnerSimulation.CoinLine: Int]] = [:]
         for expert in [false, true] {
@@ -120,8 +156,8 @@ struct SkillAudit {
                 for seed in 1...seeds {
                     var run = RunnerSimulation()
                     run.start(seed: UInt64(seed), boards: 0, mode: .odyssey, expert: expert)
-                    var tick = 0, seen = Set<Int>(), flagged = Set<Int>()
-                    while run.phase == .running && tick < 90_000 { followCoins(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                    var tick = 0, watch = Watch()
+                    while run.phase == .running && tick < 90_000 { followCoins(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; check(run, &watch) }
                     if run.phase == .crashed && run.stageIndex < 2 { failedEarly += 1 }
                     worlds.append(Double(run.stageIndex) + run.stageProgress)
                 }
@@ -135,8 +171,8 @@ struct SkillAudit {
                 for seed in 1...seeds {
                     var run = RunnerSimulation()
                     run.start(seed: UInt64(seed), boards: 0, mode: .odyssey, expert: expert)
-                    var tick = 0, seen = Set<Int>(), flagged = Set<Int>()
-                    while run.phase == .running && tick < 90_000 { RouteAudit.drive(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                    var tick = 0, watch = Watch()
+                    while run.phase == .running && tick < 90_000 { RouteAudit.drive(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; check(run, &watch) }
                     placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
                     if run.phase == .finished { cleared += 1 }
                     else { print("READER-FAIL odyssey seed=\(seed) route=\(route.rawValue) expert=\(expert) world=\(run.worldStage) reason=\(run.crashReason)") }
@@ -149,8 +185,8 @@ struct SkillAudit {
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .endless, expert: expert)
-                var seen = Set<Int>(), flagged = Set<Int>()
-                while run.phase == .running && run.elapsed < 300 { followCoins(&run, route: .safe); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                var watch = Watch()
+                while run.phase == .running && run.elapsed < 300 { followCoins(&run, route: .safe); run.update(dt: 1.0 / 60); check(run, &watch) }
                 survival.append(run.elapsed)
             }
             print(String(format: "COIN-FOLLOWER endless expert=%@: median=%.1fs (informational; binds at G3) mean=%.1fs",
@@ -160,8 +196,8 @@ struct SkillAudit {
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .endless, expert: expert)
-                var seen = Set<Int>(), flagged = Set<Int>()
-                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                var watch = Watch()
+                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); check(run, &watch) }
                 placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
                 if run.phase == .running { survived += 1 }
                 else { print("READER-FAIL endless seed=\(seed) expert=\(expert) t=\(String(format: "%.1f", run.elapsed)) lane=\(run.lane) reason=\(run.crashReason)") }
@@ -171,8 +207,8 @@ struct SkillAudit {
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .harborSprint, expert: expert)
-                var seen = Set<Int>(), flagged = Set<Int>()
-                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                var watch = Watch()
+                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); check(run, &watch) }
             }
             precondition(survived == seeds, "Hazard reader must survive every Endless seed")
         }
@@ -184,6 +220,8 @@ struct SkillAudit {
                          mode.rawValue, share(.safe), share(.action), share(.risk), share(.bait), Int(total)))
             precondition(share(.safe) <= 35, "At most 35% of placed coin lines may mark the safe lane")
         }
+        print("BAIT-ESCAPES violations=\(baitViolations) (last bait coin to resume switch; one adjacent lane clear)")
+        precondition(baitViolations == 0, "Every bait escape must be a single adjacent lane switch")
         print("FAIRNESS unfairCoins=\(unfair) (coins, keys and power-ups; first sight and collection time)")
         precondition(unfair == 0, "Every coin and pickup must be collectible without a forced collision")
         // Same seed, same track: the coin lines must draw from the seeded generator only.
