@@ -961,19 +961,29 @@ struct RunnerSimulation: Codable {
                 add(secondary, lane: obstacleLanes[1], z: centerZ, y: 0,
                     length: secondary == .barrier ? 0.8 : 1.1)
             }
-            // A readable route coexists with higher-scoring jump/slide and roof routes.
-            for offset in stride(from: -8.0, through: 8.0, by: 4.0) {
-                add(.coin, lane: safeLane, z: centerZ + offset, y: 0.9, length: 0.3)
+            // Coins are an invitation, not a route marker (see placeCoins).
+            let rowHazards = entities.filter { Self.isObstacle($0.kind) && abs($0.z - centerZ) < 1 }
+            let solids = rowHazards.filter { tram in
+                tram.kind == .tram && tram.oncomingSpeed == 0 &&
+                    !entities.contains { $0.kind == .ramp && $0.lane == tram.lane && abs($0.z - (tram.z - 10)) < 1 }
             }
+            let line = Self.coinLine(roll: nextRandom() % 100,
+                                     actionable: rowHazards.contains { $0.kind == .barrier || $0.kind == .arch },
+                                     solid: !solids.isEmpty)
+            placeCoins(line, z: centerZ, safe: safeLane, speed: speed, jumpApex: 1.45,
+                       jumpLanes: rowHazards.filter { $0.kind == .barrier }.map(\.lane),
+                       slideLanes: rowHazards.filter { $0.kind == .arch }.map(\.lane), solids: solids)
+            // Pickups sit off the safe lane, behind this row's hazards: collecting one is a choice.
+            let pickupLane = obstacleLanes[Int(nextRandom() % 2)]
             if at > 100 && nextRandom() % 7 == 0 {
                 // Sprint checkpoints are a ground slalom: flight would hide their route and
                 // could turn a beneficial pickup into a forced missed time extension.
                 let availablePowers = PowerUp.allCases.filter { mode != .harborSprint || $0 != .jetpack }
                 let power = availablePowers[Int(nextRandom() % UInt64(availablePowers.count))]
-                add(EntityKind(rawValue: power.rawValue)!, lane: safeLane, z: centerZ + 10, y: 1, length: 0.8)
+                add(EntityKind(rawValue: power.rawValue)!, lane: pickupLane, z: centerZ + 10, y: 1, length: 0.8)
             }
             if at > 250 && nextRandom() % 18 == 0 {
-                add(.key, lane: safeLane, z: centerZ - 11, y: 1, length: 0.5)
+                add(.key, lane: pickupLane, z: centerZ + 13, y: 1, length: 0.5)
             }
             if mode == .harborSprint && at >= challenge.nextCheckpointDistance {
                 add(.checkpoint, lane: safeLane, z: centerZ, y: 1, length: 0.5)
@@ -1228,24 +1238,21 @@ struct RunnerSimulation: Codable {
                 nextPatternDistance = localLimit + changeClearance * 2
                 continue
             }
+            let rowStart = entities.count
             switch pattern {
             case 0: // Full-width leap: lane changes alone cannot solve the route.
                 for lane in -1...1 { add(jumpKind, lane: lane, z: z, y: 0, length: jumpLength) }
                 relicY = jumpHeight
-                addJourneyArc(lane: safe, z: z, apex: jumpHeight, speed: predictedSpeed)
             case 1: // Full-width crouch, scheduled after enough time to land.
                 for lane in -1...1 { add(slideKind, lane: lane, z: z, y: 0, length: 1.1) }
                 relicY = 0.7
-                for offset in [-6.0, -3, 0, 3, 6] { add(.coin, lane: safe, z: z + offset, y: 0.7, length: 0.3) }
             case 2: // Read the lanes: jump / slide / blocked, then commit.
                 add(jumpKind, lane: safe, z: z, y: 0, length: jumpLength)
                 add(slideKind, lane: blocked[0], z: z, y: 0, length: 1.1)
                 add(solid, lane: blocked[1], z: z, y: 0, length: solidLength)
                 relicY = jumpHeight
-                addJourneyArc(lane: safe, z: z, apex: jumpHeight, speed: predictedSpeed)
             case 3: // A lane weave gains a second beat as the stage intensifies.
                 for lane in blocked { add(solid, lane: lane, z: z, y: 0, length: solidLength) }
-                for offset in [-6.0, -3, 0, 3] { add(.coin, lane: safe, z: z + offset, y: 0.9, length: 0.3) }
                 if tier != .warmup {
                     let choices = [-1, 0, 1].filter { $0 != safe && abs($0 - safe) == 1 }
                     let exit = choices[Int(nextRandom() % UInt64(choices.count))]
@@ -1278,12 +1285,10 @@ struct RunnerSimulation: Codable {
             case 5: // Charge only in the final approach; it cannot overtake prior rows.
                 add(.tram, lane: blocked[0], z: z, y: 0, length: 7, oncomingSpeed: 5 + Double(tier.rawValue))
                 add(slideKind, lane: blocked[1], z: z, y: 0, length: 1.1)
-                for offset in [-6.0, -3, 0, 3, 6] { add(.coin, lane: safe, z: z + offset, y: 0.9, length: 0.3) }
                 relicLane = blocked[1]; relicY = 0.7
             case 6: // Leap, then steer in flight between landing hazards.
                 for lane in -1...1 { add(jumpKind, lane: lane, z: z, y: 0, length: jumpLength) }
                 relicY = jumpHeight
-                addJourneyArc(lane: safe, z: z, apex: jumpHeight, speed: predictedSpeed)
                 let landingOffset = predictedSpeed * (worldStage == .orbit ? 0.88 : worldStage == .mars ? 0.62 : 0.48)
                 if at + landingOffset + solidLength / 2 < localLimit {
                     for lane in blocked { add(solid, lane: lane, z: z + landingOffset, y: 0, length: solidLength) }
@@ -1293,7 +1298,6 @@ struct RunnerSimulation: Codable {
                 add(solid, lane: blocked[0], z: z, y: 0, length: solidLength)
                 add(slideKind, lane: blocked[1], z: z, y: 0, length: 1.1)
                 relicY = jumpHeight
-                addJourneyArc(lane: safe, z: z, apex: jumpHeight, speed: predictedSpeed)
                 let followZ = z + gap * 0.52
                 let followClearance = routeRevision >= 6 ? max(4, jumpLength / 2) : 4
                 if at + gap * 0.52 + followClearance < localLimit {
@@ -1302,6 +1306,15 @@ struct RunnerSimulation: Codable {
                     add(solid, lane: blocked[1], z: followZ, y: 0, length: solidLength)
                     add(jumpKind, lane: blocked[0], z: followZ, y: 0, length: jumpLength)
                 }
+            }
+            if pattern != 4 {
+                let rowHazards = entities[rowStart...].filter { Self.isObstacle($0.kind) && abs($0.z - z) < 1 }
+                let jumpLanes = rowHazards.filter { $0.kind == jumpKind }.map(\.lane)
+                let slideLanes = rowHazards.filter { $0.kind == slideKind }.map(\.lane)
+                let solids = rowHazards.filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 }
+                let line = Self.coinLine(roll: nextRandom() % 100, actionable: !(jumpLanes + slideLanes).isEmpty, solid: !solids.isEmpty)
+                placeCoins(line, z: z, safe: safe, speed: predictedSpeed, jumpApex: jumpHeight,
+                           jumpLanes: jumpLanes, slideLanes: slideLanes, solids: Array(solids))
             }
             let milestones = [0.25, 0.51, 0.77]
             if journey.generatedRelics < 3 && local >= stageLength * milestones[journey.generatedRelics] {
@@ -1358,6 +1371,63 @@ struct RunnerSimulation: Codable {
         if pattern == 4 { interval = max(interval, (worldStage == .mars ? 1.75 : 1.65) + (expert ? 0 : 0.12)) }
         if pattern == 3 { interval = max(interval, (worldStage == .cryo ? 1.60 : 1.30) + (expert ? 0 : 0.14)) }
         return interval
+    }
+
+    enum CoinLine: Equatable { case safe, action, risk, bait }
+
+    /// Coins are an invitation, not a route marker: at most 30% of rows mark the safe lane.
+    static func coinLine(roll: UInt64, actionable: Bool, solid: Bool) -> CoinLine {
+        switch roll % 100 {
+        case 0..<30: return .safe
+        case 30..<60: return actionable ? .action : .safe
+        case 60..<85: return actionable ? .risk : (solid ? .bait : .safe)
+        default: return solid ? .bait : (actionable ? .risk : .safe)
+        }
+    }
+
+    private func laneIsClear(_ lane: Int, from: Double, to: Double) -> Bool {
+        !entities.contains { e in
+            Self.isObstacle(e.kind) && e.lane == lane && e.z + e.length / 2 > from && e.z - e.length / 2 < to
+        }
+    }
+
+    /// Lays this row's coins. `safe` is the intended route lane, which may itself need a jump or roll.
+    private mutating func placeCoins(_ line: CoinLine, z: Double, safe: Int, speed: Double, jumpApex: Double,
+                                     jumpLanes: [Int], slideLanes: [Int], solids: [TrackEntity]) {
+        let lowLine = [-3.0, -1.5, 0, 1.5, 3]
+        func halfLength(_ lane: Int) -> Double {
+            entities.filter { Self.isObstacle($0.kind) && $0.lane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
+        }
+        // Action and risk lines only use lanes that stay clear after the hazard, so no line leads into a landing solid.
+        let open = (jumpLanes + slideLanes).filter { laneIsClear($0, from: z + halfLength($0) + 0.5, to: z + max(speed * 1.2, halfLength($0) + 10)) }
+        // Bait stops short of its solid, and only where an earlier row's hazard does not already cover that stretch.
+        let baitSolid = solids.first { abs($0.lane - safe) == 1 }
+        let reaction = mode == .odyssey && worldStage == .cryo ? 0.55 : 0.35
+        let baitLast = baitSolid.map { $0.z - $0.length / 2 - speed * reaction } ?? 0
+        switch line {
+        case .action where !open.isEmpty:
+            let lane = open[Int(nextRandom() % UInt64(open.count))]
+            if jumpLanes.contains(lane) { addJourneyArc(lane: lane, z: z, apex: jumpApex, speed: speed) }
+            else { for offset in lowLine { add(.coin, lane: lane, z: z + offset, y: 0.35, length: 0.3) } }
+        case .risk where !open.isEmpty:
+            // Ground-height coins around a jump or slide hazard: they do not signal the action.
+            let lane = open[Int(nextRandom() % UInt64(open.count))]
+            let clearance = halfLength(lane) + 3
+            for k in 0..<3 {
+                add(.coin, lane: lane, z: z - clearance - Double(k) * 3, y: 0.9, length: 0.3)
+                add(.coin, lane: lane, z: z + clearance + Double(k) * 3, y: 0.9, length: 0.3)
+            }
+        case .bait where baitSolid != nil && laneIsClear(baitSolid!.lane, from: baitLast - 6.7, to: baitLast + 0.7):
+            // A greedy line in a solid's lane that ends with time left for one lane switch.
+            let solid = baitSolid!
+            for k in 0..<3 { add(.coin, lane: solid.lane, z: baitLast - Double(k) * 3, y: 0.9, length: 0.3) }
+            // The line resumes behind the solid: staying in lane for it is fatal, stepping out and back is not.
+            for k in 0..<3 { add(.coin, lane: solid.lane, z: solid.z + solid.length / 2 + 2 + Double(k) * 3, y: 0.9, length: 0.3) }
+        default:
+            if jumpLanes.contains(safe) { addJourneyArc(lane: safe, z: z, apex: jumpApex, speed: speed) }
+            else if slideLanes.contains(safe) { for offset in lowLine { add(.coin, lane: safe, z: z + offset, y: 0.35, length: 0.3) } }
+            else { for offset in [-6.0, -3, 0, 3] { add(.coin, lane: safe, z: z + offset, y: 0.9, length: 0.3) } }
+        }
     }
 
     private mutating func addJourneyArc(lane: Int, z: Double, apex: Double, speed: Double) {

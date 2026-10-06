@@ -89,6 +89,12 @@ struct SkillAudit {
 
     static func main() {
         setvbuf(stdout, nil, _IOLBF, 0) // flush lines even if the precondition traps
+        var tally: [RunnerSimulation.CoinLine: Int] = [:]
+        for roll in UInt64(0)..<100 { tally[RunnerSimulation.coinLine(roll: roll, actionable: true, solid: true), default: 0] += 1 }
+        precondition(tally[.safe, default: 0] <= 35, "At most 35% of rows may mark the safe lane")
+        precondition(tally[.action, default: 0] > 0 && tally[.risk, default: 0] > 0 && tally[.bait, default: 0] > 0, "Every coin line type must occur")
+        precondition(RunnerSimulation.coinLine(roll: 70, actionable: false, solid: false) == .safe, "Rows without hazards fall back to the safe line")
+        print("COIN-LINES safe=\(tally[.safe, default: 0]) action=\(tally[.action, default: 0]) risk=\(tally[.risk, default: 0]) bait=\(tally[.bait, default: 0]) per 100 rows")
         var unfair = 0
         for expert in [false, true] {
             // Odyssey: share of coin-follower runs that crash before completing world 2.
@@ -132,6 +138,14 @@ struct SkillAudit {
         }
         print("FAIRNESS unfairCoins=\(unfair)")
         precondition(unfair == 0, "Every coin must be collectible without a forced collision")
+        // Same seed, same track: the coin lines must draw from the seeded generator only.
+        func trackAfterReaderRun() -> [TrackEntity] {
+            var run = RunnerSimulation()
+            run.start(seed: 4, boards: 0, mode: .odyssey, expert: false)
+            for _ in 0..<3_000 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60) }
+            return run.entities
+        }
+        precondition(trackAfterReaderRun() == trackAfterReaderRun(), "Same seed must generate the same track")
         print("SkillAudit passed")
     }
 }

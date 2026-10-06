@@ -2,7 +2,9 @@ import Foundation
 
 /// Replays can only race the identical generator, difficulty and starting world.
 struct GhostCourseKey: Codable, Equatable, Hashable {
-    static let currentRevision = PortalJourney.currentRevision
+    /// Course generator revision for ghost recordings. It is bumped whenever generation changes,
+    /// so old ghosts retire. It is independent of PortalJourney.currentRevision, which also archives world records.
+    static let currentRevision = 8
     var mode: RunMode
     var expert: Bool
     var seed: UInt64
