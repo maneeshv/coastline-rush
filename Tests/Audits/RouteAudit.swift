@@ -20,13 +20,20 @@ struct RouteAudit {
             // wastes the recovery space before a following cargo line.
             run.act(.jump)
         }
-        let active = run.entities.filter { hazards.contains($0.kind) && $0.z + $0.length / 2 > -0.5 }.sorted { $0.z < $1.z }
+        // A jetpack pickup swaps the hazard set: ground hazards are ignored in flight, drones are not.
+        let flying = run.activePowerUps[.jetpack] != nil
+        let active = run.entities.filter { (flying ? $0.kind == .airHazard : hazards.contains($0.kind)) && $0.z + $0.length / 2 > -0.5 }.sorted { $0.z < $1.z }
         guard let first = active.first, first.z < run.speed * 2.1 else { return }
         let row = active.filter { abs($0.z - first.z) < 2 }
         // Plan before a ramp starts. Hold the route until its full collider has passed.
         var target = run.lane
         let free = (-1...1).filter { lane in !row.contains { $0.lane == lane } }
-        if let closest = free.min(by: { abs($0 - run.lane) < abs($1 - run.lane) }) { target = closest }
+        // Look ahead: among free lanes, avoid one whose next hazard is a solid (tram/meteor) the reader cannot jump.
+        func freeCost(_ lane: Int) -> Int {
+            let solidAfter = active.contains { $0.lane == lane && $0.z > first.z + 2 && $0.z < first.z + run.speed * 1.1 && [.tram, .meteor].contains($0.kind) } ? 4 : 0
+            return abs(lane - run.lane) + solidAfter
+        }
+        if let best = free.min(by: { freeCost($0) < freeCost($1) }) { target = best }
         else if let supported = row.first(where: { vehicle in
             vehicle.kind == .tram && run.entities.contains(where: {
                 $0.kind == .ramp && $0.lane == vehicle.lane && abs(($0.z + 9) - vehicle.z) < 0.5
