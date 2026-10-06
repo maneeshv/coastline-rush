@@ -1,8 +1,8 @@
 import Foundation
 
 /// Measures whether skill matters: a bot that only chases coins should fail, while the
-/// hazard-reading RouteAudit bot clears everything. Coin-follower and reader survival numbers are
-/// informational until G3. Binding from G1: placed safe-line share <= 35% per mode, and 0 unfair
+/// hazard-reading RouteAudit bot clears everything. Coin-follower numbers are reported against the spec
+/// targets (MET/MISSED) for review with the user; they are not preconditions. Binding from G1: placed safe-line share <= 35% per mode, and 0 unfair
 /// coins and pickups (first sight and collection time). Compile with -D ROUTE_HELPER and RouteAudit.swift.
 @main
 struct SkillAudit {
@@ -260,8 +260,10 @@ struct SkillAudit {
                     worlds.append(Double(run.stageIndex) + run.stageProgress)
                 }
                 let share = Double(failedEarly) / Double(seeds)
-                print(String(format: "COIN-FOLLOWER odyssey route=%@ expert=%@: failedBeforeWorld2=%d/%d (%.0f%%, informational; binds at G3) meanWorlds=%.2f",
-                             route.rawValue, String(expert), failedEarly, seeds, share * 100, worlds.reduce(0, +) / Double(seeds)))
+                let target = expert ? 85.0 : 70.0
+                print(String(format: "COIN-FOLLOWER odyssey route=%@ expert=%@: failedBeforeWorld2=%d/%d (%.0f%%, target >=%.0f%% %@) meanWorlds=%.2f",
+                             route.rawValue, String(expert), failedEarly, seeds, share * 100, target, share * 100 >= target ? "MET" : "MISSED",
+                             worlds.reduce(0, +) / Double(seeds)))
             }
             // Odyssey: the hazard reader runs every world, fork and finale; every coin and pickup it passes is audited.
             for route in [BranchRoute.safe, .risky] {
@@ -289,8 +291,10 @@ struct SkillAudit {
                 while run.phase == .running && run.elapsed < 300 { followCoins(&run, route: .safe); run.update(dt: 1.0 / 60); check(run, &watch) }
                 survival.append(run.elapsed)
             }
-            print(String(format: "COIN-FOLLOWER endless expert=%@: median=%.1fs (informational; binds at G3) mean=%.1fs",
-                         String(expert), median(survival), survival.reduce(0, +) / Double(seeds)))
+            let medianTarget = expert ? 60.0 : 90.0
+            print(String(format: "COIN-FOLLOWER endless expert=%@: median=%.1fs (target <%.0fs %@) mean=%.1fs",
+                         String(expert), median(survival), medianTarget, median(survival) < medianTarget ? "MET" : "MISSED",
+                         survival.reduce(0, +) / Double(seeds)))
             // Endless: the hazard reader must survive the full 300 s on every seed.
             var survived = 0
             for seed in 1...seeds {
