@@ -39,6 +39,7 @@ Make the game harder but fair, and more varied:
 - **Coin placement.** Each row picks one of these line types instead of always using the safe lane:
   - `safeLine`: current behaviour, at most 35% of rows.
   - `actionLine`: an arc over a jump hazard (must jump), or a low line at y = 0.35 under a slide hazard (must roll).
+  - `riskLine`: ground-height coins before and after a jump or slide hazard in its lane. The coins do not signal the action, so only a player who reads the hazard collects them safely. (Added during G1 planning: a bot that follows coins and acts on what they signal survives every feasible bait line, so risk lines are what separate coin-following from reading the track.)
   - `baitLine`: starts in a lane that is blocked later in the row, so collecting the full line needs a late lane switch inside the feasibility budget.
 - **Reach rule.** The coin reach check becomes posture-aware: a coin at y ≤ 0.6 is collected only while rolling. Standing no longer collects low coins.
 - **Coins never overlap a collider.** A new feasibility check asserts that every coin is reachable without colliding.
@@ -84,7 +85,7 @@ Each hazard has a real time- or motion-dependent collider. It telegraphs at leas
 ### Compatibility
 
 - **Checkpoints.** Existing checkpoints decode. A resumed run keeps its saved entities and generates new rows with the new rules.
-- **Ghosts.** The course generator revision used in `GhostCourseKey.revision` is bumped. Personal ghosts with an older revision are discarded on load. Records, medals, coins and unlocks are kept.
+- **Ghosts.** The ghost course revision (`GhostCourseKey.currentRevision`, decoupled from `PortalJourney.currentRevision` so world records are not archived) is bumped whenever generation changes, in G1 and again in G3. Personal ghosts with an older revision are discarded on load. Records, medals, coins and unlocks are kept.
 - **Daily Odyssey.** It still reproduces from its date seed under the new revision.
 - **Accessibility.** Reduced Motion keeps the essential movement cues. Telegraphs never rely on colour alone.
 
