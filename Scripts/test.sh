@@ -40,4 +40,8 @@ swiftc -swift-version 5 -module-cache-path "$test_work/modules" \
   "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld.swift Sources/World*.swift \
   Tests/MotionTests.swift -o "$test_work/motion-tests"
 "$test_work/motion-tests"
+swiftc -swift-version 5 -module-cache-path "$test_work/modules" \
+  "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld.swift Sources/World*.swift \
+  Tests/RunnerTests.swift -o "$test_work/runner-tests"
+"$test_work/runner-tests"
 printf 'Test executables retained at %s\n' "$test_work"
