@@ -1123,8 +1123,7 @@ final class CoastalWorld {
                 node.childNode(withName: "tramBody", recursively: false)?.geometry?.firstMaterial?.diffuse.contents = color(tramColors[entity.id % tramColors.count])
                 if let cue = node.childNode(withName: "shiftCue", recursively: false) {
                     // The chevron points at the lane the vehicle will take and stays until the shift completes.
-                    let remaining = Double(entity.arrivalLane - entity.lane) - entity.laneOffset()
-                    cue.isHidden = entity.arrivalLane == entity.lane || abs(remaining) < 0.001
+                    cue.isHidden = !entity.isShifting
                     cue.eulerAngles.y = scalar(entity.arrivalLane > entity.lane ? 0 : .pi)
                     cue.scale = vector(highContrastCues ? 1.4 : 1, highContrastCues ? 1.4 : 1, 1 / max(0.01, entity.length / 8))
                     cue.opacity = reducedMotion ? 1 : 0.75 + sin(time * 6) * 0.25
@@ -1178,8 +1177,7 @@ final class CoastalWorld {
             if let cue = node.childNode(withName: "actionCue", recursively: false) {
                 let approach = entity.z / max(1, simulation.speed + entity.oncomingSpeed)
                 // While a lane-changer is still shifting, its shift chevron is the cue; "change lanes" would point at the exit.
-                let shifting = entity.targetLane != nil && abs(Double(entity.arrivalLane - entity.lane) - entity.laneOffset()) > 0.001
-                cue.isHidden = approach > 2.7 || entity.z < 1 || lastWaterMode || shifting
+                cue.isHidden = approach > 2.7 || entity.z < 1 || lastWaterMode || entity.isShifting
                 cue.opacity = highContrastCues ? 1 : 0.74
                 cue.scale.x = highContrastCues ? 1.35 : 1
                 cue.childNode(withName: "cueBackplate", recursively: false)?.isHidden = !highContrastCues
@@ -2713,8 +2711,13 @@ private extension CoastalWorld {
                 stroke.castsShadow = false
             }
         case .laserSweep:
+            // Posts and a top bar reach the world's stackTop (Orbit 3.88 m, others 2.6 m): a lit laser strikes anything
+            // above the beam, so a visible jump must visibly meet the frame.
+            let top = renderedStage.stackTop
+            let postTint = renderedStage == .verdant ? "456B55" : "635463"
+            box(2.5, 0.2, 0.3, postTint, at: vector(0, top - 0.1, 0), radius: 0, into: root)
             for side in [-1.0, 1.0] {
-                cylinder(0.20, 2.3, renderedStage == .verdant ? "456B55" : "635463", at: vector(side * 1.10, 1.14, 0), into: root)
+                cylinder(0.20, top, postTint, at: vector(side * 1.10, top / 2, 0), into: root)
                 let emitter = sphere(0.27, "E1845E", at: vector(side * 1.10, 1.38, 0), into: root)
                 emitter.geometry?.firstMaterial = material("FF9870", emissive: true)
                 for i in 0..<3 { ring(0.22, tube: 0.04, tint: "29323F", at: vector(side * 1.10, 1.9 + Double(i) * 0.11, 0), into: root) }

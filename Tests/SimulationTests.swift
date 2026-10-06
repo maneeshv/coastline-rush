@@ -494,6 +494,16 @@ struct SimulationTests {
                 try expect(simulation.distance == 0 && simulation.jumps == 0 && simulation.score == 0, "Start should reset the previous run")
                 try expect(simulation.availableBoards == 4, "Start should restore the supplied inventory")
             }),
+            ("HUD row label: timed laser and stack outrank a plain solid, older mixed rows keep their first label", {
+                var laser = entity(.laserSweep, id: 1, lane: 0, z: 20, length: 0.8)
+                laser.cyclePhase = 0
+                let laserRow = fixture([laser, entity(.tram, id: 2, lane: 1, z: 20, length: 8)])
+                try expect(laserRow.encounterText == "TIMED LASER · SLIDE OR TIME IT", "A tram beside a timed laser must not rename the row: \(laserRow.encounterText)")
+                let stackRow = fixture([entity(.barrier, id: 1, lane: -1, z: 20), entity(.tram, id: 2, lane: 0, z: 20, length: 8), entity(.stack, id: 3, lane: 1, z: 20)])
+                try expect(stackRow.encounterText == "STACKED BARRIER · CHANGE LANES", "A stack names its row over a plain solid: \(stackRow.encounterText)")
+                let oldRow = fixture([entity(.barrier, id: 1, lane: 0, z: 20), entity(.tram, id: 2, lane: 1, z: 20, length: 8)])
+                try expect(oldRow.encounterText == "CARGO LINE · JUMP", "A pre-G2 mixed row keeps its first entity's label: \(oldRow.encounterText)")
+            }),
             ("headstart and invalid time inputs behave safely", {
                 var simulation = RunnerSimulation()
                 simulation.start(seed: 0, headstart: true)

@@ -104,6 +104,7 @@ struct SkillAudit {
     /// Per-run audit state. Violation counters and coverage are global across runs.
     struct Watch { var seen: Set<Int> = [], flagged: Set<Int> = [], bait: Set<Int> = [], telegraphs: Set<Int> = [], features: Set<Int> = [] }
     static var unfair = 0, baitViolations = 0, telegraphViolations = 0
+    static var shiftChecks = 0, impactChecks = 0, collapseChecks = 0
     static var coverage: [String: Set<WorldStage>] = [:]
 
     static func check(_ run: RunnerSimulation, _ watch: inout Watch) {
@@ -148,8 +149,11 @@ struct SkillAudit {
             let closing = run.speed + e.oncomingSpeed // oncoming entities close faster
             let slack = closing / 60 + 0.01 // the change is seen up to one frame late
             let need: Double
-            if e.targetLane != nil && e.motionLength > 0 && e.z <= e.motionStart - e.motionLength { need = run.expert ? 0.8 : 1.0 }
-            else if e.activeFrom.isFinite && e.isActive { need = e.kind == .meteor ? 1.0 : 0.5 }
+            if e.targetLane != nil && e.motionLength > 0 && !e.isShifting { need = run.expert ? 0.8 : 1.0; shiftChecks += 1 }
+            else if e.activeFrom.isFinite && e.isActive {
+                need = e.kind == .meteor ? 1.0 : 0.5
+                if e.kind == .meteor { impactChecks += 1 } else { collapseChecks += 1 }
+            }
             else { continue }
             done.insert(e.id)
             let edge = e.z - e.length / 2 - 0.35
@@ -279,7 +283,8 @@ struct SkillAudit {
         print("HAZARD-COVERAGE " + hazardWorlds.keys.sorted().map { key in
             "\(key)=\(coverage[key, default: []].map(\.rawValue).sorted().joined(separator: "+"))" }.joined(separator: " "))
         precondition(missing.isEmpty && leaks.isEmpty, "Each G2 hazard must appear in exactly its worlds: missing=\(missing.keys.sorted()) leaks=\(leaks.keys.sorted())")
-        print("TELEGRAPHS lateChanges=\(telegraphViolations) (shift >= 1.0/0.8 s, impact >= 1.0 s, collapse >= 0.5 s)")
+        print("TELEGRAPHS lateChanges=\(telegraphViolations) checks: shift=\(shiftChecks) impact=\(impactChecks) collapse=\(collapseChecks) (shift >= 1.0/0.8 s, impact >= 1.0 s, collapse >= 0.5 s)")
+        precondition(shiftChecks > 0 && impactChecks > 0 && collapseChecks > 0, "Every telegraph kind must be checked at least once")
         precondition(telegraphViolations == 0, "Lane shifts, impacts and collapses must keep their lead time")
         print("BAIT-ESCAPES violations=\(baitViolations) (last bait coin to resume switch; one adjacent lane clear)")
         precondition(baitViolations == 0, "Every bait escape must be a single adjacent lane switch")

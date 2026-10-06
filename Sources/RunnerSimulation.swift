@@ -106,6 +106,9 @@ extension TrackEntity {
 
     var isActive: Bool { z <= activeFrom }
 
+    /// A lane-changer that has not yet reached its arrival lane (its shift chevron is still showing).
+    var isShifting: Bool { targetLane != nil && abs(Double(arrivalLane - lane) - laneOffset()) > 0.001 }
+
     private enum CodingKeys: String, CodingKey {
         case id, kind, lane, z, y, length, oncomingSpeed, targetLane, motionStart, motionLength, cyclePhase, activeFrom
     }
@@ -276,9 +279,15 @@ struct RunnerSimulation: Codable {
         }
     }
     private var upcomingEncounter: TrackEntity? {
-        // Row-mates share a z: the solid one names the row (a stack hides among its jump and slide lanes).
-        entities.filter { Self.isObstacle($0.kind) && $0.z > 0 && $0.z < max(65, speed * 2.5) }
-            .min { ($0.z, Self.isSolid($0.kind) ? 0 : 1) < ($1.z, Self.isSolid($1.kind) ? 0 : 1) }
+        // Row-mates share a z. Only a stack and the G2 specials outrank the rest (a stack hides among its jump and
+        // slide lanes; a tram beside a timed laser must not rename it); otherwise the first-added entity names the row.
+        func rank(_ e: TrackEntity) -> Int {
+            if e.kind == .stack { return 0 }
+            if e.targetLane != nil || e.cyclePhase >= 0 || e.activeFrom.isFinite { return 1 }
+            return 2
+        }
+        return entities.filter { Self.isObstacle($0.kind) && $0.z > 0 && $0.z < max(65, speed * 2.5) }
+            .min { ($0.z, rank($0)) < ($1.z, rank($1)) }
     }
 
     var worldStage: WorldStage { WorldStage.ordered[stageIndex] }
