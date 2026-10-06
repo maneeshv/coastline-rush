@@ -3,6 +3,11 @@ import SceneKit
 /// Model-space surface detail shared by every lit, non-emissive material. Model space keeps the
 /// pattern fixed to scrolling sections and pooled props, so it never swims as the world moves.
 extension CoastalWorld {
+    /// Sections are 26 m (off-world), 24 m (harbor) and 16 m (alternate route) long and each has its own model space,
+    /// so scale and multiplier must make every section a whole number of texture periods or the pattern seams.
+    static let defaultDetailScale = 0.5
+    static let fineDetailMultiplier = 5.0
+
     static let surfaceDetailModifier = """
     #pragma arguments
     texture2d<float> detailMap;
@@ -15,12 +20,12 @@ extension CoastalWorld {
     w = pow(w, float3(4.0)); w /= max(0.0001, w.x + w.y + w.z);
     float3 p = local * detailScale;
     float4 broad = detailMap.sample(detailSampler, p.yz) * w.x + detailMap.sample(detailSampler, p.xz) * w.y + detailMap.sample(detailSampler, p.xy) * w.z;
-    float3 q = p * 4.7 + 0.31;
+    float3 q = p * \(fineDetailMultiplier) + 0.31;
     float4 fine = detailMap.sample(detailSampler, q.yz) * w.x + detailMap.sample(detailSampler, q.xz) * w.y + detailMap.sample(detailSampler, q.xy) * w.z;
     float breakup = (broad.r - 0.5) * 2.0;
     float grain = (fine.g - 0.5) * 2.0;
     _surface.diffuse.rgb *= max(0.15, 1.0 + detailStrength * (0.22 * breakup + 0.10 * grain - 0.35 * broad.b));
-    _surface.roughness = clamp(_surface.roughness + detailStrength * (0.18 * breakup + 0.12 * fine.g - 0.06), 0.04, 1.0);
+    _surface.roughness = clamp(_surface.roughness + detailStrength * (0.18 * breakup + 0.12 * fine.g - 0.06), 0.12, 1.0);
     """
 
     /// 512² tileable data texture (linear, not color): R broad fbm, G fine fbm, B cavities and specks.
@@ -63,7 +68,15 @@ extension CoastalWorld {
         return result
     }
 
-    func applySurfaceDetail(to material: SCNMaterial, scale: Double = 0.45, strength: Double = 1.8) {
+    /// Builds `build` with surface detail off, so runner, jet ski and pickups never share detailed materials.
+    func withoutSurfaceDetail<T>(_ build: () -> T) -> T {
+        let saved = surfaceDetailEnabled
+        surfaceDetailEnabled = false
+        defer { surfaceDetailEnabled = saved }
+        return build()
+    }
+
+    func applySurfaceDetail(to material: SCNMaterial, scale: Double = CoastalWorld.defaultDetailScale, strength: Double = 1.8) {
         material.shaderModifiers = [.surface: Self.surfaceDetailModifier]
         let map = SCNMaterialProperty(contents: detailTexture() as Any)
         map.wrapS = .repeat; map.wrapT = .repeat

@@ -39,6 +39,25 @@ import SceneKit
         precondition(lit.value(forKey: "detailMap") is SCNMaterialProperty, "detail map must be bound")
         precondition(glow.shaderModifiers?[.surface] == nil, "emissive materials must stay clean")
 
+        // Every section starts a fresh model space: whole detail periods per section, at both scales, or the pattern seams.
+        for length in [24.0, 26.0, 16.0] { for k in [1.0, CoastalWorld.fineDetailMultiplier] {
+            let periods = length * CoastalWorld.defaultDetailScale * k
+            precondition(abs(periods - periods.rounded()) < 1e-9, "detail pattern must tile whole periods per section (\(length) m x\(k) = \(periods))")
+        } }
+        // Runner, jet ski and pickups stay clean; the lit shared "D9E1E5" (also on the runner) keeps its detail.
+        let player = Mirror(reflecting: world).children.first { $0.label == "player" }!.value as! SCNNode
+        var playerMaterials = 0
+        player.enumerateHierarchy { node, _ in
+            for m in node.geometry?.materials ?? [] {
+                playerMaterials += 1
+                precondition(m.shaderModifiers?[.surface] == nil, "player hierarchy material carries surface detail (\(node.name ?? "?"))")
+            }
+        }
+        precondition(playerMaterials > 10, "player hierarchy not found (\(playerMaterials) materials)")
+        precondition(world.material("D9E1E5").shaderModifiers?[.surface]?.contains("detailMap") == true, "shared lit material must keep surface detail")
+        world.withoutSurfaceDetail { precondition(world.material("D9E1E5").shaderModifiers?[.surface] == nil, "flat variant must be clean") }
+        precondition(world.surfaceDetailEnabled, "withoutSurfaceDetail must restore the flag")
+
         let renderer = SCNRenderer(device: MTLCreateSystemDefaultDevice(), options: nil)
         let plain = SCNMaterial(); plain.lightingModel = .physicallyBased; plain.diffuse.contents = lit.diffuse.contents
         let flat = luminanceStats(render(plain, offset: 0, renderer: renderer))

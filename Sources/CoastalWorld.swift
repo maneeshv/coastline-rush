@@ -97,6 +97,7 @@ final class CoastalWorld {
     private var liveKinds: [Int: String] = [:]
     private var pools: [String: [SCNNode]] = [:]
     private var materials: [String: SCNMaterial] = [:]
+    var surfaceDetailEnabled = true
     private var clothing: [SCNMaterial] = []
     private var selectedCharacter = ""
     private var selectedBoard = ""
@@ -141,10 +142,10 @@ final class CoastalWorld {
             setRoot.addChildNode(section)
             segments.append(section)
         }
-        makePlayer()
+        withoutSurfaceDetail { makePlayer() }
         makeMotionEffects()
         makeDrone()
-        makeJetSki()
+        withoutSurfaceDetail { makeJetSki() }
         makeMenuProps()
         makeFinale(stage: .harbor, into: harborFinale)
         scene.rootNode.addChildNode(harborFinale)
@@ -173,7 +174,7 @@ final class CoastalWorld {
     func updateGhost(sample: GhostSample?) {
         guard let sample else { ghostCourier?.isHidden = true; return }
         if ghostCourier == nil {
-            let ghost = player.clone()
+            let ghost = player.clone() // shares the player's flat (detail-free) materials
             ghost.name = "personalGhost"
             ghost.opacity = 0.24
             ghost.enumerateChildNodes { node, _ in node.castsShadow = false }
@@ -383,7 +384,8 @@ final class CoastalWorld {
     }
 
     func material(_ hex: String, emissive: Bool = false, unique: Bool = false) -> SCNMaterial {
-        let key = hex + (emissive ? "-light" : "")
+        let detailed = !emissive && surfaceDetailEnabled
+        let key = hex + (emissive ? "-light" : "") + (detailed || emissive ? "" : "-flat")
         if !unique, let cached = materials[key] { return cached }
         let result = SCNMaterial()
         result.diffuse.contents = color(hex)
@@ -395,7 +397,7 @@ final class CoastalWorld {
             result.roughness.contents = 0.27
         }
         if emissive { result.emission.contents = color(hex); result.emission.intensity = 1.8 }
-        if !emissive { applySurfaceDetail(to: result) }
+        if detailed { applySurfaceDetail(to: result) }
         if !unique { materials[key] = result }
         return result
     }
@@ -1159,6 +1161,14 @@ final class CoastalWorld {
     }
 
     private func makeEntity(kind: EntityKind) -> SCNNode {
+        // Pickups stay clean: flat materials keep coins, keys and power-ups readable.
+        switch kind {
+        case .coin, .key, .magnet, .jetpack, .sneakers, .multiplier, .relic: return withoutSurfaceDetail { buildEntity(kind: kind) }
+        default: return buildEntity(kind: kind)
+        }
+    }
+
+    private func buildEntity(kind: EntityKind) -> SCNNode {
         if let signature = makeSignatureHazard(kind) { return signature }
         if kind == .relic { return makeWorldRelic() }
         if renderedStage != .harbor, let node = makeWorldObstacle(kind) { return node }
@@ -1357,7 +1367,7 @@ final class CoastalWorld {
         tram.position = vector(2.6, 0, -13)
         menuProps.addChildNode(tram)
         for index in 0..<8 {
-            let coin = makeCoin()
+            let coin = withoutSurfaceDetail { makeCoin() }
             coin.position = vector(-2.6, 1.0, -5 - Double(index) * 2.6)
             coin.eulerAngles.y = scalar(Double(index) * 0.22)
             menuProps.addChildNode(coin)
