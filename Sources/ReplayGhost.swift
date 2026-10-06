@@ -4,10 +4,11 @@ import Foundation
 struct GhostCourseKey: Codable, Equatable, Hashable {
     /// Course generator revision for ghost recordings. It is bumped whenever generation changes,
     /// so old ghosts retire. It is independent of PortalJourney.currentRevision, which also archives world records.
-    static let currentRevision = 8
-    /// Endless and Sprint ghosts: bumped to 5 when G1 changed their coin and pickup generation.
-    static let legacyModeRevision = 5
-    /// Jet Ski generation did not change in G1, so its ghosts keep revision 4.
+    /// 8: G1 coin lines. 9: G2 hazards and the G3 shuffle bag, fork and finale order.
+    static let currentRevision = 9
+    /// Endless and Sprint ghosts: 5 for G1 coins and pickups, 6 for G3 escalation and forgiveness.
+    static let legacyModeRevision = 6
+    /// Jet Ski generation has not changed since revision 4, so its ghosts stay valid.
     static func revision(for mode: RunMode) -> Int {
         mode == .odyssey ? currentRevision : mode == .jetSki ? 4 : legacyModeRevision
     }

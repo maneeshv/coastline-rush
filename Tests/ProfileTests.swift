@@ -140,7 +140,7 @@ enum ProfileTests {
         expect(!other.isValid, "Replays reject unknown worlds")
         other = course; other.decisionPlan = Array(repeating: decisions[0], count: 7)
         expect(!other.isValid, "Replay plans remain bounded")
-        let oldMode = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"endless","expert":false,"seed":42,"startWorld":0,"revision":5}"#.utf8))
+        let oldMode = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"endless","expert":false,"seed":42,"startWorld":0,"revision":6}"#.utf8))
         expect(oldMode.isValid && oldMode.decisionPlan.isEmpty && oldMode.artifact == nil, "Original mode ghosts remain compatible when new fields are absent")
         var retired = oldMode; retired.revision = 4
         expect(!retired.isValid, "Endless ghosts recorded before the G1 generator change retire")
@@ -202,6 +202,13 @@ enum ProfileTests {
         var oldOdyssey = GhostCourseKey(mode: .odyssey, expert: false, seed: 42, startWorld: 0); oldOdyssey.revision = 4
         expect(!oldOdyssey.isValid, "Short-stage ghosts cannot race extended Odyssey")
         expect(GhostCourseKey(mode: .endless, expert: false, seed: 42, startWorld: 0).revision == GhostCourseKey.legacyModeRevision, "Endless ghosts use the current generator revision")
+        expect(GhostCourseKey.revision(for: .odyssey) == 9 && GhostCourseKey.revision(for: .endless) == 6
+               && GhostCourseKey.revision(for: .harborSprint) == 6 && GhostCourseKey.revision(for: .jetSki) == 4,
+               "G3 generation retires Odyssey, Endless and Sprint ghosts; Jet Ski generation is unchanged")
+        var g1Odyssey = GhostCourseKey(mode: .odyssey, expert: false, seed: 42, startWorld: 0); g1Odyssey.revision = 8
+        var g1Endless = GhostCourseKey(mode: .endless, expert: false, seed: 42, startWorld: 0); g1Endless.revision = 5
+        expect(!g1Odyssey.isValid && !g1Endless.isValid && GhostCourseKey(mode: .jetSki, expert: false, seed: 42, startWorld: 0).isValid,
+               "G1-era Odyssey and Endless ghosts are discarded; Jet Ski ghosts stay valid")
     }
 
     private static func testMomentumRecordMigration() throws {
