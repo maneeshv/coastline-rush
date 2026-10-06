@@ -2722,8 +2722,10 @@ private extension CoastalWorld {
         case .wall:
             // Full-height slab: nothing passes over or under. Crossed bars read as "blocked" without colour.
             let palette = worldPalette
-            box(2.3, 3.6, 1.0, palette.stone, at: vector(0, 1.8, 0), radius: 0, into: root)
-            box(2.4, 0.18, 1.08, palette.edge, at: vector(0, 3.62, 0), radius: 0, into: root)
+            // The cap's top is RunnerSimulation.wallTop, the height the collider ends at.
+            let top = RunnerSimulation.wallTop
+            box(2.3, top - 0.2, 1.0, palette.stone, at: vector(0, (top - 0.2) / 2, 0), radius: 0, into: root)
+            box(2.4, 0.2, 1.08, palette.edge, at: vector(0, top - 0.1, 0), radius: 0, into: root)
             for side in [-1.0, 1.0] {
                 let bar = glowBox(0.16, 2.6, 0.04, "FFB36B", at: vector(0, 1.8, 0.52), into: root)
                 bar.eulerAngles.z = scalar(side * 0.6)
@@ -2732,9 +2734,12 @@ private extension CoastalWorld {
             // A low barrier under an overhead beam, joined by struts: one solid block, not two separate actions.
             let palette = worldPalette
             box(2.05, 0.96, 0.95, palette.stone, at: vector(0, 0.48, 0), radius: 0, into: root)
-            for side in [-1.0, 1.0] { box(0.22, 2.6, 0.4, palette.edge, at: vector(side * 1.06, 1.3, 0), radius: 0, into: root) }
-            box(2.3, 0.55, 0.7, palette.stone, at: vector(0, 2.0, 0), radius: 0, into: root)
-            for x in [-0.45, 0.45] { glowBox(0.07, 0.8, 0.03, "FFF0D1", at: vector(x, 1.36, 0.37), into: root) }
+            // Struts and beam reach the world's stackTop, the height the collider ends at (taller in low gravity).
+            let top = renderedStage.stackTop
+            for side in [-1.0, 1.0] { box(0.22, top, 0.4, palette.edge, at: vector(side * 1.06, top / 2, 0), radius: 0, into: root) }
+            box(2.3, 0.55, 0.7, palette.stone, at: vector(0, top - 0.275, 0), radius: 0, into: root)
+            let gapHeight = top - 0.55 - 0.96
+            for x in [-0.45, 0.45] { glowBox(0.07, gapHeight, 0.03, "FFF0D1", at: vector(x, 0.96 + gapHeight / 2, 0.37), into: root) }
             glowBox(1.75, 0.08, 0.03, "FFB369", at: vector(0, 0.9, 0.49), into: root)
         default: return nil
         }

@@ -255,6 +255,8 @@ struct RunnerSimulation: Codable {
     var trickChain: Int { enhancements.trickChain }
     var cleanLandings: Int { enhancements.cleanLandings }
     var landingImpact: Double { enhancements.landingImpact }
+    /// The last generated row's route lane (read-only, for audits and tests).
+    var previousRouteLane: Int { challenge.previousSafeLane }
     var encounterDistance: Double? { upcomingEncounter?.z }
     var encounterText: String {
         guard let entity = upcomingEncounter else { return "" }
@@ -274,8 +276,9 @@ struct RunnerSimulation: Codable {
         }
     }
     private var upcomingEncounter: TrackEntity? {
+        // Row-mates share a z: the solid one names the row (a stack hides among its jump and slide lanes).
         entities.filter { Self.isObstacle($0.kind) && $0.z > 0 && $0.z < max(65, speed * 2.5) }
-            .min { $0.z < $1.z }
+            .min { ($0.z, Self.isSolid($0.kind) ? 0 : 1) < ($1.z, Self.isSolid($1.kind) ? 0 : 1) }
     }
 
     var worldStage: WorldStage { WorldStage.ordered[stageIndex] }
@@ -926,7 +929,8 @@ struct RunnerSimulation: Codable {
             case .tram: collides = height < Self.tramRoofHeight - 0.35
             case .buoy: collides = height < 1.4
             case .airHazard: collides = inFlight && abs(height - entity.y) < 2.0
-            case .wall, .stack: collides = true // full height; a stack's barrier and bar leave no jump or roll line
+            case .wall: collides = height < Self.wallTop // drawn 3.8 m tall; only a sneakers jump in low gravity clears it
+            case .stack: collides = height < worldStage.stackTop // a normal jump or roll never clears it
             default: collides = false
             }
             if collides {
@@ -1829,7 +1833,8 @@ struct RunnerSimulation: Codable {
     private static func isObstacle(_ kind: EntityKind) -> Bool {
         [.barrier, .arch, .tram, .buoy, .airHazard, .gap, .meteor, .root, .iceCrack, .laserSweep, .waterTraffic, .wall, .stack].contains(kind)
     }
-    /// Hazards that no jump or roll clears.
+    static let wallTop = 3.8
+    /// Hazards that no normal jump or roll clears.
     private static func isSolid(_ kind: EntityKind) -> Bool { [.tram, .meteor, .wall, .stack].contains(kind) }
 }
 

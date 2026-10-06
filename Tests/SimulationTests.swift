@@ -356,6 +356,59 @@ struct SimulationTests {
                     try expect(dodged.phase == .running, "\(kind) is solid only in its own lane")
                 }
             }),
+            ("walls and stacks collide up to their drawn height, and stacks are taller in low gravity", {
+                try expect(WorldStage.orbit.stackTop > 3.8 && WorldStage.orbit.stackTop < 4.0, "Orbit stackTop \(WorldStage.orbit.stackTop)")
+                for stage in WorldStage.allCases {
+                    let apex = stage.jumpVelocity * stage.jumpVelocity / (2 * stage.gravity)
+                    try expect(stage.stackTop >= 2.6 && stage.stackTop >= apex + 0.5 - 1e-9, "\(stage) stack must top a normal jump")
+                }
+                // Jump in Orbit (optionally on sneakers), hold the apex, then slide the hazard under the runner.
+                func peak(_ kind: EntityKind, sneakers: Bool) -> RunnerSimulation {
+                    var run = RunnerSimulation()
+                    run.start(seed: 42, boards: 0, mode: .odyssey, startStage: 1)
+                    if sneakers { run.replaceTrackForTesting([entity(.sneakers, z: 0)]); run.update(dt: 1.0 / 60) }
+                    run.replaceTrackForTesting([])
+                    run.act(.jump)
+                    var best = 0.0
+                    for _ in 0..<150 { run.update(dt: 1.0 / 60); if run.height < best { break }; best = run.height }
+                    run.replaceTrackForTesting([entity(kind, z: 0.3, y: 0, length: 1.0)])
+                    for _ in 0..<4 { run.update(dt: 1.0 / 60) }
+                    return run
+                }
+                let normal = peak(.stack, sneakers: false)
+                try expect(normal.phase == .crashed, "A normal Orbit jump (apex 3.38 m) must not clear a stack")
+                try expect(peak(.wall, sneakers: false).phase == .crashed, "A normal Orbit jump must not clear a wall")
+                let high = peak(.stack, sneakers: true)
+                try expect(high.height > WorldStage.orbit.stackTop && high.phase == .running, "A runner above stackTop passes over a stack")
+                let over = peak(.wall, sneakers: true)
+                try expect(over.height > RunnerSimulation.wallTop && over.phase == .running, "A runner above 3.8 m passes over a wall")
+            }),
+            ("a gap wall's opening is one lane from the previous route", {
+                var checked = 0
+                for stage in 0..<WorldStage.allCases.count {
+                    for seed in [3, 9, 21] as [UInt64] {
+                        var run = RunnerSimulation()
+                        run.start(seed: seed, boards: 0, mode: .odyssey, startStage: stage)
+                        var known = Set<Int>()
+                        for _ in 0..<5000 where run.phase == .running {
+                            let before = run.previousRouteLane
+                            run.update(dt: 1.0 / 60)
+                            let fresh = run.entities.filter { known.insert($0.id).inserted && ![.coin, .key, .relic].contains($0.kind) }
+                            // Only a tick that generated just one wall row names its previous route unambiguously.
+                            if !fresh.isEmpty, fresh.allSatisfy({ $0.kind == .wall }) {
+                                let opening = [-1, 0, 1].filter { lane in !fresh.contains { $0.lane == lane } }
+                                try expect(opening.count == 1, "A wall row leaves exactly one opening")
+                                try expect(opening[0] != before && abs(opening[0] - before) == 1,
+                                           "opening \(opening[0]) after route \(before), stage \(stage), seed \(seed)")
+                                checked += 1
+                            }
+                            // Keep the runner alive on a clear road while the generator keeps feeding rows.
+                            run.replaceTrackForTesting(run.entities.filter { $0.z > 18 }, generate: true)
+                        }
+                    }
+                }
+                try expect(checked >= 10, "Expected generated wall rows to inspect, saw \(checked)")
+            }),
             ("large frame deltas cannot tunnel through obstacles", {
                 var simulation = fixture([entity(.barrier, z: 50)])
                 simulation.update(dt: 10)
