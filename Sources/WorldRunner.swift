@@ -147,6 +147,7 @@ extension CoastalWorld {
 
         // Arms: shoulder pivots wide of the chest for a heroic silhouette; elbow at −0.46, fingertips at y ~1.00.
         let rim = material("9ADBDC", emissive: true), cuffGrey = material("A6B8C4"), glove = material("192F40")
+        rim.emission.intensity = 0.6 // the shared 1.8 clipped the pauldron rim to white at close range
         for (i, arm) in [leftArm, rightArm].enumerated() {
             let side = i == 0 ? -1.0 : 1.0
             let plate = material(i == 0 ? "CBD8DD" : "597888")
