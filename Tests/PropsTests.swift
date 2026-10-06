@@ -73,6 +73,28 @@ import SceneKit
             }
             precondition(here[0].y == -1.3 && abs(abs(here[0].x) - 7.5) < 1e-9, "row 0 must stay at the track edge")
         } } }
+        // Trees: about 10 m tall at size 1, bending away from the track and never reaching further toward it than before.
+        for outward in [-1.0, 1.0] {
+            let tree = world.alienTreeNode(size: 1, outward: outward)
+            let b = box(tree)
+            precondition(b.hi.y > 9 && b.hi.y < 11.5, "tree height \(b.hi.y)")
+            let towardTrack = outward > 0 ? -b.lo.x : b.hi.x
+            precondition(towardTrack <= 4.9, "tree reaches \(towardTrack) m toward the track (old limit 4.9)")
+            precondition(abs(b.lo.z) <= 3.6 && b.hi.z <= 3.6, "tree depth out of bounds: \(b)")
+        }
+        // Houses: same footprint; variants 1 and 2 (mod 3) gain a gable roof or a penthouse floor.
+        for variant in 0..<6 {
+            world.makeHouse(into: SCNNode(), at: SCNVector3Zero, facing: -1, variant: variant) // the merged path must still build
+            let b = box(world.houseNode(at: SCNVector3Zero, facing: -1, variant: variant))
+            let wall = 4.9 + Double(variant % 4) * 1.25
+            precondition(b.hi.x - b.lo.x <= 7.6 && b.hi.z - b.lo.z <= 9.0, "house \(variant) footprint grew")
+            let top = b.hi.y
+            switch variant % 3 {
+            case 1: precondition(top > wall + 1.5 && top < wall + 2.6, "house \(variant) needs a gable roof (top \(top), wall \(wall))")
+            case 2: precondition(top > wall + 1.8 && top < wall + 2.6, "house \(variant) needs a penthouse (top \(top), wall \(wall))")
+            default: precondition(top < wall + 1.6, "house \(variant) keeps its flat roof (top \(top), wall \(wall))")
+            }
+        }
         print("PropsTests passed")
     }
 }

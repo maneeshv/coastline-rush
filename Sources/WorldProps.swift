@@ -145,4 +145,71 @@ extension CoastalWorld {
         } }
         return result
     }
+
+    /// Triangular-prism roof, ridge along z, eaves at y = 0, flat-shaded.
+    func gableRoof(width: Double, length: Double, rise: Double, tint: String) -> SCNNode {
+        let w = width / 2, l = length / 2
+        let p: [SIMD3<Double>] = [SIMD3(-w, 0, -l), SIMD3(w, 0, -l), SIMD3(0, rise, -l), SIMD3(-w, 0, l), SIMD3(w, 0, l), SIMD3(0, rise, l)]
+        let triangles = [(p[3], p[4], p[5]), (p[0], p[2], p[1]), (p[0], p[3], p[5]), (p[0], p[5], p[2]), (p[1], p[2], p[5]), (p[1], p[5], p[4])]
+        let geometry = Self.facetedGeometry(triangles) { q in CGPoint(x: (q.x + q.z) * 0.25, y: q.y * 0.25) }
+        geometry.firstMaterial = material(tint)
+        return SCNNode(geometry: geometry)
+    }
+
+    /// Bioluminescent tree; `size` 1 is about 10 m tall. The trunk curves toward `outward` (±1 on x).
+    func alienTreeNode(size: Double, outward: Double) -> SCNNode {
+        let tree = SCNNode()
+        let bark = material("496C65")
+        func place(_ geometry: SCNGeometry, at p: SIMD3<Double>, euler: SIMD3<Double> = .zero) {
+            let node = SCNNode(geometry: geometry)
+            node.position = SCNVector3(CoastScalar(p.x), CoastScalar(p.y), CoastScalar(p.z))
+            node.eulerAngles = SCNVector3(CoastScalar(euler.x), CoastScalar(euler.y), CoastScalar(euler.z))
+            tree.addChildNode(node)
+        }
+        // Five tapered segments; each bends a little further. Rotating +y by `lean` about z gives (-sin, cos).
+        var top = SIMD3<Double>(0, 0, 0), lean = 0.0
+        for segment in 0..<5 {
+            let length = 2.1
+            lean -= 0.055 * outward
+            let cone = SCNCone(topRadius: 0.68 - Double(segment) * 0.1, bottomRadius: 0.78 - Double(segment) * 0.1, height: length)
+            cone.radialSegmentCount = 14; cone.firstMaterial = bark
+            let direction = SIMD3(-sin(lean), cos(lean), 0)
+            place(cone, at: top + direction * (length / 2), euler: SIMD3(0, 0, lean))
+            top += direction * length
+        }
+        // Buttress roots splay out and down from the base.
+        for i in 0..<4 {
+            let angle = Double(i) * .pi / 2 + 0.4
+            let root = SCNCone(topRadius: 0.05, bottomRadius: 0.32, height: 2.2); root.radialSegmentCount = 8; root.firstMaterial = bark
+            place(root, at: SIMD3(cos(angle) * 0.9, 0.45, sin(angle) * 0.9), euler: SIMD3(sin(angle) * 1.95, 0, -cos(angle) * 1.95))
+        }
+        // Three caps following the curve, each with a glowing gill ring and hanging seed pods.
+        let gillGlow = material("7FE4BE", emissive: true), podGlow = material("8BF0CF", emissive: true), stemTint = material("2E5A50")
+        for i in 0..<3 {
+            let fraction = 0.56 + Double(i) * 0.21
+            let center = SIMD3(top.x * fraction * fraction, top.y * fraction, 0)
+            let radius = 3.8 - Double(i) * 0.7
+            let cap = SCNSphere(radius: radius); cap.segmentCount = 24
+            let capMaterial = material(i == 2 ? "62B4A7" : "477E80", unique: true)
+            capMaterial.emission.contents = color("24766A"); capMaterial.emission.intensity = 0.15
+            cap.firstMaterial = capMaterial
+            let capNode = SCNNode(geometry: cap)
+            capNode.position = SCNVector3(CoastScalar(center.x), CoastScalar(center.y), 0)
+            capNode.scale = SCNVector3(1.1, 0.23, 0.85)
+            tree.addChildNode(capNode)
+            let gill = SCNTorus(ringRadius: radius * 0.82, pipeRadius: 0.07); gill.ringSegmentCount = 48; gill.pipeSegmentCount = 6
+            gill.firstMaterial = gillGlow
+            place(gill, at: center + SIMD3(0, -0.18, 0))
+            for j in 0..<6 {
+                let angle = Double(j) * .pi / 3 + Double(i) * 0.5
+                let anchor = center + SIMD3(cos(angle) * radius * 0.7, -0.45, sin(angle) * radius * 0.55)
+                let stem = SCNCylinder(radius: 0.025, height: 0.6); stem.radialSegmentCount = 5; stem.firstMaterial = stemTint
+                place(stem, at: anchor)
+                let pod = SCNSphere(radius: 0.14); pod.segmentCount = 8; pod.firstMaterial = podGlow
+                place(pod, at: anchor + SIMD3(0, -0.36, 0))
+            }
+        }
+        tree.scale = SCNVector3(CoastScalar(size), CoastScalar(size), CoastScalar(size))
+        return tree
+    }
 }

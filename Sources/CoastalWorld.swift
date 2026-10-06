@@ -798,7 +798,19 @@ final class CoastalWorld {
         return result
     }
 
-    private func makeHouse(into parent: SCNNode, at position: SCNVector3, facing: Double, variant: Int) {
+    func makeHouse(into parent: SCNNode, at position: SCNVector3, facing: Double, variant: Int) {
+        let house = houseNode(at: position, facing: facing, variant: variant)
+        // Merge static surfaces per building. Restore placement explicitly because
+        // flattenedClone bakes children but intentionally omits this root's transform.
+        let placement = house.transform
+        house.transform = SCNMatrix4Identity
+        let merged = house.flattenedClone()
+        merged.transform = placement
+        parent.addChildNode(merged)
+    }
+
+    /// The unmerged house; kept separate so tests can measure it (merged geometry reports no bounds off-screen).
+    func houseNode(at position: SCNVector3, facing: Double, variant: Int) -> SCNNode {
         let house = SCNNode()
         box(6.6, 0.8, 8.8, "334553", at: vector(0, -0.15, 0), radius: 0.08, into: house)
         let palette = ["46586A", "845E53", "34616B", "616274", "44536E", "806C5E"]
@@ -855,18 +867,28 @@ final class CoastalWorld {
         signage.emission.contents = signage.diffuse.contents
         signage.emission.intensity = 0.7
         sign.geometry?.firstMaterial = signage
-        for x in [-1.1, 1.1] {
-            box(0.9, 0.7, 1.5, "384753", at: vector(x, height + 0.55, 1.7), radius: 0.07, into: house)
-            cylinder(0.28, 1.2, "69747C", at: vector(x, height + 0.7, -1.7), into: house)
+        if variant % 3 == 0 {
+            for x in [-1.1, 1.1] {
+                box(0.9, 0.7, 1.5, "384753", at: vector(x, height + 0.55, 1.7), radius: 0.07, into: house)
+                cylinder(0.28, 1.2, "69747C", at: vector(x, height + 0.7, -1.7), into: house)
+            }
+        }
+        switch variant % 3 {
+        case 1:
+            // Gable roof along the quay, with a chimney.
+            let roof = gableRoof(width: 6.1, length: 8.5, rise: 1.9, tint: "4A3A3A")
+            roof.position = vector(0, height + 0.15, 0)
+            house.addChildNode(roof)
+            box(0.55, 1.6, 0.55, "5E4B45", at: vector(-1.2, height + 1.5, -2.4), radius: 0.06, into: house)
+        case 2:
+            // Set-back penthouse floor, away from the quay front, with its own cornice.
+            let penthouse = box(4.1, 1.7, 6.2, tint, at: vector(facing * 0.5, height + 1.0, 0), radius: 0.08, into: house)
+            penthouse.geometry?.firstMaterial = wallMat
+            box(4.4, 0.18, 6.5, "89979F", at: vector(facing * 0.5, height + 1.92, 0), radius: 0.04, into: house)
+        default: break
         }
         house.position = position
-        // Merge static surfaces per building. Restore placement explicitly because
-        // flattenedClone bakes children but intentionally omits this root's transform.
-        let placement = house.transform
-        house.transform = SCNMatrix4Identity
-        let merged = house.flattenedClone()
-        merged.transform = placement
-        parent.addChildNode(merged)
+        return house
     }
 
     private func makePalm(into parent: SCNNode, at position: SCNVector3, lean: Double, variation: Int) {
@@ -2414,22 +2436,8 @@ private extension CoastalWorld {
     }
 
     func makeAlienTree(into root: SCNNode, at position: SCNVector3, size: Double) {
-        let tree = SCNNode(); tree.position = position; tree.scale = vector(size, size, size)
-        let trunk = cylinder(0.65, 10, "496C65", at: vector(0, 4.8, 0), into: tree)
-        trunk.eulerAngles.z = scalar(0.12)
-        for i in 0..<3 {
-            let y = 5.8 + Double(i) * 2.2
-            let cap = sphere(3.8 - Double(i) * 0.7, i == 2 ? "54AFA6" : "438A83", at: vector(-0.7, y, 0), scale: vector(1.1, 0.23, 0.85), into: tree)
-            cap.geometry?.firstMaterial = material(i == 2 ? "62B4A7" : "477E80", unique: true)
-            cap.geometry?.firstMaterial?.emission.contents = color("24766A")
-            cap.geometry?.firstMaterial?.emission.intensity = 0.15
-            ring(3.1 - Double(i) * 0.6, tube: 0.07, tint: "7FE4BE", at: vector(-0.7, y - 0.18, 0), into: tree, glow: true)
-            for j in 0..<5 {
-                let angle = Double(j) * .pi * 0.4
-                let tendril = cylinder(0.027, 2, "8BD6BA", at: vector(cos(angle) * 2.3 - 0.7, y - 1.4, sin(angle) * 2.3), into: tree)
-                tendril.geometry?.firstMaterial = material("55BAA8", emissive: true)
-            }
-        }
+        let tree = alienTreeNode(size: size, outward: Double(position.x) < 0 ? -1 : 1)
+        tree.position = position
         root.addChildNode(tree)
     }
 
