@@ -46,6 +46,7 @@ The shared helpers in `CoastalWorld.swift` (`color`, `material`, `box`, `sphere`
 - Taller heroic proportions, larger on screen, built from `sculptedMesh` shells.
 - Pose-curve run cycle (contact/down/passing/up) with easing, hip sway, arm counter-swing, head stabilization, follow-through; landing squash; roll tuck.
 - Keep node names `leftLeg`, `rightLeg`, `leftArm`, `rightArm`, `jetSki`, `artifactAura`, `personalGhost` and the `player.position` contract with the simulation route.
+- Note: the roll tuck is a 0.74-scale spinning ball (ceiling 1.30 m, no lower than the deck; the harbor shutter at 0.73 m was already clipped by the old roll); the old rig's elbows bent backward and the new tables bend them forward; the ghost stays a frozen-pose clone with its pose root reset.
 
 ## Phase 4 — FX and camera
 
