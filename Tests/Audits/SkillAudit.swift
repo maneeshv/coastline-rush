@@ -8,6 +8,17 @@ import Foundation
 struct SkillAudit {
     static var patternsByWorld: [WorldStage: Set<Int>] = [:]
     static var bagRepeats = 0
+    static var escalationSeen: [Bool: Set<Int>] = [:]
+    static var earlyEscalation = 0
+    /// Endless row types 0-6 (0/1 full-width jump/slide, 2 compound, 3 lane-changer, 4 gap wall, 5 stack, 6 timed laser)
+    /// must all appear, each only after its gate: full-width at half the gate, the rest at the gate (60 s, Expert 30 s).
+    static func checkEscalation(_ run: RunnerSimulation) {
+        let gate = run.expert ? 30.0 : 60.0
+        for (kind, first) in run.escalationFirstSeen {
+            escalationSeen[run.expert, default: []].insert(kind)
+            if first < (kind <= 1 ? gate / 2 : gate) { earlyEscalation += 1 }
+        }
+    }
     /// Every world must build 10+ effective patterns (14+ overall), and a bag row never repeats one of the
     /// previous three rows of its world.
     static func checkPatterns(_ log: [PatternRecord]) {
@@ -275,6 +286,7 @@ struct SkillAudit {
                 var watch = Watch()
                 while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); check(run, &watch) }
                 placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
+                checkEscalation(run)
                 if run.phase == .running { survived += 1 }
                 else { print("READER-FAIL endless seed=\(seed) expert=\(expert) t=\(String(format: "%.1f", run.elapsed)) lane=\(run.lane) reason=\(run.crashReason)") }
             }
@@ -299,6 +311,9 @@ struct SkillAudit {
         let missing = hazardWorlds.filter { coverage[$0.key] != $0.value }
         let leaks = coverage.filter { hazardWorlds[$0.key] != $0.value }
         let distinct = Set(patternsByWorld.values.flatMap { $0 })
+        print("ENDLESS-ESCALATION standard=\(escalationSeen[false, default: []].sorted()) expert=\(escalationSeen[true, default: []].sorted()) early=\(earlyEscalation)")
+        precondition([false, true].allSatisfy { escalationSeen[$0, default: []] == Set(0...6) } && earlyEscalation == 0,
+                     "Endless must escalate through every row type, each after its gate")
         print("PATTERNS total=\(distinct.count) " + WorldStage.allCases.map { "\($0.rawValue)=\(patternsByWorld[$0, default: []].count)" }.joined(separator: " ") + " bagRepeats=\(bagRepeats)")
         precondition(distinct.count >= 14 && WorldStage.allCases.allSatisfy { patternsByWorld[$0, default: []].count >= 10 },
                      "Odyssey needs 14+ patterns and 10+ effective patterns per world")

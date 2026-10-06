@@ -457,26 +457,26 @@ struct SimulationTests {
                             while simulation.lane > upcoming.lane { simulation.act(.left) }
                         }
                         simulation.update(dt: 0.2)
-                        let obstacles = simulation.entities.filter { [.barrier, .arch, .tram].contains($0.kind) }
-                        var rows: [Int: Set<Int>] = [:]
-                        for obstacle in obstacles {
-                            rows[Int((obstacle.z * 1_000).rounded()), default: []].insert(obstacle.lane)
-                        }
-                        try expect(rows.values.allSatisfy { $0.count < 3 }, "Generated an impassable three-lane wall")
+                        let obstacles = simulation.entities.filter { [.barrier, .arch, .tram, .laserSweep, .wall, .stack].contains($0.kind) }
                         let oncoming = obstacles.filter { $0.oncomingSpeed > 0 }
                         if !oncoming.isEmpty {
                             sawAnyOncoming = true
                             try expect(simulation.distance > 500, "Moving trams must wait until the advanced section")
                         }
                         if simulation.entities.contains(where: { $0.kind == .ramp }) { sawStationaryRoof = true }
-                        // Check interval overlap, not just matching row centers: moving trams cross rows.
+                        // G3 Endless has full-width jump/slide rows, so a lane-only escape is no longer guaranteed.
+                        // At every collider edge and centre (moving trams cross rows), some lane must hold no solid
+                        // and never ask for a jump and a slide at the same point.
                         for obstacle in obstacles {
                             for point in [obstacle.z - obstacle.length / 2 - 0.35,
                                           obstacle.z, obstacle.z + obstacle.length / 2 + 0.35] {
-                                let blockedLanes = Set(obstacles.filter {
-                                    abs($0.z - point) <= $0.length / 2 + 0.35 + 0.000_001
-                                }.map(\.lane))
-                                try expect(blockedLanes.count < 3, "A moving tram filled another row's only safe lane")
+                                let here = obstacles.filter { abs($0.z - point) <= $0.length / 2 + 0.35 + 0.000_001 }
+                                let passable = (-1...1).contains { lane in
+                                    let kinds = here.filter { $0.arrivalLane == lane }.map(\.kind)
+                                    return !kinds.contains { [.tram, .wall, .stack].contains($0) }
+                                        && !(kinds.contains(.barrier) && kinds.contains { $0 == .arch || $0 == .laserSweep })
+                                }
+                                try expect(passable, "Generated an impassable row: every lane is solid or needs a jump and a slide at once")
                             }
                         }
                     }

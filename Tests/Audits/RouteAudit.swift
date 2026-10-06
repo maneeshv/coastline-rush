@@ -74,8 +74,14 @@ struct RouteAudit {
         // A moving crate may pull ahead of its neighboring beam. Always read
         // the next hazard in the occupied/target lane, even when another lane's
         // earlier collider is still passing. This also protects a lane-change exit.
+        // A lane change in progress is read at its predicted lateral on arrival: a hazard the runner will have
+        // steered clear of by then is not jumped, so a late change does not waste a jump before a close row.
+        let steeringRate = run.mode == .odyssey && run.worldStage == .cryo ? 3.8 : 9.0
+        let remaining = Double(run.lane) - run.lateral
         guard allowVerticalActions, let obstacle = active.first(where: {
-            $0.z > 0 && ($0.lane == target || abs(run.lateral - Double($0.lane)) < 0.55)
+            let reach = steeringRate * max(0, $0.z) / max(1, run.speed)
+            let arriving = run.lateral + max(-reach, min(reach, remaining))
+            return $0.z > 0 && ($0.lane == target || abs(arriving - Double($0.lane)) < 0.55)
         }) else { return }
         switch obstacle.kind {
         case .gap:
