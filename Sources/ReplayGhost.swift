@@ -7,6 +7,10 @@ struct GhostCourseKey: Codable, Equatable, Hashable {
     static let currentRevision = 8
     /// Endless and Sprint ghosts: bumped to 5 when G1 changed their coin and pickup generation.
     static let legacyModeRevision = 5
+    /// Jet Ski generation did not change in G1, so its ghosts keep revision 4.
+    static func revision(for mode: RunMode) -> Int {
+        mode == .odyssey ? currentRevision : mode == .jetSki ? 4 : legacyModeRevision
+    }
     var mode: RunMode
     var expert: Bool
     var seed: UInt64
@@ -22,11 +26,11 @@ struct GhostCourseKey: Codable, Equatable, Hashable {
         self.expeditionStyle = mode == .odyssey ? expeditionStyle : .campaign
         self.decisionPlan = mode == .odyssey ? decisionPlan : []
         self.artifact = mode == .odyssey ? artifact : nil
-        revision = mode == .odyssey ? Self.currentRevision : Self.legacyModeRevision
+        revision = Self.revision(for: mode)
     }
 
     var isValid: Bool {
-        guard revision == (mode == .odyssey ? Self.currentRevision : Self.legacyModeRevision),
+        guard revision == Self.revision(for: mode),
               (0..<WorldStage.allCases.count).contains(startWorld), expeditionStyle == .campaign else { return false }
         guard mode == .odyssey else { return startWorld == 0 && decisionPlan.isEmpty && artifact == nil }
         guard decisionPlan.count <= WorldStage.allCases.count else { return false }

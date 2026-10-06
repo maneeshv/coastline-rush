@@ -2046,7 +2046,7 @@ private struct CRHelpPanel: View {
     private static let touchControls: [(String, String)] = [
         ("Swipe left or right", "Hop to the next lane. Three lanes, that's it."),
         ("Swipe up", "Jump a cargo barrier, or land on a tram roof."),
-        ("Swipe down", "Roll under the low signs."),
+        ("Swipe down", "Roll under the low signs. Roll to scoop low coins."),
         ("Double-tap", "Ride a board. It absorbs one crash, then it's gone.")
     ]
 

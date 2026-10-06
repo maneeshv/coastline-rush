@@ -145,7 +145,11 @@ enum ProfileTests {
         var retired = oldMode; retired.revision = 4
         expect(!retired.isValid, "Endless ghosts recorded before the G1 generator change retire")
         let oldOdyssey = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"odyssey","expert":false,"seed":42,"startWorld":0,"revision":6}"#.utf8))
-        expect(!oldOdyssey.isValid, "Older Odyssey geometry never races the authored v7 course")
+        expect(!oldOdyssey.isValid, "Older Odyssey geometry never races the current generator")
+        let jetSki = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"jetSki","expert":false,"seed":42,"startWorld":0,"revision":4}"#.utf8))
+        expect(jetSki.isValid && GhostCourseKey(mode: .jetSki, expert: false, seed: 42, startWorld: 0).revision == 4, "Jet Ski ghosts survive G1: its generator did not change")
+        var odysseyV7 = GhostCourseKey(mode: .odyssey, expert: false, seed: 42, startWorld: 0); odysseyV7.revision = 7
+        expect(!odysseyV7.isValid, "Odyssey ghosts recorded before the G1 coin lines retire")
         let normalized = GhostCourseKey(mode: .jetSki, expert: false, seed: 77, startWorld: 0, expeditionStyle: .endless, decisionPlan: decisions, artifact: .phaseStep)
         expect(normalized.isValid && normalized.decisionPlan.isEmpty && normalized.artifact == nil, "Original modes ignore expedition-only menu settings")
     }

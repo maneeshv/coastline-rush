@@ -969,14 +969,19 @@ struct RunnerSimulation: Codable {
                 tram.kind == .tram && tram.oncomingSpeed == 0 &&
                     !entities.contains { $0.kind == .ramp && $0.lane == tram.lane && abs($0.z - (tram.z - 10)) < 1 }
             }
-            let line = Self.coinLine(roll: nextRandom() % 100,
+            // Standard opens with teaching rows: only safe or action lines. One draw per row either way.
+            let teaching = !expert && at < 160
+            let roll = nextRandom() % 100
+            let line = Self.coinLine(roll: teaching ? roll % 60 : roll,
                                      actionable: rowHazards.contains { $0.kind == .barrier || $0.kind == .arch },
                                      solid: !solids.isEmpty)
             // Rows arrive about 190 m later, by which time the run is faster.
             let arrivalSpeed = min(expert ? 36 : 32, speed + (expert ? 0.24 : 0.18) * 190 / max(1, speed))
             placeCoins(line, z: centerZ, safe: safeLane, speed: arrivalSpeed, jumpApex: 1.45,
                        jumpLanes: rowHazards.filter { $0.kind == .barrier }.map(\.lane),
-                       slideLanes: rowHazards.filter { $0.kind == .arch }.map(\.lane), solids: solids)
+                       slideLanes: rowHazards.filter { $0.kind == .arch }.map(\.lane), solids: solids, teaching: teaching,
+                       // The next row starts at least 23 (expert) or 26 m on; its tram reaches 6 m back, plus the 1.3 m coin margin.
+                       coinLimit: centerZ + (expert ? 23 : 26) - 7.3)
             // Pickups sit off the safe lane, behind this row's hazards: collecting one is a choice.
             let pickupLane = obstacleLanes[Int(nextRandom() % 2)]
             if at > 100 && nextRandom() % 7 == 0 {
@@ -1322,10 +1327,13 @@ struct RunnerSimulation: Codable {
                 // Landing and follow-beat solids next to the safe lane can anchor bait too (patterns 3, 6 and 7).
                 let laterSolids = entities[rowStart...].filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 &&
                     $0.z > z + 1 && $0.z <= z + predictedSpeed * 1.2 && abs($0.lane - safe) == 1 }
-                let line = Self.coinLine(roll: nextRandom() % 100, actionable: !(jumpLanes + slideLanes).isEmpty,
+                // Standard opens each world with four teaching rows: only safe or action lines.
+                let teaching = !expert && row < 4
+                let roll = nextRandom() % 100
+                let line = Self.coinLine(roll: teaching ? roll % 60 : roll, actionable: !(jumpLanes + slideLanes).isEmpty,
                                          solid: !(solids + laterSolids).isEmpty)
-                placeCoins(line, z: z, safe: safe, speed: predictedSpeed, jumpApex: jumpHeight,
-                           jumpLanes: jumpLanes, slideLanes: slideLanes, solids: Array(solids), laterSolids: laterSolids)
+                placeCoins(line, z: z, safe: safe, speed: predictedSpeed, jumpApex: jumpHeight, jumpLanes: jumpLanes,
+                           slideLanes: slideLanes, solids: Array(solids), laterSolids: laterSolids, teaching: teaching)
             }
             let milestones = [0.25, 0.51, 0.77]
             if journey.generatedRelics < 3 && local >= stageLength * milestones[journey.generatedRelics] {
@@ -1404,8 +1412,10 @@ struct RunnerSimulation: Codable {
 
     /// Lays this row's coins. `safe` is the intended route lane, which may itself need a jump or roll.
     /// `laterSolids` are landing or follow-beat solids after this row that may also anchor a bait line.
+    /// `coinLimit` is the furthest z a resume coin may take before the next row could place a collider.
     private mutating func placeCoins(_ line: CoinLine, z: Double, safe: Int, speed: Double, jumpApex: Double,
-                                     jumpLanes: [Int], slideLanes: [Int], solids: [TrackEntity], laterSolids: [TrackEntity] = []) {
+                                     jumpLanes: [Int], slideLanes: [Int], solids: [TrackEntity], laterSolids: [TrackEntity] = [],
+                                     teaching: Bool = false, coinLimit: Double = .infinity) {
         let lowLine = [-3.0, -1.5, 0, 1.5, 3]
         func halfLength(_ lane: Int) -> Double {
             entities.filter { Self.isObstacle($0.kind) && $0.lane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
@@ -1419,14 +1429,18 @@ struct RunnerSimulation: Codable {
         // gap and resume stretches. Behind this row's jump the pre-solid bait is the jump's arc, cut short:
         // the player leaps, then steers in flight.
         let reaction = mode == .odyssey && worldStage == .cryo ? 0.55 : 0.35
+        // The resume line starts a lane switch (0.15 s) behind the solid.
+        let resume = max(2, speed * 0.15)
         func baitPlan(_ solid: TrackEntity) -> (last: Double, arc: Bool)? {
             guard abs(solid.lane - safe) == 1 else { return nil }
             let hl = solid.length / 2
             let last = solid.z - hl - speed * reaction
+            // The lane the player switches to must be clear until the solid.
+            guard laneIsClear(safe, from: last, to: solid.z - hl) else { return nil }
             let arc = jumpLanes.contains(solid.lane) && solid.z > z + 1
             let before = arc ? z <= last && laneIsClear(solid.lane, from: z + halfLength(solid.lane) + 0.1, to: solid.z - hl - 0.1)
                 : laneIsClear(solid.lane, from: last - 7.3, to: last + 1.3) && laneIsClear(solid.lane, from: last + 1.3, to: solid.z - hl - 0.1)
-            guard before, laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + 9.3) else { return nil }
+            guard before, laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + resume + 7.3) else { return nil }
             return (last, arc)
         }
         var bait: (solid: TrackEntity, last: Double, arc: Bool)? = nil
@@ -1445,7 +1459,9 @@ struct RunnerSimulation: Codable {
             }
         }
         // A requested invitation the row cannot hold falls back to another invitation before the safe line.
-        let placed = ([line] + (line == .safe ? [] : [.action, .risk, .bait])).first(where: available) ?? .safe
+        // Teaching rows only show safe or action lines.
+        let order: [CoinLine] = teaching ? [line == .action ? .action : .safe] : [line] + (line == .safe ? [] : [.action, .risk, .bait])
+        let placed = order.first(where: available) ?? .safe
         switch placed {
         case .action:
             let lane = actionLanes[Int(nextRandom() % UInt64(actionLanes.count))]
@@ -1465,7 +1481,9 @@ struct RunnerSimulation: Codable {
             if arc { addJourneyArc(lane: solid.lane, z: z, apex: jumpApex, speed: speed, until: last) }
             else { for k in 0..<3 { add(.coin, lane: solid.lane, z: last - Double(k) * 3, y: 0.9, length: 0.3) } }
             // The line resumes behind the solid: staying in lane for it is fatal, stepping out and back is not.
-            for k in 0..<3 { add(.coin, lane: solid.lane, z: solid.z + solid.length / 2 + 2 + Double(k) * 3, y: 0.9, length: 0.3) }
+            for k in 0..<3 where solid.z + solid.length / 2 + resume + Double(k) * 3 <= coinLimit {
+                add(.coin, lane: solid.lane, z: solid.z + solid.length / 2 + resume + Double(k) * 3, y: 0.9, length: 0.3)
+            }
         case .safe:
             if jumpLanes.contains(safe) { addJourneyArc(lane: safe, z: z, apex: jumpApex, speed: speed) }
             else if slideLanes.contains(safe) { for offset in lowLine { add(.coin, lane: safe, z: z + offset, y: 0.35, length: 0.3) } }
