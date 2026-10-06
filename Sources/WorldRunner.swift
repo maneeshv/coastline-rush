@@ -266,7 +266,8 @@ extension CoastalWorld {
         let bob = reducedMotion ? 0 : torso.bob * amount
         let sway = torso.sway * amount * gentle, yaw = torso.yaw * amount * gentle, tilt = torso.roll * amount * gentle
         let lean = waterMode ? RunnerPose.rideLean : flying ? 0.12 : torso.lean * amount - air * 0.08
-        let lift = waterMode ? RunnerPose.rideDrop : bob - crouch * 0.14
+        deckBlend = surfing ? 1 : max(0, deckBlend - dt * 8)   // the board's lift eases away over ~0.12 s when it ends
+        let lift = waterMode ? RunnerPose.rideDrop : bob - crouch * 0.14 + (surfing ? 0 : 0.115 * deckBlend)
         // The craft takes the landing: a squashed rider would sink its boots through the footrests.
         let squash = RunnerPose.volumeScale(waterMode ? 1 : 1 + (RunnerPose.squash(landingAge: landingAge, takeoffAge: takeoffAge) - 1) * gentle)
         let ball = 1 + (RunnerPose.tuckScale - 1) * tuck
@@ -277,7 +278,7 @@ extension CoastalWorld {
         // `pivot` offsets after rotating, so the centre is compensated in `position`. With tuck 0 the centre is the soles.
         // The body sinks to the ball and the pitch only applies as the limbs are mostly folded (`fold`, a smoothstep of `tuck` that is 0 below 0.55 and 1 from 0.95),
         // so a half-unfurled runner during the blend never dips below the deck.
-        let deck = surfing ? 0.115 : 0   // the board's top; the ball rests on it and the clamp below keeps the runner above it
+        let deck = 0.115 * deckBlend   // the board's top; the ball rests on it and the clamp below keeps the runner above it
         let foldT = min(1, max(0, (tuck - 0.55) / 0.40))
         let fold = foldT * foldT * (3 - 2 * foldT)
         let centre = fold * RunnerPose.tuckCentre * squash.y * ball
@@ -287,6 +288,7 @@ extension CoastalWorld {
         var gap = pitchTarget - shownPitch
         gap -= (gap / (2 * .pi)).rounded() * 2 * .pi   // a full turn is the same pose, so close the gap the short way
         shownPitch += max(-30 * dt, min(30 * dt, gap))
+        if waterMode { shownPitch = pitchTarget }   // no roll on water: a stale roll pitch must not unwind under the hull
         shownPitch -= (shownPitch / (2 * .pi)).rounded() * 2 * .pi
         let pitch = shownPitch
         var seatY = lift + (RunnerPose.tuckRadius + deck - lift) * fold - centre * cos(pitch)
@@ -317,10 +319,10 @@ extension CoastalWorld {
             let sole = [-lowest(feet[0], soles), -lowest(feet[1], soles)]
             var needed = smoothMax(smoothMax(sole[0], sole[1]), 0)
             // Reduced Motion keeps the body at the stride's peak need instead of bouncing with each footfall.
-            if reducedMotion { needed = max(needed, plantHold - dt * 0.03); plantHold = needed }
+            if reducedMotion { needed = max(needed, plantHold + deck - dt * 0.03); plantHold = needed - deck }
             // Position-based: 0 unless a boot is under the floor, so no `amount` weight (a landing right after a roll has it near 0).
             // The board travels with the runner, so on it the boots never leave the deck, even in the air.
-            plant = needed * (surfing ? 1 : 1 - air) * (1 - fold)
+            plant = needed * (1 - air * (1 - deckBlend)) * (1 - fold)
             var all = sole + [-lowest(body, [(0, 1.3, 0.3), (0, 1.3, -0.3), (0, 2.0, 0.35), (0, 2.0, -0.35)])]
             // Box corners of the helmet, pack and gloves cover the visor, crest, chin and fingertips whichever way they tip.
             func corners(_ node: SCNNode) -> Double {

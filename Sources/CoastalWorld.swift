@@ -81,6 +81,7 @@ final class CoastalWorld {
     private var previousHeight = 0.0
     var airborneBlend = 0.0
     var rollBlend = 0.0
+    var deckBlend = 0.0
     var scarfSwing = RunnerPose.Spring()
     var packSwing = RunnerPose.Spring()
     var lastRunnerLift = 0.0

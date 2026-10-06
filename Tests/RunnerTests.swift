@@ -307,6 +307,23 @@ import SceneKit
         for p in points(under: rollPlayer, in: rollPlayer) { groundRollWidth = max(groundRollWidth, abs(p.x)) }
         precondition(boardRollWidth <= groundRollWidth + 0.15, "board roll arms splay out of the ball (\(boardRollWidth) m vs \(groundRollWidth) m)")
         print(String(format: "board roll + jump-cancel: lowest vertex %.3f (board top %.3f), roll half-width %.2f", boardWorst, boardTop, boardRollWidth))
+        // Reduced Motion: when the board ends the runner settles back onto the road, instead of floating at the deck lift.
+        do {
+            let d = Drive(resources, reduced: true, boards: 1)
+            for _ in 0..<60 { d.step() }
+            d.sim.act(.board)
+            var frames = 0
+            repeat { d.step(); frames += 1 } while d.sim.boardTime > 0 && frames < 3000
+            precondition(d.sim.boardTime == 0, "board never ended")
+            let boardNode: SCNNode = field(d.world, "boardNode")
+            var trace: [Double] = []
+            for frame in 1...180 {
+                d.step()
+                if frame % 30 == 0 { trace.append(points(under: d.player, in: d.player, except: boardNode).map(\.y).min()!) }
+            }
+            print("reduced-motion board end: lowest vertex every 0.5 s:", trace.map { String(format: "%.3f", $0) }.joined(separator: " "))
+            precondition(trace[0] <= 0.08 && trace.last! <= 0.02, "Reduced Motion runner floats above the road after the board ends: \(trace)")
+        }
         // A roll cancelled on the ground (restart, revive, portal reset) never dips the head or body under the deck.
         var restartLow = Double.infinity
         for age in 1...48 {
