@@ -97,13 +97,52 @@ struct SkillAudit {
         }
     }
 
-    /// Per-run audit state. Violation counters are global across runs.
-    struct Watch { var seen: Set<Int> = [], flagged: Set<Int> = [], bait: Set<Int> = [] }
-    static var unfair = 0, baitViolations = 0
+    /// Per-run audit state. Violation counters and coverage are global across runs.
+    struct Watch { var seen: Set<Int> = [], flagged: Set<Int> = [], bait: Set<Int> = [], telegraphs: Set<Int> = [], features: Set<Int> = [] }
+    static var unfair = 0, baitViolations = 0, telegraphViolations = 0
+    static var coverage: [String: Set<WorldStage>] = [:]
 
     static func check(_ run: RunnerSimulation, _ watch: inout Watch) {
         checkCoins(run, seen: &watch.seen, flagged: &watch.flagged, unfair: &unfair)
         checkBaitEscapes(run, checked: &watch.bait, violations: &baitViolations)
+        checkTelegraphs(run, done: &watch.telegraphs, violations: &telegraphViolations)
+        if run.mode == .odyssey {
+            for e in run.entities where watch.features.insert(e.id).inserted {
+                if let feature = hazardFeature(e) { coverage[feature, default: []].insert(run.worldStage) }
+            }
+        }
+    }
+
+    /// The G2 hazard an entity shows, read from its visible state.
+    static func hazardFeature(_ e: TrackEntity) -> String? {
+        if e.targetLane != nil { return "lane-changer" }
+        if e.kind == .laserSweep && e.cyclePhase >= 0 { return "timed-laser" }
+        if e.kind.rawValue == "wall" { return "gap-wall" }
+        if e.kind.rawValue == "stack" { return "stacked" }
+        if e.kind == .meteor && e.activeFrom.isFinite { return "real-meteor" }
+        if (e.kind == .gap || e.kind == .iceCrack) && e.activeFrom.isFinite { return "collapsing-deck" }
+        return nil
+    }
+
+    /// G2 hazards and the Odyssey worlds that must generate them. Each hazard task adds its entry.
+    static let hazardWorlds: [String: Set<WorldStage>] = [:]
+
+    /// Live check of the G2 lead-time rules at the moment each change happens, against the runner's real speed:
+    /// a lane shift completes >= 1.0 s (Expert 0.8 s) ahead, a meteor lands >= 1.0 s ahead, a deck opens >= 0.5 s ahead.
+    static func checkTelegraphs(_ run: RunnerSimulation, done: inout Set<Int>, violations: inout Int) {
+        let slack = run.speed / 60 + 0.01 // the change is seen up to one frame late
+        for e in run.entities where !done.contains(e.id) {
+            let need: Double
+            if e.targetLane != nil && e.z <= e.motionStart - e.motionLength { need = run.expert ? 0.8 : 1.0 }
+            else if e.activeFrom.isFinite && e.isActive { need = e.kind == .meteor ? 1.0 : 0.5 }
+            else { continue }
+            done.insert(e.id)
+            let edge = e.z - e.length / 2 - 0.35
+            if edge + slack < run.speed * need {
+                violations += 1
+                if violations <= 5 { print("TELEGRAPH late \(e.kind) id=\(e.id) edge=\(edge) needs=\(run.speed * need) world=\(run.worldStage) expert=\(run.expert)") }
+            }
+        }
     }
 
     /// A bait line's last coin must leave one adjacent lane clear of every hazard, from that coin until the runner
@@ -220,6 +259,13 @@ struct SkillAudit {
                          mode.rawValue, share(.safe), share(.action), share(.risk), share(.bait), Int(total)))
             precondition(share(.safe) <= 35, "At most 35% of placed coin lines may mark the safe lane")
         }
+        let missing = hazardWorlds.filter { coverage[$0.key] != $0.value }
+        let leaks = coverage.filter { hazardWorlds[$0.key] != $0.value }
+        print("HAZARD-COVERAGE " + hazardWorlds.keys.sorted().map { key in
+            "\(key)=\(coverage[key, default: []].map(\.rawValue).sorted().joined(separator: "+"))" }.joined(separator: " "))
+        precondition(missing.isEmpty && leaks.isEmpty, "Each G2 hazard must appear in exactly its worlds: missing=\(missing.keys.sorted()) leaks=\(leaks.keys.sorted())")
+        print("TELEGRAPHS lateChanges=\(telegraphViolations) (shift >= 1.0/0.8 s, impact >= 1.0 s, collapse >= 0.5 s)")
+        precondition(telegraphViolations == 0, "Lane shifts, impacts and collapses must keep their lead time")
         print("BAIT-ESCAPES violations=\(baitViolations) (last bait coin to resume switch; one adjacent lane clear)")
         precondition(baitViolations == 0, "Every bait escape must be a single adjacent lane switch")
         print("FAIRNESS unfairCoins=\(unfair) (coins, keys and power-ups; first sight and collection time)")

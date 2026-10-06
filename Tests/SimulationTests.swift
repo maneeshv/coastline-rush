@@ -249,6 +249,75 @@ struct SimulationTests {
                 let decoded = try JSONDecoder().decode(TrackEntity.self, from: legacy)
                 try expect(decoded.oncomingSpeed == 0, "Older entity saves should decode as stationary")
             }),
+            ("new entity fields decode with defaults and round-trip", {
+                let legacy = Data(#"{"id":1,"kind":"meteor","lane":0,"z":30,"y":0,"length":2}"#.utf8)
+                let old = try JSONDecoder().decode(TrackEntity.self, from: legacy)
+                try expect(old.targetLane == nil && old.motionStart == 0 && old.motionLength == 0 && old.cyclePhase == -1 && old.activeFrom == .infinity,
+                           "Old entities must decode with inert defaults")
+                let plain = String(decoding: try JSONEncoder().encode(old), as: UTF8.self)
+                try expect(!plain.contains("activeFrom") && !plain.contains("targetLane") && !plain.contains("cyclePhase") && !plain.contains("motion"),
+                           "Default fields must not be written (JSON cannot hold an infinite activeFrom)")
+                var moving = entity(.tram, lane: -1, z: 40, length: 7)
+                moving.targetLane = 0; moving.motionStart = 30; moving.motionLength = 6; moving.cyclePhase = 0.4; moving.activeFrom = 12
+                let restored = try JSONDecoder().decode(TrackEntity.self, from: JSONEncoder().encode(moving))
+                try expect(restored == moving, "Set fields must survive a checkpoint")
+            }),
+            ("lane offset, laser cycle and activation are pure functions of z and time", {
+                var shifting = entity(.tram, lane: -1, z: 31, length: 7)
+                shifting.targetLane = 0; shifting.motionStart = 30; shifting.motionLength = 6
+                try expect(shifting.laneOffset() == 0 && shifting.arrivalLane == 0, "No shift before motionStart; arrival lane is the target")
+                shifting.z = 27
+                try expect(abs(shifting.laneOffset() - 0.5) < 1e-9, "Halfway through the shift the offset is half a lane")
+                shifting.z = 20
+                try expect(shifting.laneOffset() == 1, "The shift completes at motionStart - motionLength")
+                var laser = entity(.laserSweep)
+                try expect(laser.isOn(at: 0.5) && laser.isOn(at: 1.5), "Untimed lasers are always on")
+                laser.cyclePhase = 0
+                try expect(laser.isOn(at: 0.1) && !laser.isOn(at: 1.0) && laser.isOn(at: 1.85), "Timed lasers are on 0.9 s, off 0.9 s")
+                var meteor = entity(.meteor, z: 12, length: 2)
+                meteor.activeFrom = 10
+                try expect(!meteor.isActive, "Inactive before its activation z")
+                meteor.z = 10
+                try expect(meteor.isActive, "Active from its activation z")
+            }),
+            ("colliders follow lane shifts, laser cycles and activation", {
+                func shifting() -> TrackEntity {
+                    var tram = entity(.tram, lane: -1, z: 30, y: 0, length: 7)
+                    tram.targetLane = 0; tram.motionStart = 26; tram.motionLength = 6
+                    return tram
+                }
+                var hit = fixture([shifting()])
+                hit.update(dt: 3)
+                try expect(hit.phase == .crashed, "A tram shifting into the runner's lane must collide")
+                var left = fixture([shifting()])
+                left.act(.left)
+                left.update(dt: 3)
+                try expect(left.phase == .running, "The lane a shifting tram leaves must be safe")
+                func laser(_ phase: Double) -> TrackEntity {
+                    var beam = entity(.laserSweep, z: 6, y: 0, length: 1.1)
+                    beam.cyclePhase = phase
+                    return beam
+                }
+                var on = fixture([laser(0)])
+                on.update(dt: 1)
+                try expect(on.phase == .crashed, "A laser that is on while a standing runner passes collides")
+                var off = fixture([laser(0.9)])
+                off.update(dt: 1)
+                try expect(off.phase == .running, "A laser that is off lets a standing runner through")
+                var rolled = fixture([laser(0)])
+                rolled.act(.roll)
+                rolled.update(dt: 1)
+                try expect(rolled.phase == .running, "Rolling is always safe under a timed laser")
+                var meteor = entity(.meteor, z: 6, y: 0, length: 2)
+                meteor.activeFrom = -50
+                var dormant = fixture([meteor])
+                dormant.update(dt: 1)
+                try expect(dormant.phase == .running, "An inactive collider cannot hit")
+                meteor.activeFrom = 20
+                var impact = fixture([meteor])
+                impact.update(dt: 1)
+                try expect(impact.phase == .crashed, "An active collider hits")
+            }),
             ("large frame deltas cannot tunnel through obstacles", {
                 var simulation = fixture([entity(.barrier, z: 50)])
                 simulation.update(dt: 10)

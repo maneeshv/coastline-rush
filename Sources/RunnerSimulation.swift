@@ -74,11 +74,40 @@ struct TrackEntity: Identifiable, Equatable, Codable {
     var length: Double
     /// Additional forward velocity toward the runner; stationary scenery defaults to zero.
     var oncomingSpeed: Double = 0
+    /// A lane-changer slides from `lane` into `targetLane` while z runs from `motionStart` to `motionStart - motionLength`.
+    var targetLane: Int? = nil
+    var motionStart: Double = 0
+    var motionLength: Double = 0
+    /// A timed laser's phase (seconds) on a 1.8 s cycle: on 0.9 s, then off 0.9 s. Negative means always on.
+    var cyclePhase: Double = -1
+    /// The collider exists only once z <= activeFrom: a meteor's impact, a deck's collapse.
+    var activeFrom: Double = .infinity
 }
 
 extension TrackEntity {
+    static let cycleLength = 1.8
+
+    /// The lane the entity occupies when it reaches the runner; its telegraph shows this lane.
+    var arrivalLane: Int { targetLane ?? lane }
+
+    /// Eased lateral offset, in lanes, from `lane` toward `targetLane` at the current z.
+    func laneOffset() -> Double {
+        guard let target = targetLane, motionLength > 0 else { return 0 }
+        let p = min(1, max(0, (motionStart - z) / motionLength))
+        return Double(target - lane) * p * p * (3 - 2 * p)
+    }
+
+    /// A timed laser is on for the first half of each cycle; untimed entities are always on.
+    func isOn(at time: Double) -> Bool {
+        guard cyclePhase >= 0 else { return true }
+        let t = (time + cyclePhase).truncatingRemainder(dividingBy: Self.cycleLength)
+        return (t < 0 ? t + Self.cycleLength : t) < Self.cycleLength / 2
+    }
+
+    var isActive: Bool { z <= activeFrom }
+
     private enum CodingKeys: String, CodingKey {
-        case id, kind, lane, z, y, length, oncomingSpeed
+        case id, kind, lane, z, y, length, oncomingSpeed, targetLane, motionStart, motionLength, cyclePhase, activeFrom
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +119,28 @@ extension TrackEntity {
         y = try values.decode(Double.self, forKey: .y)
         length = try values.decode(Double.self, forKey: .length)
         oncomingSpeed = try values.decodeIfPresent(Double.self, forKey: .oncomingSpeed) ?? 0
+        targetLane = try values.decodeIfPresent(Int.self, forKey: .targetLane)
+        motionStart = try values.decodeIfPresent(Double.self, forKey: .motionStart) ?? 0
+        motionLength = try values.decodeIfPresent(Double.self, forKey: .motionLength) ?? 0
+        cyclePhase = try values.decodeIfPresent(Double.self, forKey: .cyclePhase) ?? -1
+        activeFrom = try values.decodeIfPresent(Double.self, forKey: .activeFrom) ?? .infinity
+    }
+
+    /// New fields are written only when set. JSONEncoder rejects infinity, so the default activeFrom is never written.
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(kind, forKey: .kind)
+        try values.encode(lane, forKey: .lane)
+        try values.encode(z, forKey: .z)
+        try values.encode(y, forKey: .y)
+        try values.encode(length, forKey: .length)
+        try values.encode(oncomingSpeed, forKey: .oncomingSpeed)
+        try values.encodeIfPresent(targetLane, forKey: .targetLane)
+        if motionStart != 0 { try values.encode(motionStart, forKey: .motionStart) }
+        if motionLength != 0 { try values.encode(motionLength, forKey: .motionLength) }
+        if cyclePhase >= 0 { try values.encode(cyclePhase, forKey: .cyclePhase) }
+        if activeFrom.isFinite { try values.encode(activeFrom, forKey: .activeFrom) }
     }
 }
 
@@ -770,7 +821,8 @@ struct RunnerSimulation: Codable {
         var collected = Set<Int>()
         // Read from a snapshot because jetpack activation adds airborne coin trails.
         for entity in entities {
-            let aligned = abs(lateral - Double(entity.lane)) < 0.55
+            // Colliders sit where they are drawn: a lane-changer's lane interpolates with z.
+            let aligned = abs(lateral - (Double(entity.lane) + entity.laneOffset())) < 0.55
             let near = abs(entity.z) < 0.85
             if entity.kind == .coin {
                 let magnet = activePowerUps[.magnet] != nil && entity.z < 16 && entity.z > -2
@@ -855,14 +907,17 @@ struct RunnerSimulation: Codable {
             if inFlight && entity.kind != .airHazard { continue }
             if !inFlight && entity.kind == .airHazard { continue }
             if invulnerableTime > 0 { continue }
-            challenge.closestApproaches[entity.id] = min(challenge.closestApproaches[entity.id] ?? 100, abs(lateral - Double(entity.lane)))
+            // A meteor before impact or a deck before collapse has no collider yet.
+            guard entity.isActive else { continue }
+            challenge.closestApproaches[entity.id] = min(challenge.closestApproaches[entity.id] ?? 100,
+                                                         abs(lateral - (Double(entity.lane) + entity.laneOffset())))
             guard aligned else { continue }
             let collides: Bool
             switch entity.kind {
             case .barrier, .root: collides = height < 1.03
             case .gap, .iceCrack: collides = height < 0.4
             case .meteor: collides = height < 2.5
-            case .laserSweep, .arch: collides = !isRolling || height > 0.15
+            case .laserSweep, .arch: collides = entity.isOn(at: elapsed) && (!isRolling || height > 0.15)
             case .waterTraffic: collides = height < 1.8
             case .tram: collides = height < Self.tramRoofHeight - 0.35
             case .buoy: collides = height < 1.4
@@ -1702,9 +1757,11 @@ struct RunnerSimulation: Codable {
     }
 
     private mutating func add(_ kind: EntityKind, lane: Int, z: Double, y: Double, length: Double,
-                              oncomingSpeed: Double = 0) {
-        entities.append(TrackEntity(id: nextID, kind: kind, lane: lane, z: z, y: y,
-                                    length: length, oncomingSpeed: oncomingSpeed))
+                              oncomingSpeed: Double = 0, targetLane: Int? = nil, motionStart: Double = 0,
+                              motionLength: Double = 0, cyclePhase: Double = -1, activeFrom: Double = .infinity) {
+        entities.append(TrackEntity(id: nextID, kind: kind, lane: lane, z: z, y: y, length: length,
+                                    oncomingSpeed: oncomingSpeed, targetLane: targetLane, motionStart: motionStart,
+                                    motionLength: motionLength, cyclePhase: cyclePhase, activeFrom: activeFrom))
         nextID += 1
     }
 
