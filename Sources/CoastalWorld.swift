@@ -1148,7 +1148,16 @@ final class CoastalWorld {
                 node.scale.z = scalar(entity.length / 3.2)
                 node.childNode(withName: "crackWarning", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.7 + sin(time * 4) * 0.15
             case .laserSweep:
-                node.childNode(withName: "beam", recursively: false)?.opacity = reducedMotion ? 0.88 : 0.86 + sin(time * 4) * 0.10
+                // The collider's state drives the look, from simulation time: solid beam = on, dashes = off.
+                let on = entity.isOn(at: simulation.elapsed)
+                let beam = node.childNode(withName: "beam", recursively: false)
+                beam?.isHidden = !on
+                beam?.opacity = reducedMotion ? 0.88 : 0.86 + sin(time * 4) * 0.10
+                node.childNode(withName: "bloom", recursively: false)?.isHidden = !on
+                if let standby = node.childNode(withName: "standby", recursively: false) {
+                    standby.isHidden = on
+                    standby.opacity = highContrastCues ? 1 : 0.6
+                }
             case .waterTraffic:
                 node.position.y += scalar(sin(time * 3 + Double(entity.id)) * 0.075)
                 node.eulerAngles.z = scalar(sin(time * 2 + Double(entity.id)) * 0.045)
@@ -2684,7 +2693,11 @@ private extension CoastalWorld {
             let beam = glowBox(2.12, 0.13, 0.13, "FF896D", at: vector(0, 1.40, 0), into: root)
             beam.name = "beam"
             let bloom = glowBox(2.1, 0.38, 0.035, "FF8769", at: vector(0, 1.40, 0), into: root)
+            bloom.name = "bloom"
             bloom.opacity = 0.20; bloom.geometry?.firstMaterial?.writesToDepthBuffer = false
+            // Off state: a dashed line replaces the solid beam (shape, not colour). Three radius-0 boxes.
+            let standby = SCNNode(); standby.name = "standby"; standby.isHidden = true; root.addChildNode(standby)
+            for x in [-0.6, 0.0, 0.6] { glowBox(0.28, 0.05, 0.05, "FF896D", at: vector(x, 1.40, 0), into: standby).castsShadow = false }
             for side in [-1.0, 1.0] {
                 let chevron = glowBox(0.37, 0.08, 0.05, "FFF0D1", at: vector(side * 0.14, 1.92, 0), into: root)
                 chevron.eulerAngles.z = scalar(side * 0.6)

@@ -83,9 +83,17 @@ struct RouteAudit {
         case .barrier, .root:
             if obstacle.z < run.speed * 0.32, run.height < 0.05 { run.act(.jump) }
         case .arch, .laserSweep:
-            if obstacle.z < run.speed * 0.30, !run.isRolling { run.act(.roll) }
+            if obstacle.z < run.speed * 0.30, !run.isRolling, laserOnDuringPass(obstacle, run) { run.act(.roll) }
         default: break
         }
+    }
+
+    /// A timed laser is read from its visible cycle: roll only if it is on at any moment of the pass,
+    /// predicting arrival as elapsed + z / speed. Untimed slide hazards are always on.
+    static func laserOnDuringPass(_ e: TrackEntity, _ run: RunnerSimulation) -> Bool {
+        let arrival = run.elapsed + e.z / max(1, run.speed)
+        let window = (e.length / 2 + 0.35) / max(1, run.speed) + 0.05
+        return [arrival - window, arrival, arrival + window].contains { e.isOn(at: $0) }
     }
 
     static func driveWater(_ run: inout RunnerSimulation) {

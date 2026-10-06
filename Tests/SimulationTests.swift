@@ -323,6 +323,16 @@ struct SimulationTests {
                 rolled.act(.roll)
                 rolled.update(dt: 1)
                 try expect(rolled.phase == .running, "Rolling is always safe under a timed laser")
+                // Standing through an off laser is no dodge: no combo, no skill points. Rolling under an on laser is.
+                var idle = fixture([laser(0.9)])
+                idle.update(dt: 2)
+                try expect(idle.phase == .running && idle.bestCombo == 0 && !idle.eventText.contains("SLIDE"),
+                           "Standing through an off laser must earn no skill credit")
+                var skilled = fixture([laser(0)])
+                skilled.act(.roll)
+                skilled.update(dt: 2)
+                try expect(skilled.bestCombo == 1 && skilled.eventText.contains("CLEAN SLIDE"),
+                           "Rolling under an on laser still earns CLEAN SLIDE")
                 var meteor = entity(.meteor, z: 6, y: 0, length: 2)
                 meteor.activeFrom = -50
                 var dormant = fixture([meteor])

@@ -263,7 +263,7 @@ struct RunnerSimulation: Codable {
         case .meteor: return "METEOR IMPACT · CHANGE LANES"
         case .root: return "RISING ROOTS · JUMP"
         case .iceCrack: return "FRACTURING ICE · JUMP"
-        case .laserSweep: return worldStage == .forge ? "SENTINEL SWEEP · SLIDE" : "VINE LASERS · SLIDE"
+        case .laserSweep: return entity.cyclePhase >= 0 ? "TIMED LASER · SLIDE OR TIME IT" : worldStage == .forge ? "SENTINEL SWEEP · SLIDE" : "VINE LASERS · SLIDE"
         case .waterTraffic: return "CROSSING TRAFFIC · CARVE OR BRAKE"
         case .arch: return "LOW BEAM · SLIDE"
         case .barrier: return "CARGO LINE · JUMP"
@@ -909,6 +909,8 @@ struct RunnerSimulation: Codable {
             if invulnerableTime > 0 { continue }
             // A meteor before impact or a deck before collapse has no collider yet.
             guard entity.isActive else { continue }
+            // A timed laser that is off is no threat: standing through it earns no dodge credit.
+            guard entity.isOn(at: elapsed) else { continue }
             challenge.closestApproaches[entity.id] = min(challenge.closestApproaches[entity.id] ?? 100,
                                                          abs(lateral - (Double(entity.lane) + entity.laneOffset())))
             guard aligned else { continue }
@@ -953,7 +955,7 @@ struct RunnerSimulation: Codable {
                     case .root: crashReason = "Jump over the rising roots. Watch their glowing growth lines."
                     case .iceCrack: crashReason = "Jump the fractured ice. Steer before the next landing."
                     case .meteor: crashReason = "Change lanes before the meteor impact marker reaches you."
-                    case .laserSweep: crashReason = "Slide under the sweeping beam. Land before trying to pass beneath it."
+                    case .laserSweep: crashReason = entity.cyclePhase >= 0 ? "Slide under the timed laser, or pass while its beam is dashed (off)." : "Slide under the sweeping beam. Land before trying to pass beneath it."
                     case .waterTraffic: crashReason = "Carve around the approaching boats. Brake early or take a wake jump."
                     case .arch: crashReason = mode == .odyssey ? "Slide under the energy beams or change lanes." : "Slide under the low signs."
                     case .tram: crashReason = mode == .odyssey ? (worldStage == .mars ? "Dodge the rovers or take a ramp onto their roof." : "Choose a clear lane around the cargo. Watch its approach before crossing.") : "Dodge trams or take a ramp onto the roof."
@@ -1384,6 +1386,13 @@ struct RunnerSimulation: Codable {
                 // The vehicle still fills its origin lane until the shift: coins and relic wait before its near edge.
                 safeOffsets = [0.0, 3, 6, 9].map { -(length / 2 + 1.3) - $0 }
                 relicZ = z + safeOffsets[0]
+            case 9: // Timed laser gate: on 0.9 s, off 0.9 s. Rolling is always safe; a reader can time a run-through.
+                let phase = Double(nextRandom() % 18) / 10
+                add(.laserSweep, lane: safe, z: z, y: 0, length: 1.1, cyclePhase: phase)
+                add(.laserSweep, lane: blocked[0], z: z, y: 0, length: 1.1,
+                    cyclePhase: (phase + 0.9).truncatingRemainder(dividingBy: TrackEntity.cycleLength))
+                add(solid, lane: blocked[1], z: z, y: 0, length: solidLength)
+                relicY = 0.7
             default: // Two mixed actions with an open adjacent escape on each beat.
                 add(jumpKind, lane: safe, z: z, y: 0, length: jumpLength)
                 add(solid, lane: blocked[0], z: z, y: 0, length: solidLength)
@@ -1404,7 +1413,7 @@ struct RunnerSimulation: Codable {
             } else {
                 let rowHazards = entities[rowStart...].filter { Self.isObstacle($0.kind) && abs($0.z - z) < 1 }
                 let jumpLanes = rowHazards.filter { $0.kind == jumpKind }.map(\.lane)
-                let slideLanes = rowHazards.filter { $0.kind == slideKind }.map(\.lane)
+                let slideLanes = rowHazards.filter { $0.kind == slideKind || $0.kind == .laserSweep }.map(\.lane)
                 let solids = rowHazards.filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 }
                 // Landing and follow-beat solids next to the safe lane can anchor bait too (patterns 3, 6 and 7).
                 let laterSolids = entities[rowStart...].filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 &&

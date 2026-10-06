@@ -129,6 +129,7 @@ struct SkillAudit {
     /// G2 hazards and the Odyssey worlds that must generate them. Each hazard task adds its entry.
     static let hazardWorlds: [String: Set<WorldStage>] = [
         "lane-changer": [.harbor, .mars, .cryo],
+        "timed-laser": [.orbit, .verdant, .forge],
     ]
 
     /// Live check of the G2 lead-time rules at the moment each change happens, against the runner's real speed:
