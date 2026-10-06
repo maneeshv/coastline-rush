@@ -5,6 +5,8 @@ struct GhostCourseKey: Codable, Equatable, Hashable {
     /// Course generator revision for ghost recordings. It is bumped whenever generation changes,
     /// so old ghosts retire. It is independent of PortalJourney.currentRevision, which also archives world records.
     static let currentRevision = 8
+    /// Endless and Sprint ghosts: bumped to 5 when G1 changed their coin and pickup generation.
+    static let legacyModeRevision = 5
     var mode: RunMode
     var expert: Bool
     var seed: UInt64
@@ -20,12 +22,11 @@ struct GhostCourseKey: Codable, Equatable, Hashable {
         self.expeditionStyle = mode == .odyssey ? expeditionStyle : .campaign
         self.decisionPlan = mode == .odyssey ? decisionPlan : []
         self.artifact = mode == .odyssey ? artifact : nil
-        // The original modes retain their unchanged course identity.
-        revision = mode == .odyssey ? Self.currentRevision : 4
+        revision = mode == .odyssey ? Self.currentRevision : Self.legacyModeRevision
     }
 
     var isValid: Bool {
-        guard revision == (mode == .odyssey ? Self.currentRevision : 4),
+        guard revision == (mode == .odyssey ? Self.currentRevision : Self.legacyModeRevision),
               (0..<WorldStage.allCases.count).contains(startWorld), expeditionStyle == .campaign else { return false }
         guard mode == .odyssey else { return startWorld == 0 && decisionPlan.isEmpty && artifact == nil }
         guard decisionPlan.count <= WorldStage.allCases.count else { return false }

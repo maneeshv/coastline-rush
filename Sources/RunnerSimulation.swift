@@ -970,7 +970,9 @@ struct RunnerSimulation: Codable {
             let line = Self.coinLine(roll: nextRandom() % 100,
                                      actionable: rowHazards.contains { $0.kind == .barrier || $0.kind == .arch },
                                      solid: !solids.isEmpty)
-            placeCoins(line, z: centerZ, safe: safeLane, speed: speed, jumpApex: 1.45,
+            // Rows arrive about 190 m later, by which time the run is faster.
+            let arrivalSpeed = min(expert ? 36 : 32, speed + (expert ? 0.24 : 0.18) * 190 / max(1, speed))
+            placeCoins(line, z: centerZ, safe: safeLane, speed: arrivalSpeed, jumpApex: 1.45,
                        jumpLanes: rowHazards.filter { $0.kind == .barrier }.map(\.lane),
                        slideLanes: rowHazards.filter { $0.kind == .arch }.map(\.lane), solids: solids)
             // Pickups sit off the safe lane, behind this row's hazards: collecting one is a choice.
@@ -1399,8 +1401,16 @@ struct RunnerSimulation: Codable {
             entities.filter { Self.isObstacle($0.kind) && $0.lane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
         }
         // Action and risk lines only use lanes that stay clear after the hazard, so no line leads into a landing solid.
+        // Risk coins sit on both sides of the hazard, so the approach side must be clear too.
         let open = (jumpLanes + slideLanes).filter { laneIsClear($0, from: z + halfLength($0) + 0.5, to: z + max(speed * 1.2, halfLength($0) + 10)) }
-        // Bait stops short of its solid, and only where an earlier row's hazard does not already cover that stretch.
+        let openBefore = open.filter { laneIsClear($0, from: z - halfLength($0) - 9.7, to: z - halfLength($0) - 0.1) }
+        // Bait stops short of its solid, and only where no other hazard covers the pre-solid, gap and resume stretches.
+        func baitStretchIsClear(_ solid: TrackEntity, last: Double) -> Bool {
+            let hl = solid.length / 2
+            return laneIsClear(solid.lane, from: last - 6.7, to: last + 0.7)
+                && laneIsClear(solid.lane, from: last + 0.7, to: solid.z - hl - 0.1)
+                && laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + 8.7)
+        }
         let baitSolid = solids.first { abs($0.lane - safe) == 1 }
         let reaction = mode == .odyssey && worldStage == .cryo ? 0.55 : 0.35
         let baitLast = baitSolid.map { $0.z - $0.length / 2 - speed * reaction } ?? 0
@@ -1409,15 +1419,15 @@ struct RunnerSimulation: Codable {
             let lane = open[Int(nextRandom() % UInt64(open.count))]
             if jumpLanes.contains(lane) { addJourneyArc(lane: lane, z: z, apex: jumpApex, speed: speed) }
             else { for offset in lowLine { add(.coin, lane: lane, z: z + offset, y: 0.35, length: 0.3) } }
-        case .risk where !open.isEmpty:
+        case .risk where !openBefore.isEmpty:
             // Ground-height coins around a jump or slide hazard: they do not signal the action.
-            let lane = open[Int(nextRandom() % UInt64(open.count))]
+            let lane = openBefore[Int(nextRandom() % UInt64(openBefore.count))]
             let clearance = halfLength(lane) + 3
             for k in 0..<3 {
                 add(.coin, lane: lane, z: z - clearance - Double(k) * 3, y: 0.9, length: 0.3)
                 add(.coin, lane: lane, z: z + clearance + Double(k) * 3, y: 0.9, length: 0.3)
             }
-        case .bait where baitSolid != nil && laneIsClear(baitSolid!.lane, from: baitLast - 6.7, to: baitLast + 0.7):
+        case .bait where baitSolid != nil && baitStretchIsClear(baitSolid!, last: baitLast):
             // A greedy line in a solid's lane that ends with time left for one lane switch.
             let solid = baitSolid!
             for k in 0..<3 { add(.coin, lane: solid.lane, z: baitLast - Double(k) * 3, y: 0.9, length: 0.3) }
@@ -1589,6 +1599,10 @@ struct RunnerSimulation: Codable {
     /// in every earlier two-obstacle row, so it never fills that row's only clear lane.
     private func oncomingLaneIsFair(_ lane: Int, aheadOf z: Double) -> Bool {
         guard !entities.contains(where: { $0.oncomingSpeed > 0 && $0.z + $0.length / 2 > -1 }) else {
+            return false
+        }
+        // An oncoming tram would sweep through a pickup placed in its lane on a recent row.
+        guard !entities.contains(where: { $0.lane == lane && $0.z > z - 20 && ($0.kind == .key || PowerUp(rawValue: $0.kind.rawValue) != nil) }) else {
             return false
         }
         var rows: [Int: Set<Int>] = [:]

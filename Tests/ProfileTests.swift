@@ -140,8 +140,10 @@ enum ProfileTests {
         expect(!other.isValid, "Replays reject unknown worlds")
         other = course; other.decisionPlan = Array(repeating: decisions[0], count: 7)
         expect(!other.isValid, "Replay plans remain bounded")
-        let oldMode = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"endless","expert":false,"seed":42,"startWorld":0,"revision":4}"#.utf8))
+        let oldMode = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"endless","expert":false,"seed":42,"startWorld":0,"revision":5}"#.utf8))
         expect(oldMode.isValid && oldMode.decisionPlan.isEmpty && oldMode.artifact == nil, "Original mode ghosts remain compatible when new fields are absent")
+        var retired = oldMode; retired.revision = 4
+        expect(!retired.isValid, "Endless ghosts recorded before the G1 generator change retire")
         let oldOdyssey = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"odyssey","expert":false,"seed":42,"startWorld":0,"revision":6}"#.utf8))
         expect(!oldOdyssey.isValid, "Older Odyssey geometry never races the authored v7 course")
         let normalized = GhostCourseKey(mode: .jetSki, expert: false, seed: 77, startWorld: 0, expeditionStyle: .endless, decisionPlan: decisions, artifact: .phaseStep)
@@ -195,7 +197,7 @@ enum ProfileTests {
         expect(restored.worldBestTimes == profile.worldBestTimes && restored.legacyWorldBestTimes == profile.legacyWorldBestTimes, "Migration is idempotent after saving")
         var oldOdyssey = GhostCourseKey(mode: .odyssey, expert: false, seed: 42, startWorld: 0); oldOdyssey.revision = 4
         expect(!oldOdyssey.isValid, "Short-stage ghosts cannot race extended Odyssey")
-        expect(GhostCourseKey(mode: .endless, expert: false, seed: 42, startWorld: 0).revision == 4, "Unchanged modes retain their compatible ghosts")
+        expect(GhostCourseKey(mode: .endless, expert: false, seed: 42, startWorld: 0).revision == GhostCourseKey.legacyModeRevision, "Endless ghosts use the current generator revision")
     }
 
     private static func testMomentumRecordMigration() throws {
