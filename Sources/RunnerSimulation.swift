@@ -270,6 +270,8 @@ struct RunnerSimulation: Codable {
     var stageSkillActions: Int { enhancements.stageSkillActions }
     var waterCurrent: Double { enhancements.waterCurrent }
     var lateralVelocity: Double { enhancements.lateralVelocity }
+    /// Lanes per second the runner steers at (slower in the cryo world of the Odyssey).
+    var steeringRate: Double { mode == .odyssey && worldStage == .cryo ? 3.8 : 9.0 }
     var trickChain: Int { enhancements.trickChain }
     var cleanLandings: Int { enhancements.cleanLandings }
     var landingImpact: Double { enhancements.landingImpact }
@@ -697,7 +699,7 @@ struct RunnerSimulation: Codable {
             lateral = max(-1.16, min(1.16, lateral + enhancements.lateralVelocity * dt))
         } else {
             let oldLateral = lateral
-            let steeringRate = mode == .odyssey && worldStage == .cryo ? 3.8 : 9.0
+            let steeringRate = self.steeringRate
             lateral += max(-dt * steeringRate, min(dt * steeringRate, Double(lane) - lateral))
             enhancements.lateralVelocity = (lateral - oldLateral) / dt
         }
@@ -1054,6 +1056,12 @@ struct RunnerSimulation: Codable {
                 safeLane = previousSafe == 0 ? (nextRandom() % 2 == 0 ? -1 : 1) : 0
             }
             challenge.previousSafeLane = safeLane
+            // After the speed cap, rows tighten toward the floor over the next 120 s.
+            let capTime = expert ? (36.0 - 16) / 0.24 : (32.0 - 12) / 0.18
+            let tighten = min(1, max(0, (elapsed - capTime) / 120))
+            let opening = expert ? Self.endlessSpacing.expert : Self.endlessSpacing.standard
+            let tightest = expert ? Self.endlessSpacingFloor.expert : Self.endlessSpacingFloor.standard
+            let baseSpacing = opening - (opening - tightest) * tighten
             var routeLane = safeLane
             var safeOffsets = [-6.0, -3, 0, 3]
             let pattern = Int(nextRandom() % 9)
@@ -1082,8 +1090,9 @@ struct RunnerSimulation: Codable {
                 challenge.previousSafeLane = origin
                 routeLane = origin
                 // The tram still fills its origin lane until the shift: coins wait before its near edge (as in Odyssey).
-                // Three coins, not four: the fourth would crowd the previous row at the 22 m spacing floor.
-                safeOffsets = [0.0, 3, 6].map { -(12 / 2 + 1.3) - $0 }
+                // Rows are at least baseSpacing apart, so a coin more than 7.3 - baseSpacing behind this row's centre
+                // would sit within 1.3 m of the previous row's tram edge: drop it (the 20 m Expert floor keeps two).
+                safeOffsets = [0.0, 3, 6, 9].map { -(12 / 2 + 1.3) - $0 }.filter { $0 >= 7.3 - baseSpacing }
             case 4: // Gap wall: one opening, one lane from the previous route.
                 for lane in obstacleLanes { add(.wall, lane: lane, z: centerZ, y: 0, length: 1.0) }
             case 5, 6: // A stacked barrier or a timed laser takes the primary slot.
@@ -1124,12 +1133,6 @@ struct RunnerSimulation: Codable {
             let line = Self.coinLine(roll: teaching ? roll % 60 : roll,
                                      actionable: rowHazards.contains { $0.kind == .barrier || isSlide($0) },
                                      solid: !solids.isEmpty)
-            // After the speed cap, rows tighten toward the floor over the next 120 s.
-            let capTime = expert ? (36.0 - 16) / 0.24 : (32.0 - 12) / 0.18
-            let tighten = min(1, max(0, (elapsed - capTime) / 120))
-            let opening = expert ? Self.endlessSpacing.expert : Self.endlessSpacing.standard
-            let tightest = expert ? Self.endlessSpacingFloor.expert : Self.endlessSpacingFloor.standard
-            let baseSpacing = opening - (opening - tightest) * tighten
             placeCoins(line, z: centerZ, safe: routeLane, speed: arrivalSpeed, jumpApex: 1.45,
                        jumpLanes: rowHazards.filter { $0.kind == .barrier }.map(\.lane),
                        slideLanes: rowHazards.filter(isSlide).map(\.lane), solids: solids, teaching: teaching,
@@ -1147,9 +1150,11 @@ struct RunnerSimulation: Codable {
                 add(EntityKind(rawValue: power.rawValue)!, lane: pickupLane, z: centerZ + 10, y: 1, length: 0.8)
             }
             if at > 250 && nextRandom() % 18 == 0 {
-                add(.key, lane: pickupLane, z: centerZ + 13, y: 1, length: 0.5)
+                // 13 m on, or less where the next row's tram (6 m back from a row >= baseSpacing on, plus 1.3 m) comes first.
+                add(.key, lane: pickupLane, z: centerZ + min(13, baseSpacing - 7.3), y: 1, length: 0.5)
             }
-            if mode == .harborSprint && at >= challenge.nextCheckpointDistance {
+            // Only on ordinary-shaped rows (4+): not inside a full-width row or a lane-changer's origin-lane tram.
+            if mode == .harborSprint && escalation >= 4 && at >= challenge.nextCheckpointDistance {
                 add(.checkpoint, lane: routeLane, z: centerZ, y: 1, length: 0.5)
                 challenge.nextCheckpointDistance += 200
             }

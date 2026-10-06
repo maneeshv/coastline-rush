@@ -76,7 +76,7 @@ struct RouteAudit {
         // earlier collider is still passing. This also protects a lane-change exit.
         // A lane change in progress is read at its predicted lateral on arrival: a hazard the runner will have
         // steered clear of by then is not jumped, so a late change does not waste a jump before a close row.
-        let steeringRate = run.mode == .odyssey && run.worldStage == .cryo ? 3.8 : 9.0
+        let steeringRate = run.steeringRate
         let remaining = Double(run.lane) - run.lateral
         guard allowVerticalActions, let obstacle = active.first(where: {
             let reach = steeringRate * max(0, $0.z) / max(1, run.speed)
