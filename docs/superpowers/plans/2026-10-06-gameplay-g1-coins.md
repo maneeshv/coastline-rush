@@ -376,6 +376,8 @@ git commit -m "feat: low coins need a roll; audit every coin for fairness"
             let reaction = mode == .odyssey && worldStage == .cryo ? 0.55 : 0.35
             let last = solid.z - solid.length / 2 - speed * reaction
             for k in 0..<3 { add(.coin, lane: solid.lane, z: last - Double(k) * 3, y: 0.9, length: 0.3) }
+            // The line resumes behind the solid: staying in lane for it is fatal, stepping out and back is not.
+            for k in 0..<3 { add(.coin, lane: solid.lane, z: solid.z + solid.length / 2 + 2 + Double(k) * 3, y: 0.9, length: 0.3) }
         default:
             if jumpLanes.contains(safe) { addJourneyArc(lane: safe, z: z, apex: jumpApex, speed: speed) }
             else if slideLanes.contains(safe) { for offset in lowLine { add(.coin, lane: safe, z: z + offset, y: 0.35, length: 0.3) } }
