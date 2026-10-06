@@ -66,12 +66,6 @@ enum RunnerPose {
         return rolling ? next - 2 * .pi : 0
     }
 
-    /// Vertical speed (m/s) feeding the follow-through springs. Clamped so a frame hitch (where `dt` is already capped)
-    /// or a one-frame jump in the rise cannot overshoot the springs.
-    static func riseVelocity(from last: Double, to rise: Double, dt: Double) -> Double {
-        dt > 0 ? max(-8, min(8, (rise - last) / dt)) : 0
-    }
-
     /// Periodic Catmull-Rom through `keys` spaced evenly over 2π: it passes through every key and is C1 (no velocity jump).
     static func sample(_ keys: [Double], phase: Double) -> Double {
         let n = keys.count

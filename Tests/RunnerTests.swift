@@ -57,10 +57,10 @@ import SceneKit
         let world: CoastalWorld
         var sim = RunnerSimulation()
         var clock = 0.0
-        init(_ resources: URL, reduced: Bool) {
+        init(_ resources: URL, reduced: Bool, boards: Int = 0) {
             world = CoastalWorld(assetsURL: resources)
             world.reducedMotion = reduced
-            sim.start(seed: 3, boards: 0, mode: .odyssey, startStage: 0)
+            sim.start(seed: 3, boards: boards, mode: .odyssey, startStage: 0)
         }
         func step(_ dt: Double = 1.0 / 60) {
             sim.replaceTrackForTesting([], generate: false)
@@ -253,9 +253,6 @@ import SceneKit
         precondition(high <= 1.30, "roll tuck too tall (highest \(high))")
         precondition(maxSpin > 2.5, "roll tuck does not spin (\(maxSpin))")
         print(String(format: "roll tuck: %d frames, y %.2f…%.2f, spin %.2f", checked, low, high, maxSpin))
-        // Rise velocity feeding the springs is clamped: a hitch or a one-frame jump cannot overshoot them.
-        precondition(RunnerPose.riseVelocity(from: 0, to: 1, dt: 0.05) == 8 && RunnerPose.riseVelocity(from: 1, to: 0, dt: 0.05) == -8, "rise velocity must clamp at ±8 m/s")
-        precondition(RunnerPose.riseVelocity(from: 0, to: 0.05, dt: 0.05) == 1 && RunnerPose.riseVelocity(from: 0, to: 1, dt: 0) == 0, "rise velocity: plain ratio, and 0 at dt 0")
         // Springs at the worst frame step the world allows (dt 0.05, both gain sets) stay stable and bounded, in the pure math and live.
         for (stiffness, damping) in [(160.0, 14.0), (60.0, 7.0)] {
             var s = RunnerPose.Spring(), peak = 0.0
@@ -277,6 +274,64 @@ import SceneKit
             }
         }
         print(String(format: "jump-cancel sweep: lowest vertex %.3f", sweepLow))
+        // Board: standing, rolling, and a jump that cancels the roll never push the runner into the board (top 0.115, tilting
+        // 0.055 rad), and the arms tuck into the ball instead of splaying out.
+        let boardTop = 0.115
+        func boardLow(_ cancel: Int?) -> (low: Double, halfWidth: Double) {
+            let d = Drive(resources, reduced: false, boards: 1)
+            for _ in 0..<60 { d.step() }
+            d.sim.act(.board)
+            for _ in 0..<30 { d.step() }
+            precondition(d.sim.boardTime > 0 && !(field(d.world, "boardNode") as SCNNode).isHidden, "board never started")
+            var low = Double.infinity, halfWidth = 0.0
+            let boardNode: SCNNode = field(d.world, "boardNode")
+            low = min(low, points(under: d.player, in: d.player, except: boardNode).map(\.y).min()!)
+            d.sim.act(.roll)
+            for frame in 0..<120 {
+                if frame == cancel { d.sim.act(.jump) }
+                d.step()
+                let ps = points(under: d.player, in: d.player, except: boardNode)
+                low = min(low, ps.map(\.y).min()!)
+                if (field(d.world, "rollBlend") as Double) >= 0.95 { halfWidth = max(halfWidth, ps.map { abs($0.x) }.max()!) }
+            }
+            return (low, halfWidth)
+        }
+        var boardWorst = Double.infinity, boardRollWidth = 0.0
+        for cancel in [nil, 6, 15, 25] {
+            let r = boardLow(cancel)
+            boardWorst = min(boardWorst, r.low)
+            if cancel == nil { boardRollWidth = r.halfWidth }
+            precondition(r.low >= boardTop - 0.02, "board roll (jump at \(cancel.map(String.init) ?? "never")) pushes the runner into the board (lowest \(r.low), top \(boardTop))")
+        }
+        var groundRollWidth = 0.0
+        for p in points(under: rollPlayer, in: rollPlayer) { groundRollWidth = max(groundRollWidth, abs(p.x)) }
+        precondition(boardRollWidth <= groundRollWidth + 0.15, "board roll arms splay out of the ball (\(boardRollWidth) m vs \(groundRollWidth) m)")
+        print(String(format: "board roll + jump-cancel: lowest vertex %.3f (board top %.3f), roll half-width %.2f", boardWorst, boardTop, boardRollWidth))
+        // A roll cancelled on the ground (restart, revive, portal reset) never dips the head or body under the deck.
+        var restartLow = Double.infinity
+        for age in 1...48 {
+            let d = Drive(resources, reduced: false)
+            for _ in 0..<60 { d.step() }
+            d.sim.act(.roll)
+            for _ in 0..<age { d.step() }
+            d.sim.start(seed: 4, boards: 0, mode: .odyssey, startStage: 0)
+            for _ in 0..<15 {
+                d.step()
+                restartLow = min(restartLow, points(under: d.player, in: d.world.scene.rootNode).map(\.y).min()!)
+                precondition(restartLow >= -0.07, "roll cancelled on the ground dips under the deck (\(restartLow)) at roll age \(age)")
+            }
+        }
+        print(String(format: "grounded roll cancel sweep: lowest vertex %.3f", restartLow))
+        // Entering water mid-roll: the ride pose takes over at once, with no ball scale or tuck pitch left over.
+        let splash = Drive(resources, reduced: false)
+        for _ in 0..<60 { splash.step() }
+        splash.sim.act(.roll)
+        for _ in 0..<20 { splash.step() }
+        precondition((field(splash.world, "rollBlend") as Double) > 0.9, "splash test: roll never tucked")
+        splash.world.poseRunner(gait: 0, amount: 0.1, waterMode: true, surfing: false, flying: false, landingAge: 9, takeoffAge: 9,
+                                speed: 30, height: 0, time: splash.clock, dt: 1.0 / 60)
+        precondition(abs(Double(splash.body.scale.x) - 1) < 1e-6 && abs(Double(splash.body.scale.y) - 1) < 1e-6, "ball scale in water (\(splash.body.scale))")
+        precondition(abs(Double(splash.body.position.y) - RunnerPose.rideDrop) < 1e-6, "tuck seat offset in water (\(splash.body.position.y))")
         // Foot plant: through a whole stride (48 phases) the stance boot never goes into the deck, and the plant stays modest.
         let planter = CoastalWorld(assetsURL: resources)
         let plantBoots: [SCNNode] = field(planter, "feet"), plantBody: SCNNode = field(planter, "body"), plantPlayer: SCNNode = field(planter, "player")
@@ -405,6 +460,11 @@ import SceneKit
             for (hand, rest) in zip(hands, neutralHands) { precondition(simd_distance(hand, rest) < 0.05, "\(label): hand slid \(simd_distance(hand, rest)) m on the bar") }
         }
         rideFits("neutral")
+        // Landing on the water compresses nothing: the boots stay on the footrests (no extra knee fold).
+        rider.poseRunner(gait: 0, amount: 0.1, waterMode: true, surfing: false, flying: false, landingAge: 0.16, takeoffAge: 9,
+                         speed: 30, height: 0, time: rideClock, dt: 1.0 / 60)
+        let landed = points(under: riderPlayer, in: craft, except: craft).map(\.y).min()!
+        precondition(abs(landed - 0.285) <= 0.06, "jet-ski landing lifts the boots off the footrest (\(landed))")
         for (label, action, pitchSign) in [("brake", RunnerAction.roll, 1.0), ("boost", RunnerAction.board, -1.0)] {
             ride.act(action)
             for _ in 0..<20 {
@@ -453,6 +513,8 @@ import SceneKit
         }
         let ghostY = points(under: ghost, in: ghost).map(\.y)
         precondition(ghostY.min()! >= -0.05 && ghostY.max()! <= 2.65, "ghost leaves the standing bounds (\(ghostY.min()!)…\(ghostY.max()!))")
+        // The pauldron rim glows at 0.6 on its own material: the shared cached emissive of the same colour keeps its 1.8.
+        precondition(rider.material("9ADBDC", emissive: true).emission.intensity > 1.0, "rim emission tweak leaked into the shared cached material")
         // The ability aura encloses the 2.56 m figure's torso: centred about mid-height, wider than the shoulders and hips.
         let aura: SCNNode = field(rider, "abilityAura")
         let auraMid = aura.childNodes.map { Double($0.position.y) }.reduce(0, +) / Double(aura.childNodes.count)

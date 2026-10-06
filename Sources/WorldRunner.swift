@@ -146,8 +146,8 @@ extension CoastalWorld {
         body.addChildNode(scarf)
 
         // Arms: shoulder pivots wide of the chest for a heroic silhouette; elbow at −0.46, fingertips at y ~1.00.
-        let rim = material("9ADBDC", emissive: true), cuffGrey = material("A6B8C4"), glove = material("192F40")
-        rim.emission.intensity = 0.6 // the shared 1.8 clipped the pauldron rim to white at close range
+        let rim = material("9ADBDC", emissive: true, unique: true), cuffGrey = material("A6B8C4"), glove = material("192F40")
+        rim.emission.intensity = 0.6 // 1.8 clipped the pauldron rim to white at close range; this material is private to the arms
         for (i, arm) in [leftArm, rightArm].enumerated() {
             let side = i == 0 ? -1.0 : 1.0
             let plate = material(i == 0 ? "CBD8DD" : "597888")
@@ -166,7 +166,7 @@ extension CoastalWorld {
                 shell([(-0.52, 0.01, 0.012), (-0.51, 0.03, 0.04), (-0.49, 0.045, 0.058), (-0.46, 0.052, 0.066), (-0.40, 0.06, 0.075), (-0.34, 0.058, 0.07), (-0.31, 0.055, 0.065)], glove),
                 shell([(-0.33, 0.07, 0.085), (-0.29, 0.078, 0.092), (-0.27, 0.072, 0.086)], cuffGrey),
                 shell([(-0.305, 0.081, 0.095), (-0.297, 0.081, 0.095)], rim),
-                shell([(-0.20, 0.035, 0.01), (-0.17, 0.035, 0.01)], material("9ADBDC", emissive: true), at: SIMD3(0, 0, 0.075)),
+                shell([(-0.20, 0.035, 0.01), (-0.17, 0.035, 0.01)], rim, at: SIMD3(0, 0, 0.075)),
             ])
             elbow.name = "runnerForearm"
             arm.addChildNode(elbow); forearms.append(elbow)
@@ -189,7 +189,6 @@ extension CoastalWorld {
             shin.geometry = shellGeometry([
                 shell([(-0.54, 0.06, 0.065), (-0.40, 0.075, 0.08), (-0.18, 0.09, 0.10), (0.0, 0.08, 0.09)], suit),
                 shell([(-0.40, 0.07, 0.075), (-0.10, 0.085, 0.095)], material("435A6A"), at: SIMD3(0, 0, -0.03)),
-                shell([(-0.42, 0.055, 0.04), (-0.25, 0.07, 0.065), (-0.08, 0.06, 0.05)], suit, at: SIMD3(0, 0, 0.03)),
                 shell([(-0.30, 0.012, 0.008), (-0.16, 0.012, 0.008)], shinGlow, at: SIMD3(0, 0, -0.122)),
                 shell([(-0.30, 0.012, 0.008), (-0.20, 0.012, 0.008)], shinGlow, at: SIMD3(0, 0, 0.097)),
             ])
@@ -243,7 +242,7 @@ extension CoastalWorld {
     func poseRunner(gait: Double, amount: Double, waterMode: Bool, surfing: Bool, flying: Bool, landingAge: Double,
                     takeoffAge: Double, speed: Double, height: Double, time: Double, dt: Double, craftPitch: Double = 0) {
         let gaitPose = RunnerPose.limbs(phase: gait), torso = RunnerPose.torso(phase: gait)
-        let air = airborneBlend, tuck = rollBlend
+        let air = airborneBlend, tuck = waterMode ? 0 : rollBlend   // the ride pose has no ball
         // Knees give on landing (0.32 s); takeoff is a stretch, applied below.
         let crouch = landingAge < 0.32 ? sin(landingAge / 0.32 * .pi) : 0
         // Reduced Motion keeps the cycle but halves the hip sway, twist, tilt and squash, and drops the roll's spin.
@@ -254,19 +253,22 @@ extension CoastalWorld {
             j = RunnerPose.mix(j, i == 0 ? RunnerPose.airLeft : RunnerPose.airRight, air)
             j = RunnerPose.mix(j, RunnerPose.tuck, tuck)
             if waterMode { j = RunnerPose.ride }
-            j.thigh += crouch * 0.5; j.shin -= crouch * 1.0
+            // Knees give on landing, but not on the jet ski (the boots stay on the footrests) nor over a tucked ball.
+            let kneel = waterMode ? 0 : crouch * (1 - tuck)
+            j.thigh += kneel * 0.5; j.shin -= kneel
             let leg = i == 0 ? leftLeg : rightLeg, arm = i == 0 ? leftArm : rightArm
             leg.eulerAngles = vector(j.thigh, 0, side * (waterMode ? RunnerPose.rideSplay : surfing ? 0.12 : 0.02))
             shins[i].eulerAngles.x = scalar(j.shin)
             feet[i].eulerAngles.x = scalar(j.foot)
-            arm.eulerAngles = vector(j.arm - (flying ? 0.7 : 0), 0, side * (waterMode ? 0.06 : surfing ? 0.78 : 0.10 + air * 0.25 - tuck * 0.15))
+            arm.eulerAngles = vector(j.arm - (flying ? 0.7 : 0), 0, side * (waterMode ? 0.06 : (surfing ? 0.78 * (1 - tuck) : 0.10 + air * 0.25) - tuck * 0.15))
             forearms[i].eulerAngles.x = scalar(j.forearm)
         }
         let bob = reducedMotion ? 0 : torso.bob * amount
         let sway = torso.sway * amount * gentle, yaw = torso.yaw * amount * gentle, tilt = torso.roll * amount * gentle
         let lean = waterMode ? RunnerPose.rideLean : flying ? 0.12 : torso.lean * amount - air * 0.08
         let lift = waterMode ? RunnerPose.rideDrop : bob - crouch * 0.14
-        let squash = RunnerPose.volumeScale(1 + (RunnerPose.squash(landingAge: landingAge, takeoffAge: takeoffAge) - 1) * gentle)
+        // The craft takes the landing: a squashed rider would sink its boots through the footrests.
+        let squash = RunnerPose.volumeScale(waterMode ? 1 : 1 + (RunnerPose.squash(landingAge: landingAge, takeoffAge: takeoffAge) - 1) * gentle)
         let ball = 1 + (RunnerPose.tuckScale - 1) * tuck
         // The spin only turns the body while it is tucked (the pitch below is weighted by `tuck`), and any remainder is
         // dropped once the tuck has released, so a long frame or a cancelled roll can never pitch the upright runner.
@@ -275,6 +277,7 @@ extension CoastalWorld {
         // `pivot` offsets after rotating, so the centre is compensated in `position`. With tuck 0 the centre is the soles.
         // The body sinks to the ball and the pitch only applies as the limbs are mostly folded (`fold`, a smoothstep of `tuck` that is 0 below 0.55 and 1 from 0.95),
         // so a half-unfurled runner during the blend never dips below the deck.
+        let deck = surfing ? 0.115 : 0   // the board's top; the ball rests on it and the clamp below keeps the runner above it
         let foldT = min(1, max(0, (tuck - 0.55) / 0.40))
         let fold = foldT * foldT * (3 - 2 * foldT)
         let centre = fold * RunnerPose.tuckCentre * squash.y * ball
@@ -286,7 +289,7 @@ extension CoastalWorld {
         shownPitch += max(-30 * dt, min(30 * dt, gap))
         shownPitch -= (shownPitch / (2 * .pi)).rounded() * 2 * .pi
         let pitch = shownPitch
-        var seatY = lift + (RunnerPose.tuckRadius - lift) * fold - centre * cos(pitch)
+        var seatY = lift + (RunnerPose.tuckRadius + deck - lift) * fold - centre * cos(pitch)
         var seatZ = (waterMode ? RunnerPose.rideShift : 0) - centre * sin(pitch)
         // The rider pitches with the craft about its origin (player space y -0.35), so the bar stays under the hands and the boots on the footrests.
         if craftPitch != 0 {
@@ -296,36 +299,44 @@ extension CoastalWorld {
         body.position = vector(sway, seatY, seatZ)
         body.eulerAngles = vector(pitch + craftPitch, yaw, tilt - bank * (waterMode ? 0.22 : 0.20))
         body.scale = vector(squash.x * ball, squash.y * ball, squash.z * ball)
-        // Foot plant: the run cycle's bob and toe-down keys sink the stance boot up to 0.14 m into the deck, so lift the body
-        // by however far the lower boot's sole (toe, middle, heel) is below it, with a smooth max over both feet.
-        // The same lift keeps head, shoulders and hips off the deck while a cancelled roll is still unrolling.
-        var plant = 0.0
-        if !waterMode && !surfing && !flying {
-            func smoothMax(_ a: Double, _ b: Double) -> Double { (a + b + ((a - b) * (a - b) + 0.0004).squareRoot()) / 2 }
-            func lowest(_ node: SCNNode, _ points: [(Double, Double, Double)]) -> Double {
-                points.map { Double(node.convertPosition(vector($0.0, $0.1, $0.2), to: player).y) }.min()!
-            }
-            let soles = [(0.0, -0.12, -0.285), (0, -0.12, -0.07), (0, -0.12, 0.145)]   // toe, middle, heel, 0.12 below the ankle
-            var needed = smoothMax(smoothMax(-lowest(feet[0], soles), -lowest(feet[1], soles)), 0)
-            // Reduced Motion keeps the body at the stride's peak need instead of bouncing with each footfall.
-            if reducedMotion { needed = max(needed, plantHold - dt * 0.03); plantHold = needed }
-            plant = needed * (1 - air) * (1 - fold)   // position-based: 0 unless a boot is under the deck, so no `amount` weight (a landing right after a roll has it near 0)
-            var all = [-lowest(body, [(0, 2.55, 0), (0, 1.3, 0.3), (0, 1.3, -0.3), (0, 2.0, 0.35), (0, 2.0, -0.35)])]
-            all += [-lowest(feet[0], soles), -lowest(feet[1], soles), -lowest(shins[0], [(0, 0, 0)]), -lowest(shins[1], [(0, 0, 0)])]
-            let pitched = min(1, max(0, (abs(shownPitch) - 0.2) / 0.3))
-            // Position-based, so it is 0 whenever the body is already clear of the deck (a full tuck rests above it).
-            plant = max(plant, max(0, all.max()!) * (1 - fold * fold * fold * fold) * pitched)
-            body.position.y += scalar(plant)
-        }
         // Head stabilisation: counter 90% of the body's pitch, twist, tilt and half its bob; tuck the chin while rolling.
         let steady = 1 - tuck
         headRig.position.y = scalar(RunnerPose.neckHeight - bob * 0.5 * steady)
         headRig.eulerAngles = vector((lean - craftPitch) * 0.9 * steady - tuck * 0.9, -yaw * 0.9,
                                      waterMode ? -bank * 0.12 : -(tilt - bank * 0.20) * 0.9)
+        // Foot plant: the run cycle's bob and toe-down keys sink the stance boot up to 0.14 m into the deck (or the board), so lift
+        // the body by however far the lower boot's sole (toe, middle, heel) is below it, with a smooth max over both feet.
+        // The same lift keeps head, hands, shoulders and hips off the deck while a cancelled roll is still unrolling.
+        var plant = 0.0
+        if !waterMode && !flying {
+            func smoothMax(_ a: Double, _ b: Double) -> Double { (a + b + ((a - b) * (a - b) + 0.0004).squareRoot()) / 2 }
+            func lowest(_ node: SCNNode, _ points: [(Double, Double, Double)]) -> Double {
+                points.map { Double(node.convertPosition(vector($0.0, $0.1, $0.2), to: player).y) }.min()! - deck
+            }
+            let soles = [(0.0, -0.12, -0.285), (0, -0.12, -0.07), (0, -0.12, 0.145)]   // toe, middle, heel, 0.12 below the ankle
+            let sole = [-lowest(feet[0], soles), -lowest(feet[1], soles)]
+            var needed = smoothMax(smoothMax(sole[0], sole[1]), 0)
+            // Reduced Motion keeps the body at the stride's peak need instead of bouncing with each footfall.
+            if reducedMotion { needed = max(needed, plantHold - dt * 0.03); plantHold = needed }
+            // Position-based: 0 unless a boot is under the floor, so no `amount` weight (a landing right after a roll has it near 0).
+            // The board travels with the runner, so on it the boots never leave the deck, even in the air.
+            plant = needed * (surfing ? 1 : 1 - air) * (1 - fold)
+            var all = sole + [-lowest(body, [(0, 1.3, 0.3), (0, 1.3, -0.3), (0, 2.0, 0.35), (0, 2.0, -0.35)])]
+            // Box corners of the helmet, pack and gloves cover the visor, crest, chin and fingertips whichever way they tip.
+            func corners(_ node: SCNNode) -> Double {
+                let (lo, hi) = node.boundingBox
+                return -lowest(node, (0..<8).map { (Double($0 & 1 == 0 ? lo.x : hi.x), Double($0 & 2 == 0 ? lo.y : hi.y), Double($0 & 4 == 0 ? lo.z : hi.z)) })
+            }
+            all += [corners(headRig), corners(pack)] + forearms.map(corners) + shins.map { -lowest($0, [(0, 0, 0)]) }
+            let pitched = min(1, max(0, (abs(shownPitch) - 0.2) / 0.3))
+            // Position-based, so it is 0 whenever the body is already clear of the floor (a full tuck rests above it).
+            plant = max(plant, max(0, all.max()!) * pitched)
+            body.position.y += scalar(plant)
+        }
         // Follow-through: the scarf streams back with speed and lags vertical motion; the pack swings on its strap.
         // The water drop is a constant offset, not motion, so entering or leaving water does not kick the springs.
         let rise = height + (waterMode ? 0 : lift + plant)
-        let riseVelocity = RunnerPose.riseVelocity(from: lastRunnerLift, to: rise, dt: dt)
+        let riseVelocity = dt > 0 ? (rise - lastRunnerLift) / dt : 0
         lastRunnerLift = rise
         let flutter = reducedMotion ? 0 : sin(time * 9) * 0.05
         scarfSwing = RunnerPose.step(scarfSwing, target: 0.30 + 0.55 * min(1, speed / 40) - max(-0.4, min(0.4, riseVelocity * 0.05)) + flutter,

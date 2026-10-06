@@ -209,7 +209,10 @@ final class CoastalWorld {
             body.transform = SCNMatrix4Identity
             if water { body.position = vector(0, RunnerPose.rideDrop, RunnerPose.rideShift); body.eulerAngles.x = scalar(-RunnerPose.rideLean) }
         }
-        ghost.childNode(withName: "runnerHead", recursively: true)?.eulerAngles.x = scalar(water ? RunnerPose.rideLean * 0.9 : 0)
+        if let head = ghost.childNode(withName: "runnerHead", recursively: true) {   // the clone froze the head's yaw, tilt and bob height
+            head.eulerAngles = vector(water ? RunnerPose.rideLean * 0.9 : 0, 0, 0)
+            head.position.y = scalar(RunnerPose.neckHeight)
+        }
         for (name, sign) in [("leftLeg", 1.0), ("rightLeg", -1.0), ("leftArm", -0.8), ("rightArm", 0.8)] {
             let side = name.hasPrefix("left") ? -1.0 : 1.0
             let swing = scalar(sample.y > 0.15 ? sign * 0.45 : sin(sample.time * 13) * sign * 0.7)
