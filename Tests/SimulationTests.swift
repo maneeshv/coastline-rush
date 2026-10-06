@@ -382,6 +382,10 @@ struct SimulationTests {
                 try expect(high.height > WorldStage.orbit.stackTop && high.phase == .running, "A runner above stackTop passes over a stack")
                 let over = peak(.wall, sneakers: true)
                 try expect(over.height > RunnerSimulation.wallTop && over.phase == .running, "A runner above 3.8 m passes over a wall")
+                // A lit laser's frame is drawn to stackTop: a normal jump meets it, a sneakers jump visibly clears it.
+                try expect(peak(.laserSweep, sneakers: false).phase == .crashed, "A normal Orbit jump must not clear a lit laser")
+                let laser = peak(.laserSweep, sneakers: true)
+                try expect(laser.height > WorldStage.orbit.stackTop && laser.phase == .running, "A runner above stackTop passes over a laser")
             }),
             ("a gap wall's opening is one lane from the previous route", {
                 var checked = 0

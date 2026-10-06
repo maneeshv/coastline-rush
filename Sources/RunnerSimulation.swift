@@ -933,7 +933,8 @@ struct RunnerSimulation: Codable {
             case .barrier, .root: collides = height < 1.03
             case .gap, .iceCrack: collides = height < 0.4
             case .meteor: collides = height < 2.5
-            case .laserSweep, .arch: collides = entity.isOn(at: elapsed) && (!isRolling || height > 0.15)
+            case .laserSweep: collides = height < worldStage.stackTop && (!isRolling || height > 0.15) // frame drawn to stackTop
+            case .arch: collides = !isRolling || height > 0.15
             case .waterTraffic: collides = height < 1.8
             case .tram: collides = height < Self.tramRoofHeight - 0.35
             case .buoy: collides = height < 1.4
