@@ -230,4 +230,49 @@ extension CoastalWorld {
         playerShadow.castsShadow = false
         scene.rootNode.addChildNode(playerShadow)
     }
+
+    /// Poses the rig for one frame. `amount` scales the run cycle (1 running on foot, a small idle otherwise);
+    /// air, roll, landing and water layers blend over it. Hip sway and bob move `body`, never `player`.
+    func poseRunner(gait: Double, amount: Double, waterMode: Bool, surfing: Bool, flying: Bool, landingAge: Double,
+                    takeoffAge: Double, speed: Double, height: Double, time: Double, dt: Double) {
+        let gaitPose = RunnerPose.limbs(phase: gait), torso = RunnerPose.torso(phase: gait)
+        let air = airborneBlend, tuck = rollBlend
+        // Knees give on landing (0.32 s) and dip briefly at takeoff (0.10 s).
+        let crouch = (landingAge < 0.32 ? sin(landingAge / 0.32 * .pi) : 0) + (takeoffAge < 0.10 ? (1 - takeoffAge / 0.10) * 0.45 : 0)
+        for i in 0..<2 {
+            let side = i == 0 ? -1.0 : 1.0
+            var j = RunnerPose.mix(RunnerPose.rest, i == 0 ? gaitPose.left : gaitPose.right, amount)
+            j = RunnerPose.mix(j, i == 0 ? RunnerPose.airLeft : RunnerPose.airRight, air)
+            j = RunnerPose.mix(j, RunnerPose.tuck, tuck)
+            if waterMode { j = RunnerPose.ride }
+            j.thigh += crouch * 0.5; j.shin -= crouch * 1.0
+            let leg = i == 0 ? leftLeg : rightLeg, arm = i == 0 ? leftArm : rightArm
+            leg.eulerAngles = vector(j.thigh, 0, side * (waterMode ? RunnerPose.rideSplay : surfing ? 0.12 : 0.02))
+            shins[i].eulerAngles.x = scalar(j.shin)
+            feet[i].eulerAngles.x = scalar(j.foot)
+            arm.eulerAngles = vector(j.arm - (flying ? 0.7 : 0), 0, side * (waterMode ? 0.18 : surfing ? 0.78 : 0.10 + air * 0.25 - tuck * 0.15))
+            forearms[i].eulerAngles.x = scalar(j.forearm)
+        }
+        let bob = reducedMotion ? 0 : torso.bob * amount
+        let lean = waterMode ? RunnerPose.rideLean : flying ? 0.12 : torso.lean * amount - air * 0.08
+        let lift = waterMode ? RunnerPose.rideDrop : bob - crouch * 0.14
+        body.position = vector(torso.sway * amount, lift + tuck * 0.38, waterMode ? RunnerPose.rideShift : 0)
+        body.eulerAngles = vector(-lean * (1 - tuck) - tuck * .pi / 2, torso.yaw * amount, torso.roll * amount - bank * (waterMode ? 0.22 : 0.20))
+        body.scale = vector(1, 1 - tuck * 0.24, 1)
+        // Head stabilisation: counter 90% of the body's pitch, twist, tilt and half its bob; tuck the chin while rolling.
+        let steady = 1 - tuck
+        headRig.position.y = scalar(RunnerPose.neckHeight - bob * 0.5 * steady)
+        headRig.eulerAngles = vector(lean * 0.9 * steady - tuck * 0.9, -torso.yaw * amount * 0.9,
+                                     waterMode ? -bank * 0.12 : -(torso.roll * amount - bank * 0.20) * 0.9)
+        // Follow-through: the scarf streams back with speed and lags vertical motion; the pack swings on its strap.
+        let rise = height + lift
+        let riseVelocity = dt > 0 ? (rise - lastRunnerLift) / dt : 0
+        lastRunnerLift = rise
+        let flutter = reducedMotion ? 0 : sin(time * 9) * 0.05
+        scarfSwing = RunnerPose.step(scarfSwing, target: 0.30 + 0.55 * min(1, speed / 40) - max(-0.4, min(0.4, riseVelocity * 0.05)) + flutter,
+                                     dt: dt, stiffness: 60, damping: 7)
+        scarf.eulerAngles.x = scalar(-scarfSwing.value)
+        packSwing = RunnerPose.step(packSwing, target: max(-0.15, min(0.15, -riseVelocity * 0.03)), dt: dt, stiffness: 160, damping: 14)
+        pack.eulerAngles.x = scalar(-packSwing.value)
+    }
 }

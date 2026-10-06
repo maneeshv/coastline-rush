@@ -141,6 +141,44 @@ import SceneKit
             precondition(abs(c.redComponent - 0xEF / 255.0) < 0.01 && abs(c.greenComponent - 0xB8 / 255.0) < 0.01 && abs(c.blueComponent - 0x4D / 255.0) < 0.01,
                          "sana tint not applied to every clothing material")
         }
+        // Run cycle on the live rig: sway on `body` only, torso twist, a level head, a full stride, and follow-through.
+        let runner = CoastalWorld(assetsURL: resources)
+        let runPlayer: SCNNode = field(runner, "player"), runBody: SCNNode = field(runner, "body")
+        let runHead: SCNNode = field(runner, "headRig"), runPack: SCNNode = field(runner, "pack")
+        let runLeg = runPlayer.childNode(withName: "leftLeg", recursively: true)!
+        var sim = RunnerSimulation()
+        sim.start(seed: 3, boards: 0, mode: .odyssey, startStage: 0)
+        var clock = 0.0, sway = 0.0, twist = 0.0, headYaw = 0.0, headPitch = 0.0, packSwing = 0.0
+        var thigh = (low: Double.infinity, high: -Double.infinity)
+        func tick(_ frames: Int, measure: Bool) {
+            for _ in 0..<frames {
+                sim.replaceTrackForTesting([], generate: false)
+                sim.update(dt: 1.0 / 60); clock += 1.0 / 60
+                runner.update(simulation: sim, character: "milo", board: "tideline", time: clock)
+                let route = sim.routeTransform(atAheadDistance: 0)
+                precondition(abs(Double(runPlayer.position.x) - (sim.lateral * 2.6 + route.lateralOffset)) < 0.001,
+                             "player.position.x must follow the simulation exactly; sway belongs on body")
+                packSwing = max(packSwing, abs(Double(runPack.eulerAngles.x)))
+                guard measure else { continue }
+                sway = max(sway, abs(Double(runBody.position.x)))
+                twist = max(twist, abs(Double(runBody.eulerAngles.y)))
+                let forward = runHead.convertVector(SCNVector3(0, 0, -1), to: runPlayer)
+                headYaw = max(headYaw, abs(atan2(Double(forward.x), -Double(forward.z))))
+                headPitch = max(headPitch, abs(atan2(Double(forward.y), -Double(forward.z))))
+                let x = Double(runLeg.eulerAngles.x)
+                thigh = (min(thigh.low, x), max(thigh.high, x))
+            }
+        }
+        tick(60, measure: false)
+        tick(120, measure: true)
+        precondition(sway > 0.015, "no hip sway on body (\(sway) m)")
+        precondition(twist > 0.05, "no torso twist (\(twist) rad)")
+        precondition(headYaw < 0.03 && headPitch < 0.05, "head not stabilised (yaw \(headYaw), pitch \(headPitch))")
+        precondition(thigh.low < -0.4 && thigh.high > 0.6, "stride too small (thigh \(thigh))")
+        packSwing = 0
+        sim.act(.jump)
+        tick(60, measure: false)
+        precondition(packSwing > 0.02, "pack shows no follow-through on a jump (\(packSwing))")
         print("RunnerTests passed")
     }
 }

@@ -79,8 +79,11 @@ final class CoastalWorld {
     private var currentRunDistance = 0.0
     private var landingStarted = -100.0
     private var previousHeight = 0.0
-    private var airborneBlend = 0.0
-    private var rollBlend = 0.0
+    var airborneBlend = 0.0
+    var rollBlend = 0.0
+    var scarfSwing = RunnerPose.Spring()
+    var packSwing = RunnerPose.Spring()
+    var lastRunnerLift = 0.0
     let scarf = SCNNode()
     let pack = SCNNode()
     let boardNode = SCNNode()
@@ -111,7 +114,7 @@ final class CoastalWorld {
     private var lastWaterMode = false
     private var lastTime = 0.0
     private var trickStartedAt: Double?
-    private var bank = 0.0
+    var bank = 0.0
     private var previousLateral = 0.0
     var textureCache: [String: CGImage] = [:]
     var geometryCache: [String: SCNGeometry] = [:]
@@ -274,7 +277,7 @@ final class CoastalWorld {
         let motion = reducedMotion ? 0.0 : 1.0
         let portalJump = simulation.isPortalTransitioning && !reducedMotion ? sin(simulation.portalTransitionProgress * .pi) * 3.2 : 0
         let height = (isMenu ? 0 : simulation.height) + portalJump
-        let bob = reducedMotion ? 0 : waterMode ? sin(time * 9) * 0.06 : running && height < 0.1 && !roll && !surfing ? abs(sin(gait)) * 0.075 : sin(time * 2) * 0.025
+        let bob = reducedMotion ? 0 : waterMode ? sin(time * 9) * 0.06 : running && height < 0.1 && !roll && !surfing ? 0 : sin(time * 2) * 0.025
         // Stage the portrait menu hero above the mode picker, while the live camera remains unchanged.
         let menuDepth = isMenu && aspect < 0.8 ? -8.0 : 0.45
         let menuScale = isMenu && aspect < 0.8 ? 1.4 : 1.0
@@ -299,33 +302,10 @@ final class CoastalWorld {
         previousHeight = height
         let landingAge = max(0, time - landingStarted)
         let takeoffAge = max(0, time - takeoffStarted)
-        let launchCompression = takeoffAge < 0.10 ? (1 - takeoffAge / 0.10) * 0.10 : 0
-        let compression = (landingAge < 0.32 ? sin(landingAge / 0.32 * .pi) * 0.22 : 0) + launchCompression
-        let stride = (running && !waterMode && !surfing && !flying) ? 0.76 * (1 - airborneBlend) * (1 - rollBlend) : isMenu ? 0.045 : 0.08
-        let gaitWave = sin(gait)
-        body.position.y = scalar(rollBlend * 0.38 - (waterMode ? 0.32 : 0) - compression)
-        body.eulerAngles.x = scalar(-rollBlend * .pi / 2 + (waterMode ? -0.38 : flying ? -0.12 : 0.055 + airborneBlend * 0.10))
-        body.eulerAngles.y = scalar(gaitWave * stride * 0.12)
-        body.eulerAngles.z = scalar(waterMode ? -bank * 0.22 : -bank * 0.20)
-        body.scale = vector(1, 1 - rollBlend * 0.24 - compression * 0.12, 1)
-        headRig.eulerAngles = vector(-airborneBlend * 0.09, -gaitWave * stride * 0.10, waterMode ? -bank * 0.12 : 0)
-        for (i, leg) in [leftLeg, rightLeg].enumerated() {
-            let cycle = gait + Double(i) * .pi
-            let swing = sin(cycle)
-            leg.eulerAngles.x = scalar(waterMode ? 0.8 : swing * stride + airborneBlend * (i == 0 ? 0.78 : -0.28) + rollBlend * 0.55 + compression * 1.4)
-            leg.eulerAngles.z = scalar((i == 0 ? -1.0 : 1.0) * (surfing ? 0.12 : 0.02))
-            if i < shins.count {
-                // Heel lift happens on each leg's own recovery half-cycle, not both knees together.
-                shins[i].eulerAngles.x = scalar(waterMode ? -1.2 : -max(0, -swing) * stride * 1.1 - airborneBlend * 0.85 - rollBlend * 1.1 - compression * 2.0)
-            }
-            if i < feet.count { feet[i].eulerAngles.x = scalar(waterMode ? 0.28 : max(0, swing) * stride * 0.25 + airborneBlend * 0.2) }
-        }
-        for (i, arm) in [leftArm, rightArm].enumerated() {
-            let swing = sin(gait + Double(i) * .pi)
-            arm.eulerAngles.x = scalar(waterMode ? 1.0 : -swing * stride * 0.72 - (flying ? 0.7 : 0.12) + airborneBlend * 0.58 + rollBlend * 1.05)
-            arm.eulerAngles.z = scalar((i == 0 ? -1.0 : 1.0) * (waterMode ? 0.18 : surfing ? 0.78 : 0.12 + airborneBlend * 0.25))
-            if i < forearms.count { forearms[i].eulerAngles.x = scalar(waterMode ? -0.22 : -0.48 - max(0, swing) * stride * 0.35 - airborneBlend * 0.48 - rollBlend * 0.4) }
-        }
+        // Run cycle at full strength only while running on foot; a small idle otherwise.
+        let gaitAmount = running && !waterMode && !surfing && !flying ? (1 - airborneBlend) * (1 - rollBlend) : isMenu ? 0.06 : 0.10
+        poseRunner(gait: gait, amount: gaitAmount, waterMode: waterMode, surfing: surfing, flying: flying, landingAge: landingAge,
+                   takeoffAge: takeoffAge, speed: simulation.speed, height: height, time: time, dt: dt)
         updateMotionEffects(simulation: simulation, time: time, waterMode: waterMode)
         ski.isHidden = !waterMode
         wake.isHidden = !waterMode
@@ -342,7 +322,6 @@ final class CoastalWorld {
         wake.eulerAngles.z = scalar(-bank * 0.55)
         wake.scale.x = scalar(1 + abs(bank) * 0.65)
         wake.opacity = height > 0.5 ? 0.25 : 0.72
-        scarf.eulerAngles.x = scalar(0.13 + sin(time * 8) * 0.08)
         boardNode.isHidden = !surfing || waterMode
         boardNode.eulerAngles.z = scalar(reducedMotion ? 0 : sin(time * 4) * 0.055)
         jetpackNode.isHidden = !flying

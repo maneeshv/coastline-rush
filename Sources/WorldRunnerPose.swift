@@ -29,6 +29,15 @@ enum RunnerPose {
     /// Head pivot height in body space, shared by the rig builder and the pose (head counter-bob).
     static let neckHeight = 2.10
 
+    /// Airborne: the leading (left) knee drives up, the trailing leg folds, the arms counter for balance.
+    static let airLeft = Limbs(thigh: 0.95, shin: -1.30, foot: 0.15, arm: -0.60, forearm: 0.90)
+    static let airRight = Limbs(thigh: -0.25, shin: -0.95, foot: -0.30, arm: 0.70, forearm: 1.10)
+    /// Roll tuck: knees to chest, hands on the shins.
+    static let tuck = Limbs(thigh: 2.45, shin: -2.55, foot: 0.60, arm: 0.55, forearm: 0.90)
+    /// Jet-ski rider: limbs, forward lean (rad), body drop and forward shift (m), knee splay (rad).
+    static let ride = Limbs(thigh: 0.80, shin: -1.20, foot: 0.28, arm: 1.00, forearm: 0.22)
+    static let rideLean = 0.38, rideDrop = -0.32, rideShift = 0.0, rideSplay = 0.02
+
     /// Periodic Catmull-Rom through `keys` spaced evenly over 2π: it passes through every key and is C1 (no velocity jump).
     static func sample(_ keys: [Double], phase: Double) -> Double {
         let n = keys.count
