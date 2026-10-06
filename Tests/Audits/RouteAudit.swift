@@ -34,21 +34,24 @@ struct RouteAudit {
         }) { target = supported.lane }
         else {
             // Full-width mixed rows expose a jump lane, a slide lane and a solid
-            // lane. Read those visible shapes rather than assuming a free lane.
+            // lane. Read those shapes, and prefer a lane whose next hazard is not solid.
             let choices = row.filter { $0.kind != .tram && $0.kind != .meteor }
-            if let choice = choices.min(by: { lhs, rhs in
-                let leftAirPenalty = run.height > 0.3 && [.arch, .laserSweep].contains(lhs.kind) ? 3 : 0
-                let rightAirPenalty = run.height > 0.3 && [.arch, .laserSweep].contains(rhs.kind) ? 3 : 0
-                return abs(lhs.lane - run.lane) + leftAirPenalty < abs(rhs.lane - run.lane) + rightAirPenalty
-            }) { target = choice.lane }
+            func cost(_ e: TrackEntity) -> Int {
+                let airborneSlide = run.height > 0.3 && [.arch, .laserSweep].contains(e.kind) ? 3 : 0
+                let solidAfter = active.contains { $0.lane == e.lane && $0.z > e.z + 2 && $0.z < e.z + run.speed * 1.1 && [.tram, .meteor].contains($0.kind) } ? 4 : 0
+                return abs(e.lane - run.lane) + airborneSlide + solidAfter
+            }
+            if let choice = choices.min(by: { cost($0) < cost($1) }) { target = choice.lane }
         }
-        if Set(row.map(\.lane)).count == 3,
-           let marker = run.entities.filter({ $0.kind == .coin && abs($0.z - first.z) < 2 })
-                .min(by: { abs($0.z - first.z) < abs($1.z - first.z) }) {
-            // Coin arcs visibly mark the intended jump/landing lane. Commit before
-            // the leap on ice; waiting until landing hazards become the first row
-            // leaves too little time for a two-lane correction.
-            target = marker.lane
+        if Set(row.map(\.lane)).count == 3, row.allSatisfy({ [.gap, .barrier, .root, .iceCrack].contains($0.kind) }) {
+            // A full-width leap: read the landing, not the coins. Commit before the
+            // leap to the lane the next hazard row leaves open.
+            let landing = active.filter { $0.z > first.z + 2 && $0.z < first.z + run.speed * 1.1 }
+            if let next = landing.first {
+                let landingRow = landing.filter { abs($0.z - next.z) < 2 }
+                let open = (-1...1).filter { lane in !landingRow.contains { $0.lane == lane } }
+                if let lane = open.min(by: { abs($0 - run.lane) < abs($1 - run.lane) }) { target = lane }
+            }
         }
         if pursueRelics, let relic = run.entities.first(where: { $0.kind == .relic && abs($0.z - first.z) < 3 }) { target = relic.lane }
         // Do not abandon an elevated/skill route as soon as its relic disappears.
