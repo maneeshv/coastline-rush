@@ -198,7 +198,8 @@ final class CoastalWorld {
         let separation = sample.distance - currentRunDistance
         ghost.isHidden = separation > 100 || separation < -7
         let route = currentRouteSimulation?.routeTransform(atAheadDistance: separation)
-        ghost.position = vector(sample.x * 2.6 + (route?.lateralOffset ?? 0), sample.y + (route?.elevation ?? 0), -separation)
+        // Same water ride height as the live player (player.position.y adds 0.38 in water), so the ghost's craft floats on the surface.
+        ghost.position = vector(sample.x * 2.6 + (route?.lateralOffset ?? 0), sample.y + (route?.elevation ?? 0) + (lastWaterMode ? 0.38 : 0), -separation)
         ghost.scale = vector(1, sample.roll ? 0.45 : 1, 1)
         ghost.eulerAngles = SCNVector3Zero
         // Pose the clone each frame: standing swing on land, the crouched ride pose over its jet ski in water.
