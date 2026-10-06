@@ -28,10 +28,17 @@ Make the game harder but fair, and more varied:
 ### G1. Measurement and coin rules
 
 - **Coin-follower bot** (`Tests/Audits/CoinFollowerAudit.swift`).
-  - Behaviour: steer to the lane of the nearest coin ahead. Jump when that coin's y ≥ 1.4 and it is within speed × 0.35 m. Roll when y ≤ 0.6. Nothing else.
+  - Behaviour (as implemented in `Tests/Audits/SkillAudit.swift`):
+    - Lane choice comes from coins: it steers to the lane of the nearest coin ahead, and takes that lane's ramp to reach roof coins.
+    - It never sideswipes a vehicle: it does not steer into a lane where a hazard overlaps the runner.
+    - It has perfect jump and roll reflexes for whatever is directly in its own lane, with the reader's timing.
+    - It never dodges what is ahead: lane changes come only from coins.
   - Coverage: Odyssey safe/risky × Standard/Expert over 30 seeds, plus Endless capped at 300 s.
   - Reports: death rate, mean distance, and the world reached.
 - **Reading bot.** The existing `RouteAudit` hazard-reading bot must keep a 100% clear rate, and every existing audit stays green.
+- **Binding status.** The coin-follower and reader survival numbers are informational until G3. From G1 these are binding:
+  - The placed safe-line share (the lines actually laid, after fallbacks, in the reader's Odyssey and Endless runs) is at most 35% per mode.
+  - 0 unfair coins and pickups, checked at first sight and again at collection time against live hazard positions.
 - **Acceptance targets (Standard):**
   - The coin-follower fails at least 70% of Odyssey runs before completing world 2.
   - Its median Endless survival is under 90 s.
