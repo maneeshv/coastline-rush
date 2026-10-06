@@ -112,6 +112,7 @@ final class CoastalWorld {
     private var bank = 0.0
     private var previousLateral = 0.0
     var textureCache: [String: CGImage] = [:]
+    var geometryCache: [String: SCNGeometry] = [:]
     private let assetsURL: URL?
 
     private let cream = "D9E1E5"
@@ -2392,19 +2393,19 @@ private extension CoastalWorld {
     }
 
     func makeRock(into root: SCNNode, at position: SCNVector3, size: Double, tint: String) {
-        let geometry = SCNSphere(radius: size); geometry.segmentCount = renderedStage == .mars ? 14 : 9
-        geometry.firstMaterial = renderedStage == .mars ? terrainSurface(tint: tint, icy: false) : material(tint)
-        let node = SCNNode(geometry: geometry); node.position = position
-        node.scale = vector(1.4, 0.8, 1); node.eulerAngles = vector(0.2, Double(position.z), 0.3)
+        let variant = Int(abs(Double(position.x) * 7 + Double(position.z) * 13))
+        let surface = renderedStage == .mars ? terrainSurface(tint: tint, icy: false) : material(tint)
+        let node = rockNode(size: size, material: surface, variant: variant)
+        node.position = position
+        node.eulerAngles = vector(0.2, Double(position.z), 0.3)
         root.addChildNode(node)
     }
 
     func makeCrystal(into root: SCNNode, at position: SCNVector3, height: Double, tint: String) {
-        let geometry = SCNCone(topRadius: 0, bottomRadius: height * 0.22, height: height)
-        geometry.radialSegmentCount = 5
-        geometry.firstMaterial = renderedStage == .cryo ? iceMaterial() : material(tint)
-        let node = SCNNode(geometry: geometry); node.position = position; node.position.y += scalar(height / 2)
-        node.eulerAngles.z = scalar(sin(Double(position.z)) * 0.22); root.addChildNode(node)
+        let cluster = crystalCluster(height: height, material: renderedStage == .cryo ? iceMaterial() : material(tint))
+        cluster.position = position
+        cluster.eulerAngles.z = scalar(sin(Double(position.z)) * 0.22)
+        root.addChildNode(cluster)
         let spark = sphere(0.06, tint, at: vector(Double(position.x), Double(position.y) + height, Double(position.z)), into: root)
         spark.geometry?.firstMaterial = material(tint, emissive: true)
     }
