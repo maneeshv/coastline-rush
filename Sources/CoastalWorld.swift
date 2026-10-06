@@ -705,6 +705,7 @@ final class CoastalWorld {
             prop.wrapS = .repeat; prop.wrapT = .repeat
             prop.contentsTransform = SCNMatrix4MakeScale(3, 8, 1)
             prop.maxAnisotropy = 8
+            prop.mipFilter = .linear
         }
         surface.geometry?.firstMaterial = asphalt
         for side in [-1.0, 1.0] {
@@ -715,6 +716,7 @@ final class CoastalWorld {
             stone.normal.intensity = 0.25
             stone.diffuse.wrapS = .repeat; stone.diffuse.wrapT = .repeat
             stone.diffuse.contentsTransform = SCNMatrix4MakeScale(1, 10, 1)
+            for prop in [stone.diffuse, stone.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
             pavement.geometry?.firstMaterial = stone
             box(0.13, 0.2, 24, cream, at: vector(side * 4.05, 0.02, -12), radius: 0.025, into: roadway)
             let glow = box(0.035, 0.025, 24, "42E1DE", at: vector(side * 4.01, 0.13, -12), radius: 0, into: roadway)
@@ -726,6 +728,7 @@ final class CoastalWorld {
             quayMat.normal.intensity = 0.3
             quayMat.diffuse.wrapS = .repeat; quayMat.diffuse.wrapT = .repeat
             quayMat.diffuse.contentsTransform = SCNMatrix4MakeScale(3, 8, 1)
+            for prop in [quayMat.diffuse, quayMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
             quay.geometry?.firstMaterial = quayMat
             box(0.22, 0.18, 24, "8898A4", at: vector(side * 5.98, 0.2, -12), radius: 0.025, into: section)
             for z in stride(from: -1.0, through: -24.0, by: -2.5) {
@@ -824,6 +827,7 @@ final class CoastalWorld {
         wallMat.roughness.contents = 0.82
         wallMat.diffuse.wrapS = .repeat; wallMat.diffuse.wrapT = .repeat
         wallMat.diffuse.contentsTransform = SCNMatrix4MakeScale(2, 2, 1)
+        for prop in [wallMat.diffuse, wallMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
         wall.geometry?.firstMaterial = wallMat
         box(5.94, 0.25, 8.24, "89979F", at: vector(0, height + 0.03, 0), radius: 0.04, into: house)
         box(5.76, 0.3, 0.16, tint, at: vector(0, height + 0.25, 3.95), radius: 0.025, into: house)
@@ -1591,7 +1595,7 @@ final class CoastalWorld {
     /// Small deterministic texture atlases, generated once. No network or runtime assets.
     private func texture(_ name: String) -> CGImage? {
         if let cached = textureCache[name] { return cached }
-        let size = name.hasPrefix("sign") ? 512 : 256
+        let size = name.hasPrefix("sign") || name == "asphalt" || name == "paving" ? 512 : 256
         let result = image(width: size, height: size) { ctx in
             var rng: UInt64 = 0xCA57CAFE
             func random() -> Double {
@@ -1675,27 +1679,60 @@ final class CoastalWorld {
                 for offset in [-50.0, 0, 50] {
                     ctx.move(to: CGPoint(x: 145, y: 175 + offset)); ctx.addLine(to: CGPoint(x: 365, y: 250 + offset)); ctx.strokePath()
                 }
+            } else if name == "asphalt" {
+                let s = Double(size)
+                ctx.setFillColor(color("263744").cgColor); ctx.fill(bounds)
+                for _ in 0..<52000 {
+                    ctx.setFillColor(CGColor(gray: random(), alpha: 0.12))
+                    ctx.fill(CGRect(x: random() * s, y: random() * s, width: 1 + random() * 2, height: 1 + random()))
+                }
+                // Patch repairs: fresher rectangles with a sealed seam.
+                for _ in 0..<4 {
+                    let rect = CGRect(x: random() * s * 0.8, y: random() * s * 0.8, width: 50 + random() * 110, height: 40 + random() * 90)
+                    ctx.setFillColor(color("1D2C38", alpha: 0.55).cgColor); ctx.fill(rect)
+                    ctx.setStrokeColor(color("0E1822", alpha: 0.8).cgColor); ctx.setLineWidth(2); ctx.stroke(rect)
+                }
+                // Oil stains.
+                let stain = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("0B121A", alpha: 0.32).cgColor, color("0B121A", alpha: 0).cgColor] as CFArray, locations: [0, 1])!
+                for _ in 0..<6 {
+                    let center = CGPoint(x: random() * s, y: random() * s)
+                    ctx.drawRadialGradient(stain, startCenter: center, startRadius: 0, endCenter: center, endRadius: 12 + random() * 30, options: [])
+                }
+                // Branching cracks.
+                ctx.setStrokeColor(color("0C1824", alpha: 0.8).cgColor); ctx.setLineCap(.round)
+                for _ in 0..<7 {
+                    var point = CGPoint(x: random() * s, y: random() * s), heading = random() * .pi * 2
+                    ctx.setLineWidth(0.8 + random() * 1.2)
+                    ctx.move(to: point)
+                    for _ in 0..<(6 + Int(random() * 10)) {
+                        heading += (random() - 0.5) * 1.1
+                        point = CGPoint(x: point.x + cos(heading) * (6 + random() * 12), y: point.y + sin(heading) * (6 + random() * 12))
+                        ctx.addLine(to: point)
+                    }
+                    ctx.strokePath()
+                }
             } else {
-                let base = name == "asphalt" ? "263744" : name == "paving" ? "61717D" : "686868"
+                let s = Double(size)
+                let base = name == "paving" ? "61717D" : "686868"
                 ctx.setFillColor(color(base).cgColor); ctx.fill(bounds)
-                for _ in 0..<16000 {
-                    let x = random() * 256, y = random() * 256
+                for _ in 0..<(16000 * size * size / 65536) {
+                    let x = random() * s, y = random() * s
                     let val = name == "roughness" ? 0.22 + random() * 0.42 : random()
                     ctx.setFillColor(CGColor(gray: val, alpha: name == "roughness" ? 0.7 : 0.13))
                     ctx.fill(CGRect(x: x, y: y, width: 1 + random() * 2, height: 1 + random()))
                 }
                 if name == "paving" {
-                    ctx.setStrokeColor(color("263B4B").cgColor); ctx.setLineWidth(2)
-                    for n in stride(from: 0, to: 256, by: 64) {
-                        ctx.move(to: CGPoint(x: 0, y: n)); ctx.addLine(to: CGPoint(x: 256, y: n)); ctx.strokePath()
-                        ctx.move(to: CGPoint(x: n, y: 0)); ctx.addLine(to: CGPoint(x: n, y: 256)); ctx.strokePath()
+                    let slab = size / 4
+                    // Each slab weathers to its own tone before the joints are drawn.
+                    for row in 0..<4 { for column in 0..<4 {
+                        ctx.setFillColor(CGColor(gray: random() < 0.5 ? 0.15 : 0.85, alpha: 0.05 + random() * 0.04))
+                        ctx.fill(CGRect(x: column * slab, y: row * slab, width: slab, height: slab))
+                    } }
+                    ctx.setStrokeColor(color("263B4B").cgColor); ctx.setLineWidth(3)
+                    for n in stride(from: 0, to: size, by: slab) {
+                        ctx.move(to: CGPoint(x: 0, y: n)); ctx.addLine(to: CGPoint(x: size, y: n)); ctx.strokePath()
+                        ctx.move(to: CGPoint(x: n, y: 0)); ctx.addLine(to: CGPoint(x: n, y: size)); ctx.strokePath()
                     }
-                }
-                if name == "asphalt" {
-                    ctx.setStrokeColor(color("101E2C", alpha: 0.75).cgColor); ctx.setLineWidth(1)
-                    ctx.move(to: CGPoint(x: 70, y: 0))
-                    for y in stride(from: 0, to: 256, by: 15) { ctx.addLine(to: CGPoint(x: 70 + random() * 18, y: Double(y))) }
-                    ctx.strokePath()
                 }
             }
         }
@@ -2111,8 +2148,9 @@ private extension CoastalWorld {
         let mat = material(palette.floor, unique: true)
         mat.roughness.contents = stage == .cryo ? 0.16 : stage == .mars || stage == .verdant ? 0.88 : 0.45
         mat.metalness.contents = stage == .orbit || stage == .forge ? 0.65 : 0.12
-        mat.diffuse.contents = image(width: 768, height: 768) { ctx in
-            ctx.setFillColor(color(palette.floor).cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 768, height: 768))
+        mat.diffuse.contents = image(width: 1024, height: 1024) { ctx in
+            ctx.setFillColor(color(palette.floor).cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 1024, height: 1024))
+            ctx.saveGState(); ctx.scaleBy(x: 4.0 / 3.0, y: 4.0 / 3.0)
             for i in 0..<2200 {
                 let x = (i * 229 + 47) % 768, y = (i * 367 + 19) % 768
                 ctx.setFillColor(color(i % 2 == 0 ? "D3D1C0" : "111C2B", alpha: stage == .mars ? 0.14 : 0.045).cgColor)
@@ -2153,11 +2191,86 @@ private extension CoastalWorld {
                 }
             case .harbor: break
             }
+            ctx.restoreGState()
+            var rng: UInt64 = 0xDEC0_5EED &+ UInt64(stage.rawValue.unicodeScalars.reduce(0) { $0 &* 31 &+ UInt64($1.value) })
+            func random() -> Double { rng = rng &* 6364136223846793005 &+ 1442695040888963407; return Double((rng >> 33) & 0xFFFF) / 65535 }
+            // Lane wear: lanes at x = -2.6, 0, 2.6 m on the 8.5 m deck are polished by traffic.
+            for lane in [-2.6, 0.0, 2.6] {
+                let center = (lane + 4.25) / 8.5 * 1024
+                for band in 0..<6 {
+                    let width = 150.0 - Double(band) * 22
+                    ctx.setFillColor(color(stage == .cryo ? "E4F4FA" : "0A121C", alpha: 0.018).cgColor)
+                    ctx.fill(CGRect(x: center - width / 2, y: 0, width: width, height: 1024))
+                }
+            }
+            // Scuffs.
+            ctx.setLineCap(.round)
+            for _ in 0..<160 {
+                let x = random() * 1024, y = random() * 1024, length = 8 + random() * 40, angle = (random() - 0.5) * 0.6 + .pi / 2
+                ctx.setStrokeColor(color(random() < 0.5 ? "05090F" : "C9CFD3", alpha: 0.10 + random() * 0.08).cgColor)
+                ctx.setLineWidth(0.8 + random() * 1.6)
+                ctx.move(to: CGPoint(x: x, y: y)); ctx.addLine(to: CGPoint(x: x + cos(angle) * length, y: y + sin(angle) * length)); ctx.strokePath()
+            }
+            // Per-world decal layer.
+            switch stage {
+            case .orbit, .forge:
+                let stripe = stage == .orbit ? "E9B44C" : "F08A3C"
+                for edge in [30.0, 954.0] {
+                    ctx.saveGState(); ctx.clip(to: CGRect(x: edge, y: 0, width: 40, height: 1024))
+                    for y in stride(from: -40.0, to: 1064, by: 40) {
+                        ctx.setFillColor(color(stripe, alpha: 0.35).cgColor)
+                        ctx.move(to: CGPoint(x: edge, y: y)); ctx.addLine(to: CGPoint(x: edge + 40, y: y + 20))
+                        ctx.addLine(to: CGPoint(x: edge + 40, y: y + 40)); ctx.addLine(to: CGPoint(x: edge, y: y + 20)); ctx.fillPath()
+                    }
+                    ctx.restoreGState()
+                }
+                if stage == .forge {
+                    let temper = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("5A6BB0", alpha: 0.14).cgColor, color("B5652A", alpha: 0.10).cgColor, color("B5652A", alpha: 0).cgColor] as CFArray, locations: [0, 0.5, 1])!
+                    for _ in 0..<5 {
+                        let c = CGPoint(x: 150 + random() * 724, y: random() * 1024)
+                        ctx.drawRadialGradient(temper, startCenter: c, startRadius: 0, endCenter: c, endRadius: 40 + random() * 60, options: [])
+                    }
+                }
+            case .mars:
+                for lane in [-2.6, 0.0, 2.6] {
+                    let center = (lane + 4.25) / 8.5 * 1024
+                    for track in [-45.0, 45.0] {
+                        for y in stride(from: 0.0, to: 1024, by: 14) {
+                            ctx.setFillColor(color("3A2522", alpha: 0.22).cgColor)
+                            ctx.fill(CGRect(x: center + track - 9, y: y, width: 18, height: 6))
+                        }
+                    }
+                }
+                let dust = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("D9A37A", alpha: 0.22).cgColor, color("D9A37A", alpha: 0).cgColor] as CFArray, locations: [0, 1])!
+                for _ in 0..<10 {
+                    let c = CGPoint(x: random() < 0.5 ? random() * 120 : 904 + random() * 120, y: random() * 1024)
+                    ctx.drawRadialGradient(dust, startCenter: c, startRadius: 0, endCenter: c, endRadius: 50 + random() * 70, options: [])
+                }
+            case .verdant:
+                for _ in 0..<70 {
+                    // Tile joints of the scaled 768-space grid: 192 × 4/3 = 256 px columns, 128 × 4/3 px rows.
+                    let joint = CGPoint(x: Double(Int(random() * 5)) * 256, y: Double(Int(random() * 7)) * 128 * 4 / 3)
+                    ctx.setFillColor(color("4C8A5C", alpha: 0.28).cgColor)
+                    ctx.fillEllipse(in: CGRect(x: joint.x - 14 + random() * 10, y: joint.y - 10 + random() * 8, width: 18 + random() * 22, height: 10 + random() * 14))
+                }
+                for _ in 0..<40 {
+                    ctx.setFillColor(color("9EF4C8", alpha: 0.45).cgColor)
+                    ctx.fillEllipse(in: CGRect(x: random() * 1024, y: random() * 1024, width: 3, height: 3))
+                }
+            case .cryo:
+                let frost = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("F2FBFF", alpha: 0.25).cgColor, color("F2FBFF", alpha: 0).cgColor] as CFArray, locations: [0, 1])!
+                for _ in 0..<12 {
+                    let c = CGPoint(x: random() * 1024, y: random() * 1024)
+                    ctx.drawRadialGradient(frost, startCenter: c, startRadius: 0, endCenter: c, endRadius: 40 + random() * 80, options: [])
+                }
+            case .harbor: break
+            }
         }
         mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
         mat.diffuse.contentsTransform = SCNMatrix4MakeScale(1, 2, 1)
         mat.normal.contents = texture(stage == .cryo ? "water-normal" : "cloth-normal")
         mat.normal.intensity = stage == .cryo ? 0.09 : 0.10
+        for prop in [mat.diffuse, mat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
         materials[key] = mat
         return mat
     }
@@ -2346,6 +2459,7 @@ private extension CoastalWorld {
         }
         surface.diffuse.wrapS = .repeat; surface.diffuse.wrapT = .repeat
         surface.normal.contents = texture("cloth-normal"); surface.normal.intensity = icy ? 0.08 : 0.28
+        for prop in [surface.diffuse, surface.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 8 }
         materials[key] = surface
         return surface
     }

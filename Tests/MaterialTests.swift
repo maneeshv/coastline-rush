@@ -64,6 +64,34 @@ import SceneKit
             rollDiff += abs(rolled.colorAt(x: x, y: y)!.brightnessComponent - detailed.colorAt(x: y, y: 127 - x)!.brightnessComponent); rollN += 1
         } }
         precondition(rollDiff / rollN < 0.01, "surface detail depends on view orientation (\(rollDiff / rollN))")
+        // Deck textures: 1024² off-world, 512² harbor asphalt/paving, found on the actual route decks.
+        func deckWidths(_ world: CoastalWorld) -> Set<Int> {
+            var widths = Set<Int>()
+            // Flattened deck geometry only reports its materials once SceneKit has rendered it.
+            renderer.scene = world.scene
+            _ = renderer.snapshot(atTime: 0, with: CGSize(width: 32, height: 32), antialiasingMode: .none)
+            world.scene.rootNode.enumerateHierarchy { node, _ in
+                guard node.name == "routeDeck" else { return }
+                node.enumerateHierarchy { child, _ in
+                    for m in child.geometry?.materials ?? [] {
+                        if let contents = m.diffuse.contents, CFGetTypeID(contents as CFTypeRef) == CGImage.typeID {
+                            let image = contents as! CGImage
+                            widths.insert(image.width)
+                            if image.width == 1024 {
+                                precondition(m.diffuse.mipFilter == .linear && m.diffuse.maxAnisotropy >= 8, "deck textures need trilinear + anisotropic filtering")
+                            }
+                        }
+                    }
+                }
+            }
+            return widths
+        }
+        precondition(deckWidths(world).contains(512), "harbor asphalt/paving must be 512² (found \(deckWidths(world)))")
+        for index in 1..<WorldStage.allCases.count {
+            var run = RunnerSimulation(); run.start(seed: 3, mode: .odyssey, startStage: index)
+            world.update(simulation: run, character: "milo", board: "tideline", time: 2)
+            precondition(deckWidths(world).contains(1024), "\(WorldStage.allCases[index]) deck must be 1024² (found \(deckWidths(world)))")
+        }
         print(String(format: "MaterialTests passed (breakup %.3f, swim %.4f, roll %.4f)", stats.stddev, diff / n, rollDiff / rollN))
     }
 }
