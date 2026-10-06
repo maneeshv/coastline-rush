@@ -79,6 +79,13 @@ struct PatternRecord: Equatable {
     let fromBag: Bool
 }
 
+/// One coin line laid on a row, for the teaching-row audit. Odyssey: (world, row); Endless/Sprint: (0, metres). Not persisted.
+struct LinePlacement: Equatable {
+    let world: Int
+    let position: Int
+    let line: RunnerSimulation.CoinLine
+}
+
 /// Longitudinal positions and lengths are centered. Positive z is ahead of the runner.
 struct TrackEntity: Identifiable, Equatable, Codable {
     var id: Int
@@ -407,6 +414,8 @@ struct RunnerSimulation: Codable {
     private(set) var patternLog: [PatternRecord] = []
     /// First elapsed time each Endless escalation row type (0-6) was generated, for audits. Not persisted.
     private(set) var escalationFirstSeen: [Int: Double] = [:]
+    /// Coin lines laid per row, for audits. Not persisted.
+    private(set) var placedLineLog: [LinePlacement] = []
     #endif
     private var generateTrack = true
 
@@ -1151,11 +1160,12 @@ struct RunnerSimulation: Codable {
             let line = Self.coinLine(roll: teaching ? roll % 60 : roll,
                                      actionable: rowHazards.contains { $0.kind == .barrier || isSlide($0) },
                                      solid: !solids.isEmpty)
-            placeCoins(line, z: centerZ, safe: routeLane, speed: arrivalSpeed, jumpApex: 1.45,
+            let placed = placeCoins(line, z: centerZ, safe: routeLane, speed: arrivalSpeed, jumpApex: 1.45,
                        jumpLanes: rowHazards.filter { $0.kind == .barrier }.map(\.lane),
                        slideLanes: rowHazards.filter(isSlide).map(\.lane), solids: solids, teaching: teaching,
                        // The next row starts at least baseSpacing on; its tram reaches 6 m back, plus the coin margin.
                        coinLimit: centerZ + baseSpacing - (12 / 2 + coinMargin), safeOffsets: safeOffsets)
+            logLine(placed, world: 0, position: Int(at))
             // Pickups sit off the safe lane, behind this row's hazards: collecting one is a choice.
             var pickupChoices = obstacleLanes
             if escalation == 3 { pickupChoices.removeAll { $0 == routeLane } } // the tram's arrival lane is the real exit
@@ -1582,6 +1592,7 @@ struct RunnerSimulation: Codable {
             if pattern == 4 {
                 // The roof coins ask for a ramp leap: an action line.
                 placedCoinLines[.action, default: 0] += 1
+                logLine(.action, world: stageIndex, position: row)
             } else {
                 let rowHazards = entities[rowStart...].filter { Self.isObstacle($0.kind) && abs($0.z - z) < 1 }
                 let jumpLanes = rowHazards.filter { $0.kind == jumpKind }.map(\.lane)
@@ -1595,9 +1606,10 @@ struct RunnerSimulation: Codable {
                 let roll = nextRandom() % 100
                 let line = Self.coinLine(roll: teaching ? roll % 60 : roll, actionable: !(jumpLanes + slideLanes).isEmpty,
                                          solid: !(solids + laterSolids).isEmpty)
-                placeCoins(line, z: z, safe: routeLane, speed: predictedSpeed, jumpApex: jumpHeight, jumpLanes: jumpLanes,
+                let placed = placeCoins(line, z: z, safe: routeLane, speed: predictedSpeed, jumpApex: jumpHeight, jumpLanes: jumpLanes,
                            slideLanes: slideLanes, solids: Array(solids), laterSolids: laterSolids, teaching: teaching,
                            safeOffsets: safeOffsets)
+                logLine(placed, world: stageIndex, position: row)
             }
             let milestones = [0.25, 0.51, 0.77]
             if journey.generatedRelics < 3 && local >= stageLength * milestones[journey.generatedRelics] {
@@ -1687,7 +1699,8 @@ struct RunnerSimulation: Codable {
 
     enum CoinLine: Hashable { case safe, action, risk, bait }
 
-    /// Coins are an invitation, not a route marker: at most 30% of rows mark the safe lane.
+    /// Coins are an invitation, not a route marker: only the first band of rolls asks for the safe line.
+    /// Fallbacks can raise the placed share, which SkillAudit binds at 35% per mode.
     static func coinLine(roll: UInt64, actionable: Bool, solid: Bool) -> CoinLine {
         switch roll % 100 {
         case 0..<25: return .safe
@@ -1707,10 +1720,10 @@ struct RunnerSimulation: Codable {
     /// Lays this row's coins. `safe` is the intended route lane, which may itself need a jump or roll.
     /// `laterSolids` are landing or follow-beat solids after this row that may also anchor a bait line.
     /// `coinLimit` is the furthest z a resume coin may take before the next row could place a collider.
-    private mutating func placeCoins(_ line: CoinLine, z: Double, safe: Int, speed: Double, jumpApex: Double,
+    @discardableResult private mutating func placeCoins(_ line: CoinLine, z: Double, safe: Int, speed: Double, jumpApex: Double,
                                      jumpLanes: [Int], slideLanes: [Int], solids: [TrackEntity], laterSolids: [TrackEntity] = [],
                                      teaching: Bool = false, coinLimit: Double = .infinity,
-                                     safeOffsets: [Double] = [-6.0, -3, 0, 3]) {
+                                     safeOffsets: [Double] = [-6.0, -3, 0, 3]) -> CoinLine {
         let lowLine = [-3.0, -1.5, 0, 1.5, 3]
         func halfLength(_ lane: Int) -> Double {
             entities.filter { Self.isObstacle($0.kind) && $0.arrivalLane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
@@ -1794,6 +1807,14 @@ struct RunnerSimulation: Codable {
             else { for offset in safeOffsets { add(.coin, lane: safe, z: z + offset, y: 0.9, length: 0.3) } }
         }
         placedCoinLines[placed, default: 0] += 1
+        return placed
+    }
+
+    /// Records the line laid on a row (audit builds only). Odyssey: (world, row); Endless/Sprint: (0, metres).
+    private mutating func logLine(_ line: CoinLine, world: Int, position: Int) {
+        #if ROUTE_HELPER
+        placedLineLog.append(LinePlacement(world: world, position: position, line: line))
+        #endif
     }
 
     /// Coins over a jump; `until` cuts the arc short (a bait arc ends before a landing solid).

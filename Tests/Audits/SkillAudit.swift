@@ -10,6 +10,17 @@ struct SkillAudit {
     static var bagRepeats = 0
     static var escalationSeen: [Bool: Set<Int>] = [:]
     static var earlyEscalation = 0
+    static var teachingViolations = 0, invitationsAfterTeaching = 0
+    /// Standard teaching rows (Odyssey rows 0-3 of each world; Endless/Sprint rows before 160 m) lay only safe or action
+    /// lines, and the rows right after them sometimes lay risk or bait lines, so teaching really ends.
+    static func checkTeaching(_ run: RunnerSimulation) {
+        guard !run.expert else { return }
+        let limit = run.mode == .odyssey ? 4 : 160
+        for p in run.placedLineLog {
+            if p.position < limit && p.line != .safe && p.line != .action { teachingViolations += 1 }
+            if p.position >= limit && p.position < limit * 2 && (p.line == .risk || p.line == .bait) { invitationsAfterTeaching += 1 }
+        }
+    }
     /// Endless row types 0-6 (0/1 full-width jump/slide, 2 compound, 3 lane-changer, 4 gap wall, 5 stack, 6 timed laser)
     /// must all appear, each only after its gate: full-width at half the gate, the rest at the gate (60 s, Expert 30 s).
     static func checkEscalation(_ run: RunnerSimulation) {
@@ -122,7 +133,8 @@ struct SkillAudit {
         }
         for item in run.entities where isPickup(item) {
             if seen.insert(item.id).inserted && !coinIsFair(item, among: run.entities, expert: run.expert) { report(item, "first-sight") }
-            if abs(item.z) < RunnerSimulation.coinOverlap(expert: run.expert) && !flagged.contains(item.id) && !coinIsFair(item, among: run.entities, expert: run.expert, atCollection: true) {
+            // One frame of travel wider, so an item that enters reach and is collected in the same frame is still checked.
+            if abs(item.z) < RunnerSimulation.coinOverlap(expert: run.expert) + run.speed / 60 && !flagged.contains(item.id) && !coinIsFair(item, among: run.entities, expert: run.expert, atCollection: true) {
                 flagged.insert(item.id)
                 report(item, "collection")
             }
@@ -261,6 +273,7 @@ struct SkillAudit {
                     while run.phase == .running && tick < 90_000 { RouteAudit.drive(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; check(run, &watch) }
                     placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
                     checkPatterns(run.patternLog)
+                    checkTeaching(run)
                     if run.phase == .finished { cleared += 1 }
                     else { print("READER-FAIL odyssey seed=\(seed) route=\(route.rawValue) expert=\(expert) world=\(run.worldStage) reason=\(run.crashReason)") }
                 }
@@ -287,17 +300,25 @@ struct SkillAudit {
                 while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); check(run, &watch) }
                 placed[run.mode, default: [:]].merge(run.placedCoinLines, uniquingKeysWith: +)
                 checkEscalation(run)
+                checkTeaching(run)
                 if run.phase == .running { survived += 1 }
                 else { print("READER-FAIL endless seed=\(seed) expert=\(expert) t=\(String(format: "%.1f", run.elapsed)) lane=\(run.lane) reason=\(run.crashReason)") }
             }
             print("READER endless expert=\(expert): survived=\(survived)/\(seeds) (300s)")
-            // Harbor Sprint shares the Endless generator; audit its coins and pickups too.
+            // Harbor Sprint shares the Endless generator. A hazard crash would silently shrink fairness coverage.
+            var sprintCrashes = 0
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .harborSprint, expert: expert)
                 var watch = Watch()
                 while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); check(run, &watch) }
+                if run.phase == .crashed && !run.crashReason.hasPrefix("Time ran out") {
+                    sprintCrashes += 1
+                    print("READER-FAIL sprint seed=\(seed) expert=\(expert) t=\(String(format: "%.1f", run.elapsed)) reason=\(run.crashReason)")
+                }
             }
+            print("READER sprint expert=\(expert): hazardCrashes=\(sprintCrashes)/\(seeds)")
+            precondition(sprintCrashes == 0, "Hazard reader must not crash into a hazard in Harbor Sprint")
             precondition(survived == seeds, "Hazard reader must survive every Endless seed")
         }
         for mode in [RunMode.odyssey, .endless] {
@@ -326,6 +347,8 @@ struct SkillAudit {
         precondition(telegraphViolations == 0, "Lane shifts, impacts and collapses must keep their lead time")
         print("BAIT-ESCAPES violations=\(baitViolations) (last bait coin to resume switch; one adjacent lane clear)")
         precondition(baitViolations == 0, "Every bait escape must be a single adjacent lane switch")
+        print("TEACHING violations=\(teachingViolations) invitationsJustAfter=\(invitationsAfterTeaching)")
+        precondition(teachingViolations == 0 && invitationsAfterTeaching > 0, "Standard teaching rows hold only safe or action lines, and end on time")
         print("FAIRNESS unfairCoins=\(unfair) (coins, keys and power-ups; first sight and collection time)")
         precondition(unfair == 0, "Every coin and pickup must be collectible without a forced collision")
         // Same seed, same track: the coin lines must draw from the seeded generator only.
