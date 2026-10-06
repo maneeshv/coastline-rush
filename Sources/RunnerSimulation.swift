@@ -32,7 +32,7 @@ enum RunMode: String, CaseIterable, Codable {
         switch self {
         case .odyssey: return "Master six worlds: jump gaps, slide beams and read moving hazards. Watch for vehicles that shift lanes, timed lasers, gap walls, stacked barriers, meteor rings and cracking decks. Coins tempt; they do not mark the safe lane. Risky relic routes charge your artifact ability (E). Jump at a portal for a precision bonus, or let Portal Assist carry you through. Gold requires a clean stage, two relics, two skill actions and a precision entry."
         case .endless: return "Swipe to dodge, jump and slide. Double-tap or B activates your hoverboard. Rows grow to full width, chain a jump into a slide and add shifting trams, walls and timed lasers as the run goes on. Close calls and clean escapes build your combo. Airborne drones can hit your jetpack."
-        case .harborSprint: return "Reach 1,500 m before time runs out. Cross the illuminated checkpoints for extra time. Keep moving to keep your combo."
+        case .harborSprint: return "Reach 1,500 m before time runs out. Cross the illuminated checkpoints for extra time. Keep moving to keep your combo. The rows escalate as in Endless: full-width rows, jump-then-slide compounds, shifting trams, walls, stacks and timed lasers."
         case .jetSki: return "Carve through gates and moving boats. Down brakes and tightens steering; B boosts. Wakes launch you. In the air, chain Up, Left and Right tricks, then release before landing to bank the score. Currents push your craft; missed gates cost time."
         }
     }
@@ -389,6 +389,16 @@ struct RunnerSimulation: Codable {
     var coinMargin: Double { Self.coinMargin(expert: expert) }
 
     static let tramRoofHeight = 2.8
+    /// Lowest height that clears a tram: its roof less the collision margin.
+    static let tramClearance = tramRoofHeight - 0.35
+    /// Endless and Harbor Sprint speed: starts at `start`, gains `accel` m/s per second, caps at `cap`.
+    static func endlessCurve(expert: Bool) -> (start: Double, cap: Double, accel: Double) {
+        expert ? (16, 36, 0.24) : (12, 32, 0.18)
+    }
+    static func endlessSpeed(at elapsed: Double, expert: Bool) -> Double {
+        let curve = endlessCurve(expert: expert)
+        return min(curve.cap, curve.start + elapsed * curve.accel)
+    }
     static let laneWidth = 2.6
     /// Endless row spacing (m) before the speed cap, and the floor reached 120 s after it. Balance-pass knobs.
     static let endlessSpacing = (standard: 26.0, expert: 23.0)
@@ -678,7 +688,7 @@ struct RunnerSimulation: Codable {
                 speed = routeRevision >= 6 ? speed + 6 : min(expert ? 50 : 44, speed + 6)
             }
         } else {
-            speed = min(expert ? 36 : 32, (expert ? 16 : 12) + elapsed * (expert ? 0.24 : 0.18))
+            speed = Self.endlessSpeed(at: elapsed, expert: expert)
         }
         let travel = mode == .odyssey ? min(speed * dt, max(0, stageLength - stageDistance)) : speed * dt
         let previousTier = difficultyTier
@@ -986,10 +996,10 @@ struct RunnerSimulation: Codable {
             case .laserSweep: collides = height < worldStage.stackTop && (!isRolling || height > 0.15) // frame drawn to stackTop
             case .arch: collides = !isRolling || height > 0.15
             case .waterTraffic: collides = height < 1.8
-            case .tram: collides = height < Self.tramRoofHeight - 0.35
+            case .tram: collides = height < Self.tramClearance
             case .buoy: collides = height < 1.4
             case .airHazard: collides = inFlight && abs(height - entity.y) < 2.0
-            case .wall: collides = height < Self.wallTop // drawn 3.8 m tall; only a sneakers jump in low gravity clears it
+            case .wall: collides = height < Self.wallTop // drawn 3.8 m tall; no jump clears it (the sneakers apex is 3.16 m at gravity 22)
             case .stack: collides = height < worldStage.stackTop // a normal jump or roll never clears it
             default: collides = false
             }
@@ -1083,7 +1093,8 @@ struct RunnerSimulation: Codable {
             }
             challenge.previousSafeLane = safeLane
             // After the speed cap, rows tighten toward the floor over the next 120 s.
-            let capTime = expert ? (36.0 - 16) / 0.24 : (32.0 - 12) / 0.18
+            let curve = Self.endlessCurve(expert: expert)
+            let capTime = (curve.cap - curve.start) / curve.accel
             let tighten = min(1, max(0, (elapsed - capTime) / 120))
             let opening = expert ? Self.endlessSpacing.expert : Self.endlessSpacing.standard
             let tightest = expert ? Self.endlessSpacingFloor.expert : Self.endlessSpacingFloor.standard
@@ -1095,7 +1106,7 @@ struct RunnerSimulation: Codable {
             if nextRandom() % 2 == 0 { obstacleLanes.reverse() }
             let primary = obstacleLanes[0]
             // Rows arrive about 190 m later, by which time the run is faster.
-            let arrivalSpeed = min(expert ? 36 : 32, speed + (expert ? 0.24 : 0.18) * 190 / max(1, speed))
+            let arrivalSpeed = min(curve.cap, speed + curve.accel * 190 / max(1, speed))
             let secondary: EntityKind = pattern % 2 == 0 ? .arch : .barrier
             let secondaryLength = secondary == .barrier ? 0.8 : 1.1
             switch escalation {
@@ -1109,7 +1120,7 @@ struct RunnerSimulation: Codable {
             case 3: // Lane-changer: a blocked lane's tram shifts into the open lane, so the open lane swaps.
                 // It leaves a lane next to both the open lane and the previous route.
                 let origin = obstacleLanes.first { abs($0 - safeLane) == 1 && abs($0 - previousSafe) <= 1 }!
-                let complete = arrivalSpeed * ((expert ? 0.8 : 1.0) + 1 / 9.0) + 6 + collisionPadding
+                let complete = arrivalSpeed * ((expert ? 0.8 : 1.0) + 1 / steeringRate) + 6 + collisionPadding
                 add(.tram, lane: origin, z: centerZ, y: 0, length: 12, targetLane: safeLane,
                     motionStart: complete + arrivalSpeed * 0.6, motionLength: arrivalSpeed * 0.6)
                 add(secondary, lane: obstacleLanes.first { $0 != origin }!, z: centerZ, y: 0, length: secondaryLength)
@@ -1536,7 +1547,7 @@ struct RunnerSimulation: Codable {
                 let other = blocked.first { $0 != origin }!
                 let length = worldStage == .mars ? 9.0 : 7.0
                 // The shift completes a reaction (1.0 s, Expert 0.8 s) plus one lane of steering before the runner reaches it.
-                let lead = (expert ? 0.8 : 1.0) + (worldStage == .cryo ? 1 / 3.8 : 1 / 9.0)
+                let lead = (expert ? 0.8 : 1.0) + 1 / steeringRate
                 let complete = predictedSpeed * lead + length / 2 + collisionPadding
                 add(.tram, lane: origin, z: z, y: 0, length: length, targetLane: safe,
                     motionStart: complete + predictedSpeed * 0.6, motionLength: predictedSpeed * 0.6)

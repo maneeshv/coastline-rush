@@ -22,6 +22,9 @@ swiftc "${flags[@]}" "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld
 "$audit_work/cache"
 swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Tests/Audits/RouteAudit.swift Tests/Audits/SkillAudit.swift -o "$audit_work/skill"
 "$audit_work/skill"
+# Resume: a run saved and reloaded every 157 ticks must match an uninterrupted run, in every mode and Daily.
+swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Tests/Audits/RouteAudit.swift Tests/Audits/ResumeAudit.swift -o "$audit_work/resume"
+"$audit_work/resume"
 # Legacy checkpoints: v4 stages (frozen legacy generator) must match the pre-overhaul build exactly;
 # v5/v6 stages adopt the current generator (spec: resumed runs build new rows with new rules) and must reach their portal.
 mkdir -p "$audit_work/legacy-base"

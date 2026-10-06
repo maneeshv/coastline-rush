@@ -53,7 +53,7 @@ Select a mode at the harbor, then choose **Standard** or **Expert**. Each combin
 | Mode | Objective | What changes |
 |---|---|---|
 | Endless / Coastal Rush | Chase a score for as long as you survive | Denser lane decisions, jump/slide risks, roof routes, near misses, aerial rings and collidable drones. From 30 s (15 s Expert) full-width jump and slide rows; from 60 s (30 s Expert) jump-then-slide compounds, shifting trams, gap walls, stacked barriers and timed lasers; after the speed cap, rows keep tightening for two minutes |
-| Harbor Sprint | Reach 1,500m before the clock expires | 60s Standard / 45s Expert; correctly crossed checkpoints add 4s / 3s. Jetpacks are excluded so flight cannot force missed checkpoints |
+| Harbor Sprint | Reach 1,500m before the clock expires | 60s Standard / 45s Expert; correctly crossed checkpoints add 4s / 3s. Jetpacks are excluded so flight cannot force missed checkpoints. Gets the same escalation as Endless (compound rows, shifting trams, walls, stacks, timed lasers) |
 | Jet Ski / Wave Rider | Finish the 1,800m slalom | 60s / 45s; gates add 0.8s / 0.5s; a missed gate costs 4s and breaks the chain. Boost and clean ramp tricks buy a faster finish |
 
 On the water, **down brakes**, **up, left and right chain distinct tricks after a ramp launches you**, and **B / double-tap / Boost spends half a full boost meter**. Gates and clean trick landings replenish boost. Sideways dragging steers continuously with momentum and currents; brake to settle the craft before landing. Moving boats add timing decisions. A failed landing loses the pending trick bonus. A boost lasts 2.6s and adds speed, without consuming a board or providing collision immunity. Braking cancels boost. Boost can only begin while on the water surface.

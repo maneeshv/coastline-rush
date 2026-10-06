@@ -169,11 +169,39 @@ struct SimulationTests {
                 odyssey.update(dt: 0.4)
                 try expect(odyssey.phase == .running && odyssey.entities.contains { $0.id == 2 }, "An Odyssey board absorbs the hit without clearing the track")
             }),
-            ("expert collisions use the spec's padding and lateral tolerance", {
-                var standard = RunnerSimulation(); standard.start(seed: 1)
-                var expert = RunnerSimulation(); expert.start(seed: 1, expert: true)
-                try expect(standard.collisionPadding == 0.35 && standard.lateralTolerance == 0.55, "Standard hitboxes are unchanged")
-                try expect(expert.collisionPadding == 0.50 && expert.lateralTolerance == 0.65, "Expert hitboxes are larger (stricter)")
+            ("a hit lands at the difficulty's padding and lateral tolerance (Standard 0.35/0.55, Expert 0.50/0.65)", {
+                for (expert, padding, tolerance) in [(false, 0.35, 0.55), (true, 0.50, 0.65)] {
+                    let label = expert ? "Expert" : "Standard"
+                    let step = 0.0005
+                    // Along the track: a barrier (length 0.8) in the runner's lane is hit once its edge is within the padding.
+                    var along = RunnerSimulation(); along.start(seed: 42, boards: 0, expert: expert)
+                    along.replaceTrackForTesting([entity(.barrier, z: 3, y: 0, length: 0.8)])
+                    while along.phase == .running && along.distance < 60 { along.update(dt: step) }
+                    let hitZ = along.entities.first?.z ?? .nan
+                    try expect(along.phase == .crashed && abs(hitZ - (0.4 + padding)) < 0.01,
+                               "\(label) hit should land at the edge plus \(padding), not \(hitZ)")
+                    // Across the track: a long barrier one lane right is hit once the runner steers within the tolerance.
+                    var across = RunnerSimulation(); across.start(seed: 42, boards: 0, expert: expert)
+                    across.replaceTrackForTesting([entity(.barrier, lane: 1, z: 0, y: 0, length: 40)])
+                    across.act(.right)
+                    while across.phase == .running && across.lateral < 1 { across.update(dt: step) }
+                    try expect(across.phase == .crashed && abs(across.lateral - (1 - tolerance)) < 0.01,
+                               "\(label) hit should land at lateral \(1 - tolerance), not \(across.lateral)")
+                }
+            }),
+            ("a pass at lateral distance 0.60 is a near miss on Standard and a hit on Expert", {
+                // A lane-changer frozen mid-shift (offset ~0.604 lanes) passes the runner without moving appreciably.
+                func pass(expert: Bool) -> RunnerSimulation {
+                    var run = RunnerSimulation(); run.start(seed: 42, boards: 0, expert: expert)
+                    var shifter = entity(.barrier, z: 5, y: 0, length: 0.8)
+                    shifter.targetLane = 1; shifter.motionStart = 570_000; shifter.motionLength = 1_000_000
+                    run.replaceTrackForTesting([shifter])
+                    for _ in 0..<150 { run.update(dt: 1.0 / 60) }
+                    return run
+                }
+                let standard = pass(expert: false), expert = pass(expert: true)
+                try expect(standard.phase == .running && standard.nearMisses == 1, "Standard should count a CLOSE CALL at 0.60")
+                try expect(expert.phase == .crashed, "Expert should crash at 0.60 lateral distance")
             }),
             ("pause freezes world, power timers and controls", {
                 var simulation = fixture([entity(.magnet, z: 0)], durations: [.magnet: 5])

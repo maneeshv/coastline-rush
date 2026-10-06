@@ -11,7 +11,7 @@ struct SkillAudit {
     static var escalationSeen: [Bool: Set<Int>] = [:]
     static var earlyEscalation = 0
     static var teachingViolations = 0, invitationsAfterTeaching = 0
-    /// Standard teaching rows (Odyssey rows 0-3 of each world; Endless/Sprint rows before 160 m) lay only safe or action
+    /// Standard teaching rows (Odyssey rows 0-3 of each world; Endless rows before 160 m; Sprint is not checked) lay only safe or action
     /// lines, and the rows right after them sometimes lay risk or bait lines, so teaching really ends.
     static func checkTeaching(_ run: RunnerSimulation) {
         guard !run.expert else { return }
@@ -108,7 +108,7 @@ struct SkillAudit {
                 case .barrier, .root: minimumSafeHeight = 1.03
                 case .gap, .iceCrack: minimumSafeHeight = 0.4
                 case .meteor: minimumSafeHeight = 2.5
-                case .tram: minimumSafeHeight = RunnerSimulation.tramRoofHeight - 0.35
+                case .tram: minimumSafeHeight = RunnerSimulation.tramClearance
                 case .buoy: minimumSafeHeight = 1.4
                 default: minimumSafeHeight = 1.8 // waterTraffic
                 }
@@ -363,11 +363,12 @@ struct SkillAudit {
             return run.entities
         }
         precondition(trackAfterReaderRun() == trackAfterReaderRun(), "Same seed must generate the same track")
-        // Daily follows its date alone: any launch seed rebuilds the same course, forks and finales included.
+        // Daily follows its date alone: any launch seed rebuilds the same course, forks and the first finale included.
         func dailyTrack(seed: UInt64) -> [TrackEntity] {
             var run = RunnerSimulation()
             run.start(seed: seed, boards: 0, mode: .odyssey, dailyID: "2026-10-06")
-            for _ in 0..<3_000 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60) }
+            // Past the first finale (stage progress 0.72), so forks and finales are both compared.
+            while run.phase == .running && Double(run.stageIndex) + run.stageProgress < 0.8 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60) }
             return run.entities
         }
         precondition(dailyTrack(seed: 1) == dailyTrack(seed: 2), "Daily Odyssey must reproduce from its date alone")
