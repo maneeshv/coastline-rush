@@ -1161,7 +1161,9 @@ final class CoastalWorld {
             }
             if let cue = node.childNode(withName: "actionCue", recursively: false) {
                 let approach = entity.z / max(1, simulation.speed + entity.oncomingSpeed)
-                cue.isHidden = approach > 2.7 || entity.z < 1 || lastWaterMode
+                // While a lane-changer is still shifting, its shift chevron is the cue; "change lanes" would point at the exit.
+                let shifting = entity.targetLane != nil && abs(Double(entity.arrivalLane - entity.lane) - entity.laneOffset()) > 0.001
+                cue.isHidden = approach > 2.7 || entity.z < 1 || lastWaterMode || shifting
                 cue.opacity = highContrastCues ? 1 : 0.74
                 cue.scale.x = highContrastCues ? 1.35 : 1
                 cue.childNode(withName: "cueBackplate", recursively: false)?.isHidden = !highContrastCues
@@ -2997,10 +2999,11 @@ private extension CoastalWorld {
         let cue = SCNNode()
         cue.name = "shiftCue"
         cue.isHidden = true
-        // Two strokes form a ">" in plan view pointing toward +x; the sync turns it toward the target lane.
+        // Two strokes stand upright in the xy plane, facing the camera, and form a ">" pointing toward +x;
+        // the sync yaws it by pi toward a -x target lane.
         for side in [-1.0, 1.0] {
-            let stroke = glowBox(0.62, 0.07, 0.14, "FFE3A1", at: vector(0, 3.25, side * 0.16), into: cue)
-            stroke.eulerAngles.y = scalar(side * 0.54)
+            let stroke = glowBox(0.62, 0.07, 0.14, "FFE3A1", at: vector(0, 3.25 + side * 0.16, 0), into: cue)
+            stroke.eulerAngles.z = scalar(-side * 0.54)
             stroke.castsShadow = false
         }
         root.addChildNode(cue)

@@ -53,7 +53,9 @@ struct SkillAudit {
             return !entities.contains { $0.kind == .airHazard && $0.lane == coin.lane &&
                 abs($0.z - coin.z) < $0.length / 2 + margin && abs($0.y - coin.y) < 2.0 }
         }
-        for o in entities where o.arrivalLane == coin.lane && RouteAudit.hazards.contains(o.kind) && (atCollection || o.oncomingSpeed == coin.oncomingSpeed) {
+        // First sight: a lane-changer is still in its origin lane (live lane); at collection its shift is complete.
+        for o in entities where RouteAudit.hazards.contains(o.kind) && (atCollection || o.oncomingSpeed == coin.oncomingSpeed)
+            && (atCollection ? o.arrivalLane : Int((Double(o.lane) + o.laneOffset()).rounded())) == coin.lane {
             guard abs(coin.z - o.z) < o.length / 2 + margin else { continue }
             switch o.kind {
             case .arch, .laserSweep:

@@ -1296,6 +1296,8 @@ struct RunnerSimulation: Codable {
             var relicLane = safe
             // The lane coins and the next row treat as this row's route; a lane-changer moves it.
             var routeLane = safe
+            // Ground-coin offsets for the safe line; a lane-changer row moves them before the vehicle's near edge.
+            var safeOffsets = [-6.0, -3, 0, 3]
             var relicZ = z
             var relicY = 0.9
             var relicVelocity = 0.0
@@ -1379,6 +1381,9 @@ struct RunnerSimulation: Codable {
                 challenge.previousSafeLane = origin
                 routeLane = origin
                 relicLane = origin
+                // The vehicle still fills its origin lane until the shift: coins and relic wait before its near edge.
+                safeOffsets = [0.0, 3, 6, 9].map { -(length / 2 + 1.3) - $0 }
+                relicZ = z + safeOffsets[0]
             default: // Two mixed actions with an open adjacent escape on each beat.
                 add(jumpKind, lane: safe, z: z, y: 0, length: jumpLength)
                 add(solid, lane: blocked[0], z: z, y: 0, length: solidLength)
@@ -1410,7 +1415,8 @@ struct RunnerSimulation: Codable {
                 let line = Self.coinLine(roll: teaching ? roll % 60 : roll, actionable: !(jumpLanes + slideLanes).isEmpty,
                                          solid: !(solids + laterSolids).isEmpty)
                 placeCoins(line, z: z, safe: routeLane, speed: predictedSpeed, jumpApex: jumpHeight, jumpLanes: jumpLanes,
-                           slideLanes: slideLanes, solids: Array(solids), laterSolids: laterSolids, teaching: teaching)
+                           slideLanes: slideLanes, solids: Array(solids), laterSolids: laterSolids, teaching: teaching,
+                           safeOffsets: safeOffsets)
             }
             let milestones = [0.25, 0.51, 0.77]
             if journey.generatedRelics < 3 && local >= stageLength * milestones[journey.generatedRelics] {
@@ -1492,7 +1498,8 @@ struct RunnerSimulation: Codable {
     /// `coinLimit` is the furthest z a resume coin may take before the next row could place a collider.
     private mutating func placeCoins(_ line: CoinLine, z: Double, safe: Int, speed: Double, jumpApex: Double,
                                      jumpLanes: [Int], slideLanes: [Int], solids: [TrackEntity], laterSolids: [TrackEntity] = [],
-                                     teaching: Bool = false, coinLimit: Double = .infinity) {
+                                     teaching: Bool = false, coinLimit: Double = .infinity,
+                                     safeOffsets: [Double] = [-6.0, -3, 0, 3]) {
         let lowLine = [-3.0, -1.5, 0, 1.5, 3]
         func halfLength(_ lane: Int) -> Double {
             entities.filter { Self.isObstacle($0.kind) && $0.arrivalLane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
@@ -1572,7 +1579,7 @@ struct RunnerSimulation: Codable {
         case .safe:
             if jumpLanes.contains(safe) { addJourneyArc(lane: safe, z: z, apex: jumpApex, speed: speed) }
             else if slideLanes.contains(safe) { for offset in lowLine { add(.coin, lane: safe, z: z + offset, y: 0.35, length: 0.3) } }
-            else { for offset in [-6.0, -3, 0, 3] { add(.coin, lane: safe, z: z + offset, y: 0.9, length: 0.3) } }
+            else { for offset in safeOffsets { add(.coin, lane: safe, z: z + offset, y: 0.9, length: 0.3) } }
         }
         placedCoinLines[placed, default: 0] += 1
     }
