@@ -233,9 +233,10 @@ final class CoastalWorld {
             water.position.y = scalar(waterMode ? -0.13 : -1.1)
             water.geometry?.firstMaterial?.normal.contentsTransform = SCNMatrix4Mult(SCNMatrix4MakeScale(30, 50, 1), SCNMatrix4MakeTranslation(scalar(time * 0.004), scalar(time * 0.013), 0))
             for (index, section) in segments.enumerated() {
-                let z = travel.truncatingRemainder(dividingBy: segmentLength) - Double(index) * segmentLength + 12
+                let z = recycledZ(index: index, count: segments.count, length: segmentLength, front: 12 + segmentLength, travel: travel)
                 placeRouteSection(section, centerZ: z - 12, localCenterZ: -12, length: 24,
                                   simulation: simulation, menu: isMenu)
+                section.opacity = CGFloat(arrivalFade(z: z, count: segments.count, length: segmentLength, front: 12 + segmentLength))
             }
         }
         menuProps.isHidden = !isMenu || waterMode || offworld
@@ -2826,11 +2827,14 @@ private extension CoastalWorld {
     }
 
     func updateJourney(simulation: RunnerSimulation, time: Double, menu: Bool, travel: Double) {
+        let count = journeySections.count
         for (index, section) in journeySections.enumerated() {
-            section.isHidden = qualityLevel == 0 && index > 6
-            let z = travel.truncatingRemainder(dividingBy: 26) - Double(index) * 26 + 13
+            let z = recycledZ(index: index, count: count, length: 26, front: 39, travel: travel)
+            // Performance tier skips the two farthest sections (previously the last two indices).
+            section.isHidden = qualityLevel == 0 && z < 39 - Double(count - 2) * 26
             placeRouteSection(section, centerZ: z, localCenterZ: 0, length: 26,
                               simulation: simulation, menu: menu)
+            section.opacity = CGFloat(arrivalFade(z: z, count: count, length: 26, front: 39))
         }
         portalSurface?.isHidden = reducedMotion
         let odyssey = (menu ? previewMode : simulation.mode) == .odyssey
@@ -2867,6 +2871,20 @@ private extension CoastalWorld {
 private extension CoastalWorld {
     /// Both decks follow the same deterministic curve used by the route selector. The lane
     /// coordinates remain local to the chosen deck, so the visible surface and collision agree.
+    /// Continuous recycling: each section keeps its own content and travels toward the camera with the run.
+    /// The window is [front − count·length, front). A section leaves only past `front` (behind the camera)
+    /// and re-enters at the far end, so nothing in view ever snaps. At travel 0 this matches the old layout.
+    func recycledZ(index: Int, count: Int, length: Double, front: Double, travel: Double) -> Double {
+        let span = Double(count) * length, back = front - span
+        let offset = (front - length - Double(index) * length + travel - back).truncatingRemainder(dividingBy: span)
+        return back + (offset < 0 ? offset + span : offset)
+    }
+
+    /// Sections fade in over their first length after re-entering at the far end, hiding the pop inside the fog.
+    func arrivalFade(z: Double, count: Int, length: Double, front: Double) -> Double {
+        min(1, max(0, (z - (front - Double(count) * length)) / length))
+    }
+
     func placeRouteSection(_ section: SCNNode, centerZ: Double, localCenterZ: Double,
                            length: Double, simulation: RunnerSimulation, menu: Bool) {
         let selected: BranchRoute = simulation.branchRoute == .undecided ? .safe : simulation.branchRoute
