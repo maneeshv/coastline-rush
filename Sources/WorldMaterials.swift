@@ -11,7 +11,7 @@ extension CoastalWorld {
     #pragma body
     constexpr sampler detailSampler(filter::linear, mip_filter::linear, address::repeat);
     float3 local = (scn_node.inverseModelViewTransform * float4(_surface.position, 1.0)).xyz;
-    float3 w = abs(normalize((scn_node.inverseModelViewTransform * float4(_surface.normal, 0.0)).xyz));
+    float3 w = abs(normalize((float4(_surface.normal, 0.0) * scn_node.modelViewTransform).xyz));
     w = pow(w, float3(4.0)); w /= max(0.0001, w.x + w.y + w.z);
     float3 p = local * detailScale;
     float4 broad = detailMap.sample(detailSampler, p.yz) * w.x + detailMap.sample(detailSampler, p.xz) * w.y + detailMap.sample(detailSampler, p.xy) * w.z;
@@ -19,7 +19,7 @@ extension CoastalWorld {
     float4 fine = detailMap.sample(detailSampler, q.yz) * w.x + detailMap.sample(detailSampler, q.xz) * w.y + detailMap.sample(detailSampler, q.xy) * w.z;
     float breakup = (broad.r - 0.5) * 2.0;
     float grain = (fine.g - 0.5) * 2.0;
-    _surface.diffuse.rgb *= 1.0 + detailStrength * (0.22 * breakup + 0.10 * grain - 0.35 * broad.b);
+    _surface.diffuse.rgb *= max(0.15, 1.0 + detailStrength * (0.22 * breakup + 0.10 * grain - 0.35 * broad.b));
     _surface.roughness = clamp(_surface.roughness + detailStrength * (0.18 * breakup + 0.12 * fine.g - 0.06), 0.04, 1.0);
     """
 
