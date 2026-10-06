@@ -343,6 +343,19 @@ struct SimulationTests {
                 impact.update(dt: 1)
                 try expect(impact.phase == .crashed, "An active collider hits")
             }),
+            ("walls and stacked hazards stop jumps and rolls alike", {
+                for kind in [EntityKind.wall, .stack] {
+                    var jumped = fixture([entity(kind, z: 5, y: 0, length: 1.0)])
+                    jumped.act(.jump); jumped.update(dt: 1)
+                    try expect(jumped.phase == .crashed, "\(kind) must stop a jump")
+                    var rolled = fixture([entity(kind, z: 5, y: 0, length: 1.0)])
+                    rolled.act(.roll); rolled.update(dt: 1)
+                    try expect(rolled.phase == .crashed, "\(kind) must stop a roll")
+                    var dodged = fixture([entity(kind, z: 5, y: 0, length: 1.0)])
+                    dodged.act(.left); dodged.update(dt: 1)
+                    try expect(dodged.phase == .running, "\(kind) is solid only in its own lane")
+                }
+            }),
             ("large frame deltas cannot tunnel through obstacles", {
                 var simulation = fixture([entity(.barrier, z: 50)])
                 simulation.update(dt: 10)

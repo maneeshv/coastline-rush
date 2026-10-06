@@ -4,7 +4,9 @@ import Foundation
 @main
 #endif
 struct RouteAudit {
-    static let hazards: Set<EntityKind> = [.barrier, .arch, .tram, .gap, .meteor, .root, .iceCrack, .laserSweep, .buoy, .waterTraffic]
+    static let hazards: Set<EntityKind> = [.barrier, .arch, .tram, .gap, .meteor, .root, .iceCrack, .laserSweep, .buoy, .waterTraffic, .wall, .stack]
+    /// Hazards that no jump or roll clears.
+    static let solids: Set<EntityKind> = [.tram, .meteor, .wall, .stack]
     static let pursueRelics = ProcessInfo.processInfo.environment["QA_RELICS"] == "1"
     static let requestedRoute = BranchRoute(rawValue: ProcessInfo.processInfo.environment["QA_ROUTE"] ?? "safe") ?? .safe
     static func drive(_ run: inout RunnerSimulation, allowVerticalActions: Bool = true, route: BranchRoute? = nil) {
@@ -33,7 +35,7 @@ struct RouteAudit {
         let free = (-1...1).filter { lane in !row.contains { $0.lane == lane } }
         // Look ahead: among free lanes, avoid one whose next hazard is a solid (tram/meteor) the reader cannot jump.
         func freeCost(_ lane: Int) -> Int {
-            let solidAfter = active.contains { $0.lane == lane && $0.z > first.z + 2 && $0.z < first.z + run.speed * 1.1 && [.tram, .meteor].contains($0.kind) } ? 4 : 0
+            let solidAfter = active.contains { $0.lane == lane && $0.z > first.z + 2 && $0.z < first.z + run.speed * 1.1 && solids.contains($0.kind) } ? 4 : 0
             return abs(lane - run.lane) + solidAfter
         }
         if let best = free.min(by: { freeCost($0) < freeCost($1) }) { target = best }
@@ -45,10 +47,10 @@ struct RouteAudit {
         else {
             // Full-width mixed rows expose a jump lane, a slide lane and a solid
             // lane. Read those shapes, and prefer a lane whose next hazard is not solid.
-            let choices = row.filter { $0.kind != .tram && $0.kind != .meteor }
+            let choices = row.filter { !solids.contains($0.kind) }
             func cost(_ e: TrackEntity) -> Int {
                 let airborneSlide = run.height > 0.3 && [.arch, .laserSweep].contains(e.kind) ? 3 : 0
-                let solidAfter = active.contains { $0.lane == e.lane && $0.z > e.z + 2 && $0.z < e.z + run.speed * 1.1 && [.tram, .meteor].contains($0.kind) } ? 4 : 0
+                let solidAfter = active.contains { $0.lane == e.lane && $0.z > e.z + 2 && $0.z < e.z + run.speed * 1.1 && solids.contains($0.kind) } ? 4 : 0
                 return abs(e.lane - run.lane) + airborneSlide + solidAfter
             }
             if let choice = choices.min(by: { cost($0) < cost($1) }) { target = choice.lane }

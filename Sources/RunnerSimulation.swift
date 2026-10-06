@@ -6,7 +6,7 @@ enum PowerUp: String, CaseIterable, Codable { case magnet, jetpack, sneakers, mu
 enum EntityKind: String, Codable {
     case coin, key, barrier, arch, tram, ramp, magnet, jetpack, sneakers, multiplier
     case checkpoint, buoy, gate, waveRamp, airRing, airHazard, relic
-    case gap, meteor, root, iceCrack, laserSweep, waterTraffic
+    case gap, meteor, root, iceCrack, laserSweep, waterTraffic, wall, stack
 }
 
 enum RunMode: String, CaseIterable, Codable {
@@ -268,6 +268,8 @@ struct RunnerSimulation: Codable {
         case .arch: return "LOW BEAM · SLIDE"
         case .barrier: return "CARGO LINE · JUMP"
         case .tram: return entity.targetLane != nil ? "SHIFTING CARGO · TAKE THE LANE IT LEAVES" : worldStage == .mars ? "ROVER TRANSFER · TAKE THE RAMP" : "MOVING CARGO · CHANGE LANES"
+        case .wall: return "GAP WALL · FIND THE OPENING"
+        case .stack: return "STACKED BARRIER · CHANGE LANES"
         default: return ""
         }
     }
@@ -924,6 +926,7 @@ struct RunnerSimulation: Codable {
             case .tram: collides = height < Self.tramRoofHeight - 0.35
             case .buoy: collides = height < 1.4
             case .airHazard: collides = inFlight && abs(height - entity.y) < 2.0
+            case .wall, .stack: collides = true // full height; a stack's barrier and bar leave no jump or roll line
             default: collides = false
             }
             if collides {
@@ -961,6 +964,8 @@ struct RunnerSimulation: Codable {
                     case .tram: crashReason = mode == .odyssey ? (worldStage == .mars ? "Dodge the rovers or take a ramp onto their roof." : "Choose a clear lane around the cargo. Watch its approach before crossing.") : "Dodge trams or take a ramp onto the roof."
                     case .buoy: crashReason = "Steer around the course buoys. Brake before tight turns; ramps let you jump the water hazards."
                     case .airHazard: crashReason = "Dodge the airborne drones. Follow the glowing rings through the flight route."
+                    case .wall: crashReason = "Steer to the opening in the wall. It moves one lane from your last route."
+                    case .stack: crashReason = "A barrier under a beam blocks both jumps and slides. Change lanes."
                     default: crashReason = "Give it another run."
                     }
                     break
@@ -1261,9 +1266,9 @@ struct RunnerSimulation: Codable {
             enhancements.generatedRows += 1
             let previousSafe = challenge.previousSafeLane
             let candidates = [-1, 0, 1].filter { abs($0 - previousSafe) <= 1 }
-            let safe = candidates[Int(nextRandom() % UInt64(candidates.count))]
+            var safe = candidates[Int(nextRandom() % UInt64(candidates.count))]
             challenge.previousSafeLane = safe
-            let blocked = [-1, 0, 1].filter { $0 != safe }
+            var blocked = [-1, 0, 1].filter { $0 != safe }
             // No short repeating cycle. Later tiers unlock compound choices and
             // weight them more heavily; the PRNG makes each seeded run reproducible.
             let base: [Int]
@@ -1292,6 +1297,12 @@ struct RunnerSimulation: Codable {
             let canTransfer = [.harbor, .mars, .forge].contains(worldStage)
             if pattern == 4 && !canTransfer { pattern = 2 }
             if pattern == 5 && worldStage != .forge && worldStage != .harbor { pattern = 7 }
+            // A gap wall's opening always moves one lane from the previous route.
+            if pattern == 10 && safe == previousSafe {
+                safe = previousSafe == 0 ? (nextRandom() % 2 == 0 ? -1 : 1) : 0
+                challenge.previousSafeLane = safe
+                blocked = [-1, 0, 1].filter { $0 != safe }
+            }
             var interval = journeyEncounterInterval(progress: progress, pattern: pattern)
             if inBranch && branchRoute == .safe { interval += 0.45 }
             let gap = predictedSpeed * interval
@@ -1393,6 +1404,13 @@ struct RunnerSimulation: Codable {
                     cyclePhase: (phase + 0.9).truncatingRemainder(dividingBy: TrackEntity.cycleLength))
                 add(solid, lane: blocked[1], z: z, y: 0, length: solidLength)
                 relicY = 0.7
+            case 10: // Gap wall: full-height walls in two lanes; the one opening is never the previous row's route.
+                for lane in blocked { add(.wall, lane: lane, z: z, y: 0, length: 1.0) }
+            case 11: // Stacked hazard: it looks like a jump and a slide at once, and allows neither.
+                add(jumpKind, lane: safe, z: z, y: 0, length: jumpLength)
+                add(slideKind, lane: blocked[0], z: z, y: 0, length: 1.1)
+                add(.stack, lane: blocked[1], z: z, y: 0, length: 1.0)
+                relicY = jumpHeight
             default: // Two mixed actions with an open adjacent escape on each beat.
                 add(jumpKind, lane: safe, z: z, y: 0, length: jumpLength)
                 add(solid, lane: blocked[0], z: z, y: 0, length: solidLength)
@@ -1414,9 +1432,9 @@ struct RunnerSimulation: Codable {
                 let rowHazards = entities[rowStart...].filter { Self.isObstacle($0.kind) && abs($0.z - z) < 1 }
                 let jumpLanes = rowHazards.filter { $0.kind == jumpKind }.map(\.lane)
                 let slideLanes = rowHazards.filter { $0.kind == slideKind || $0.kind == .laserSweep }.map(\.lane)
-                let solids = rowHazards.filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 }
+                let solids = rowHazards.filter { Self.isSolid($0.kind) && $0.oncomingSpeed == 0 }
                 // Landing and follow-beat solids next to the safe lane can anchor bait too (patterns 3, 6 and 7).
-                let laterSolids = entities[rowStart...].filter { [.tram, .meteor].contains($0.kind) && $0.oncomingSpeed == 0 &&
+                let laterSolids = entities[rowStart...].filter { Self.isSolid($0.kind) && $0.oncomingSpeed == 0 &&
                     $0.z > z + 1 && $0.z <= z + predictedSpeed * 1.2 && abs($0.arrivalLane - routeLane) == 1 }
                 // Standard opens each world with four teaching rows: only safe or action lines.
                 let teaching = !expert && row < 4
@@ -1809,8 +1827,10 @@ struct RunnerSimulation: Codable {
         return randomState &* 2_685_821_657_736_338_717
     }
     private static func isObstacle(_ kind: EntityKind) -> Bool {
-        [.barrier, .arch, .tram, .buoy, .airHazard, .gap, .meteor, .root, .iceCrack, .laserSweep, .waterTraffic].contains(kind)
+        [.barrier, .arch, .tram, .buoy, .airHazard, .gap, .meteor, .root, .iceCrack, .laserSweep, .waterTraffic, .wall, .stack].contains(kind)
     }
+    /// Hazards that no jump or roll clears.
+    private static func isSolid(_ kind: EntityKind) -> Bool { [.tram, .meteor, .wall, .stack].contains(kind) }
 }
 
 

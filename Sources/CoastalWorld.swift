@@ -1209,7 +1209,7 @@ final class CoastalWorld {
         case .airRing: return makeAirRing(hazard: false)
         case .airHazard: return makeAirRing(hazard: true)
         case .relic: return makeWorldRelic()
-        case .gap, .meteor, .root, .iceCrack, .laserSweep, .waterTraffic: return SCNNode()
+        case .gap, .meteor, .root, .iceCrack, .laserSweep, .waterTraffic, .wall, .stack: return SCNNode()
         }
     }
 
@@ -2719,6 +2719,23 @@ private extension CoastalWorld {
             foamMat.isDoubleSided = true; foamMat.writesToDepthBuffer = false; foam.firstMaterial = foamMat
             let wakeNode = SCNNode(geometry: foam); wakeNode.eulerAngles.x = scalar(-.pi / 2); wakeNode.position = vector(0, 0.015, -4.2)
             wakeNode.opacity = 0.65; wakeNode.castsShadow = false; root.addChildNode(wakeNode)
+        case .wall:
+            // Full-height slab: nothing passes over or under. Crossed bars read as "blocked" without colour.
+            let palette = worldPalette
+            box(2.3, 3.6, 1.0, palette.stone, at: vector(0, 1.8, 0), radius: 0, into: root)
+            box(2.4, 0.18, 1.08, palette.edge, at: vector(0, 3.62, 0), radius: 0, into: root)
+            for side in [-1.0, 1.0] {
+                let bar = glowBox(0.16, 2.6, 0.04, "FFB36B", at: vector(0, 1.8, 0.52), into: root)
+                bar.eulerAngles.z = scalar(side * 0.6)
+            }
+        case .stack:
+            // A low barrier under an overhead beam, joined by struts: one solid block, not two separate actions.
+            let palette = worldPalette
+            box(2.05, 0.96, 0.95, palette.stone, at: vector(0, 0.48, 0), radius: 0, into: root)
+            for side in [-1.0, 1.0] { box(0.22, 2.6, 0.4, palette.edge, at: vector(side * 1.06, 1.3, 0), radius: 0, into: root) }
+            box(2.3, 0.55, 0.7, palette.stone, at: vector(0, 2.0, 0), radius: 0, into: root)
+            for x in [-0.45, 0.45] { glowBox(0.07, 0.8, 0.03, "FFF0D1", at: vector(x, 1.36, 0.37), into: root) }
+            glowBox(1.75, 0.08, 0.03, "FFB369", at: vector(0, 0.9, 0.49), into: root)
         default: return nil
         }
         return root
@@ -2989,7 +3006,7 @@ private extension CoastalWorld {
         cue.name = "actionCue"
         let jump = [EntityKind.barrier, .gap, .root, .iceCrack].contains(kind)
         let slide = [EntityKind.arch, .laserSweep].contains(kind)
-        let dodge = [EntityKind.meteor, .tram, .airHazard].contains(kind)
+        let dodge = [EntityKind.meteor, .tram, .airHazard, .wall, .stack].contains(kind)
         guard jump || slide || dodge else { return }
         let backplate = box(1.25, 0.02, 0.9, "101925", at: vector(0, 0.064, -0.05), radius: 0.06, into: cue)
         backplate.name = "cueBackplate"; backplate.castsShadow = false

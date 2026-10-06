@@ -58,6 +58,8 @@ struct SkillAudit {
             && (atCollection ? o.arrivalLane : Int((Double(o.lane) + o.laneOffset()).rounded())) == coin.lane {
             guard abs(coin.z - o.z) < o.length / 2 + margin else { continue }
             switch o.kind {
+            case .wall, .stack:
+                return false // nothing reaches a coin inside a solid wall
             case .arch, .laserSweep:
                 // Only a roll at height 0 passes; it reaches coins below 2.05 m.
                 if coin.y >= 2.05 { return false }
@@ -119,8 +121,8 @@ struct SkillAudit {
     static func hazardFeature(_ e: TrackEntity) -> String? {
         if e.targetLane != nil { return "lane-changer" }
         if e.kind == .laserSweep && e.cyclePhase >= 0 { return "timed-laser" }
-        if e.kind.rawValue == "wall" { return "gap-wall" }
-        if e.kind.rawValue == "stack" { return "stacked" }
+        if e.kind == .wall { return "gap-wall" }
+        if e.kind == .stack { return "stacked" }
         if e.kind == .meteor && e.activeFrom.isFinite { return "real-meteor" }
         if (e.kind == .gap || e.kind == .iceCrack) && e.activeFrom.isFinite { return "collapsing-deck" }
         return nil
@@ -130,6 +132,8 @@ struct SkillAudit {
     static let hazardWorlds: [String: Set<WorldStage>] = [
         "lane-changer": [.harbor, .mars, .cryo],
         "timed-laser": [.orbit, .verdant, .forge],
+        "gap-wall": Set(WorldStage.allCases),
+        "stacked": Set(WorldStage.allCases),
     ]
 
     /// Live check of the G2 lead-time rules at the moment each change happens, against the runner's real speed:
