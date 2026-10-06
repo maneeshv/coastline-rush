@@ -1401,15 +1401,16 @@ struct RunnerSimulation: Codable {
             entities.filter { Self.isObstacle($0.kind) && $0.lane == lane && abs($0.z - z) < 1 }.map { $0.length / 2 }.max() ?? 0.5
         }
         // Action and risk lines only use lanes that stay clear after the hazard, so no line leads into a landing solid.
-        // Risk coins sit on both sides of the hazard, so the approach side must be clear too.
-        let open = (jumpLanes + slideLanes).filter { laneIsClear($0, from: z + halfLength($0) + 0.5, to: z + max(speed * 1.2, halfLength($0) + 10)) }
-        let openBefore = open.filter { laneIsClear($0, from: z - halfLength($0) - 9.7, to: z - halfLength($0) - 0.1) }
+        // Risk coins sit on both sides of the hazard, so the approach side must be clear too. Every stretch keeps
+        // 1.3 m past its outermost coin: a coin within 1.2 m of a collider's edge overlaps it at collection.
+        let open = (jumpLanes + slideLanes).filter { laneIsClear($0, from: z + halfLength($0) + 0.5, to: z + max(speed * 1.2, halfLength($0) + 10.3)) }
+        let openBefore = open.filter { laneIsClear($0, from: z - halfLength($0) - 10.3, to: z - halfLength($0) - 0.1) }
         // Bait stops short of its solid, and only where no other hazard covers the pre-solid, gap and resume stretches.
         func baitStretchIsClear(_ solid: TrackEntity, last: Double) -> Bool {
             let hl = solid.length / 2
-            return laneIsClear(solid.lane, from: last - 6.7, to: last + 0.7)
-                && laneIsClear(solid.lane, from: last + 0.7, to: solid.z - hl - 0.1)
-                && laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + 8.7)
+            return laneIsClear(solid.lane, from: last - 7.3, to: last + 1.3)
+                && laneIsClear(solid.lane, from: last + 1.3, to: solid.z - hl - 0.1)
+                && laneIsClear(solid.lane, from: solid.z + hl + 0.1, to: solid.z + hl + 9.3)
         }
         let baitSolid = solids.first { abs($0.lane - safe) == 1 }
         let reaction = mode == .odyssey && worldStage == .cryo ? 0.55 : 0.35
@@ -1601,8 +1602,12 @@ struct RunnerSimulation: Codable {
         guard !entities.contains(where: { $0.oncomingSpeed > 0 && $0.z + $0.length / 2 > -1 }) else {
             return false
         }
-        // An oncoming tram would sweep through a pickup placed in its lane on a recent row.
-        guard !entities.contains(where: { $0.lane == lane && $0.z > z - 20 && ($0.kind == .key || PowerUp(rawValue: $0.kind.rawValue) != nil) }) else {
+        // A tram at z closing at v (8...12) meets a static item as the runner reaches it, near z·s/(s+v).
+        // No ground coin, key or power-up may sit in that window: the tram would sweep through it.
+        let s = max(1, speed)
+        let sweep = (z * s / (s + 12) - 10)...(z * s / (s + 8) + 10)
+        guard !entities.contains(where: { $0.lane == lane && sweep.contains($0.z) &&
+            (($0.kind == .coin && $0.y < 5) || $0.kind == .key || PowerUp(rawValue: $0.kind.rawValue) != nil) }) else {
             return false
         }
         var rows: [Int: Set<Int>] = [:]

@@ -41,15 +41,18 @@ struct SkillAudit {
         if coin.y <= 0.6, !run.isRolling { run.act(.roll) }
     }
 
-    /// A coin is fair if some non-colliding posture at its position can collect it.
-    static func coinIsFair(_ coin: TrackEntity, among entities: [TrackEntity]) -> Bool {
+    /// A coin or pickup is fair if some non-colliding posture at its position can collect it.
+    /// First sight compares hazards moving with the item, with a small margin. At collection time every hazard in
+    /// the lane counts at its live position, and the window is the true collect/collide overlap (0.85 + 0.35).
+    static func coinIsFair(_ coin: TrackEntity, among entities: [TrackEntity], atCollection: Bool = false) -> Bool {
+        let margin = atCollection ? 1.2 : 0.65
         // Flight coins (jetpack trails) are only reachable in flight, where ground colliders are inert. They are fair unless a drone overlaps them.
         if coin.y >= 5 {
             return !entities.contains { $0.kind == .airHazard && $0.lane == coin.lane &&
-                abs($0.z - coin.z) < $0.length / 2 + 0.65 && abs($0.y - coin.y) < 2.0 }
+                abs($0.z - coin.z) < $0.length / 2 + margin && abs($0.y - coin.y) < 2.0 }
         }
-        for o in entities where o.lane == coin.lane && RouteAudit.hazards.contains(o.kind) && o.oncomingSpeed == coin.oncomingSpeed {
-            guard abs(coin.z - o.z) < o.length / 2 + 0.35 + 0.3 else { continue }
+        for o in entities where o.lane == coin.lane && RouteAudit.hazards.contains(o.kind) && (atCollection || o.oncomingSpeed == coin.oncomingSpeed) {
+            guard abs(coin.z - o.z) < o.length / 2 + margin else { continue }
             switch o.kind {
             case .arch, .laserSweep:
                 // Only a roll at height 0 passes; it reaches coins below 2.05 m.
@@ -71,13 +74,23 @@ struct SkillAudit {
         return true
     }
 
-    /// Records each newly generated coin once; counts it in `unfair` if it cannot be collected safely.
-    static func checkCoins(_ run: RunnerSimulation, seen: inout Set<Int>, unfair: inout Int) {
-        for coin in run.entities where coin.kind == .coin && !seen.contains(coin.id) {
-            seen.insert(coin.id)
-            if !coinIsFair(coin, among: run.entities) {
-                unfair += 1
-                if unfair <= 5 { print("UNFAIR coin id=\(coin.id) lane=\(coin.lane) z=\(coin.z) y=\(coin.y) mode=\(run.mode) world=\(run.worldStage)") }
+    static func isPickup(_ e: TrackEntity) -> Bool { e.kind == .coin || e.kind == .key || PowerUp(rawValue: e.kind.rawValue) != nil }
+
+    /// Checks each coin, key and power-up at first sight, and again every frame it is within reach (live hazard positions).
+    /// Each item counts at most once per check in `unfair`.
+    static func checkCoins(_ run: RunnerSimulation, seen: inout Set<Int>, flagged: inout Set<Int>, unfair: inout Int) {
+        func report(_ item: TrackEntity, _ check: String) {
+            unfair += 1
+            guard unfair <= 8 else { return }
+            let hazard = run.entities.filter { $0.lane == item.lane && RouteAudit.hazards.contains($0.kind) }.min { abs($0.z - item.z) < abs($1.z - item.z) }
+            print("UNFAIR \(check) \(item.kind) id=\(item.id) lane=\(item.lane) z=\(item.z) y=\(item.y) mode=\(run.mode) world=\(run.worldStage) t=\(String(format: "%.1f", run.elapsed))"
+                  + (hazard.map { " near \($0.kind) id=\($0.id) z=\($0.z) length=\($0.length) oncoming=\($0.oncomingSpeed)" } ?? ""))
+        }
+        for item in run.entities where isPickup(item) {
+            if seen.insert(item.id).inserted && !coinIsFair(item, among: run.entities) { report(item, "first-sight") }
+            if abs(item.z) < 1.2 && !flagged.contains(item.id) && !coinIsFair(item, among: run.entities, atCollection: true) {
+                flagged.insert(item.id)
+                report(item, "collection")
             }
         }
     }
@@ -103,8 +116,8 @@ struct SkillAudit {
                 for seed in 1...seeds {
                     var run = RunnerSimulation()
                     run.start(seed: UInt64(seed), boards: 0, mode: .odyssey, expert: expert)
-                    var tick = 0, seen = Set<Int>()
-                    while run.phase == .running && tick < 90_000 { followCoins(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; checkCoins(run, seen: &seen, unfair: &unfair) }
+                    var tick = 0, seen = Set<Int>(), flagged = Set<Int>()
+                    while run.phase == .running && tick < 90_000 { followCoins(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
                     if run.phase == .crashed && run.stageIndex < 2 { failedEarly += 1 }
                     worlds.append(Double(run.stageIndex) + run.stageProgress)
                 }
@@ -112,13 +125,27 @@ struct SkillAudit {
                 print(String(format: "COIN-FOLLOWER odyssey route=%@ expert=%@: failedBeforeWorld2=%d/%d (%.0f%%, target >=%d%%) meanWorlds=%.2f",
                              route.rawValue, String(expert), failedEarly, seeds, share * 100, expert ? 85 : 70, worlds.reduce(0, +) / Double(seeds)))
             }
+            // Odyssey: the hazard reader runs every world, fork and finale; every coin and pickup it passes is audited.
+            for route in [BranchRoute.safe, .risky] {
+                var cleared = 0
+                for seed in 1...seeds {
+                    var run = RunnerSimulation()
+                    run.start(seed: UInt64(seed), boards: 0, mode: .odyssey, expert: expert)
+                    var tick = 0, seen = Set<Int>(), flagged = Set<Int>()
+                    while run.phase == .running && tick < 90_000 { RouteAudit.drive(&run, route: route); run.update(dt: 1.0 / 60); tick += 1; checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+                    if run.phase == .finished { cleared += 1 }
+                    else { print("READER-FAIL odyssey seed=\(seed) route=\(route.rawValue) expert=\(expert) world=\(run.worldStage) reason=\(run.crashReason)") }
+                }
+                print("READER odyssey route=\(route.rawValue) expert=\(expert): cleared=\(cleared)/\(seeds)")
+                precondition(cleared == seeds, "Hazard reader must clear every Odyssey seed so fairness covers all worlds")
+            }
             // Endless: coin-follower survival time, capped at 300 s.
             var survival: [Double] = []
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .endless, expert: expert)
-                var seen = Set<Int>()
-                while run.phase == .running && run.elapsed < 300 { followCoins(&run, route: .safe); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, unfair: &unfair) }
+                var seen = Set<Int>(), flagged = Set<Int>()
+                while run.phase == .running && run.elapsed < 300 { followCoins(&run, route: .safe); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
                 survival.append(run.elapsed)
             }
             print(String(format: "COIN-FOLLOWER endless expert=%@: median=%.1fs (target <%ds) mean=%.1fs",
@@ -128,16 +155,23 @@ struct SkillAudit {
             for seed in 1...seeds {
                 var run = RunnerSimulation()
                 run.start(seed: UInt64(seed), boards: 0, mode: .endless, expert: expert)
-                var seen = Set<Int>()
-                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, unfair: &unfair) }
+                var seen = Set<Int>(), flagged = Set<Int>()
+                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
                 if run.phase == .running { survived += 1 }
                 else { print("READER-FAIL endless seed=\(seed) expert=\(expert) t=\(String(format: "%.1f", run.elapsed)) lane=\(run.lane) reason=\(run.crashReason)") }
             }
             print("READER endless expert=\(expert): survived=\(survived)/\(seeds) (300s)")
+            // Harbor Sprint shares the Endless generator; audit its coins and pickups too.
+            for seed in 1...seeds {
+                var run = RunnerSimulation()
+                run.start(seed: UInt64(seed), boards: 0, mode: .harborSprint, expert: expert)
+                var seen = Set<Int>(), flagged = Set<Int>()
+                while run.phase == .running && run.elapsed < 300 { RouteAudit.drive(&run); run.update(dt: 1.0 / 60); checkCoins(run, seen: &seen, flagged: &flagged, unfair: &unfair) }
+            }
             precondition(survived == seeds, "Hazard reader must survive every Endless seed")
         }
-        print("FAIRNESS unfairCoins=\(unfair)")
-        precondition(unfair == 0, "Every coin must be collectible without a forced collision")
+        print("FAIRNESS unfairCoins=\(unfair) (coins, keys and power-ups; first sight and collection time)")
+        precondition(unfair == 0, "Every coin and pickup must be collectible without a forced collision")
         // Same seed, same track: the coin lines must draw from the seeded generator only.
         func trackAfterReaderRun() -> [TrackEntity] {
             var run = RunnerSimulation()
