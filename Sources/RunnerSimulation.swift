@@ -261,10 +261,10 @@ struct RunnerSimulation: Codable {
     var encounterText: String {
         guard let entity = upcomingEncounter else { return "" }
         switch entity.kind {
-        case .gap: return "BROKEN ORBITAL DECK · JUMP"
+        case .gap: return entity.activeFrom.isFinite ? "COLLAPSING DECK · JUMP THE CRACKS" : "BROKEN ORBITAL DECK · JUMP"
         case .meteor: return "METEOR IMPACT · CHANGE LANES"
         case .root: return "RISING ROOTS · JUMP"
-        case .iceCrack: return "FRACTURING ICE · JUMP"
+        case .iceCrack: return entity.activeFrom.isFinite ? "COLLAPSING ICE · JUMP THE CRACKS" : "FRACTURING ICE · JUMP"
         case .laserSweep: return entity.cyclePhase >= 0 ? "TIMED LASER · SLIDE OR TIME IT" : worldStage == .forge ? "SENTINEL SWEEP · SLIDE" : "VINE LASERS · SLIDE"
         case .waterTraffic: return "CROSSING TRAFFIC · CARVE OR BRAKE"
         case .arch: return "LOW BEAM · SLIDE"
@@ -1341,8 +1341,11 @@ struct RunnerSimulation: Codable {
                 add(slideKind, lane: blocked[0], z: z, y: 0, length: 1.1)
                 add(solid, lane: blocked[1], z: z, y: 0, length: solidLength)
                 relicY = jumpHeight
-            case 3: // A lane weave gains a second beat as the stage intensifies.
+            case 3, 12: // A lane weave gains a second beat as the stage intensifies.
                 for lane in blocked { add(solid, lane: lane, z: z, y: 0, length: solidLength) }
+                // Pattern 12 (Mars): one rock landed before first sight; beside it a ring marks a late impact,
+                // so the lane that looks open is not.
+                if pattern == 12 { entities[rowStart].activeFrom = z + 40 }
                 if tier != .warmup {
                     let choices = [-1, 0, 1].filter { $0 != safe && abs($0 - safe) == 1 }
                     let exit = choices[Int(nextRandom() % UInt64(choices.count))]
@@ -1415,6 +1418,16 @@ struct RunnerSimulation: Codable {
                 add(slideKind, lane: blocked[0], z: z, y: 0, length: 1.1)
                 add(.stack, lane: blocked[1], z: z, y: 0, length: 1.0)
                 relicY = jumpHeight
+            case 13: // Collapsing deck: every lane cracks, then opens late; at intense tiers the landing has solids too.
+                let opens = predictedSpeed * 0.5 + jumpLength / 2 + 0.35
+                for lane in -1...1 { add(jumpKind, lane: lane, z: z, y: 0, length: jumpLength, activeFrom: opens) }
+                relicY = jumpHeight
+                if tier.rawValue >= JourneyDifficultyTier.intense.rawValue {
+                    let landingOffset = predictedSpeed * (worldStage == .orbit ? 0.88 : 0.48)
+                    if at + landingOffset + solidLength / 2 < localLimit {
+                        for lane in blocked { add(solid, lane: lane, z: z + landingOffset, y: 0, length: solidLength) }
+                    }
+                }
             default: // Two mixed actions with an open adjacent escape on each beat.
                 add(jumpKind, lane: safe, z: z, y: 0, length: jumpLength)
                 add(solid, lane: blocked[0], z: z, y: 0, length: solidLength)
@@ -1428,6 +1441,10 @@ struct RunnerSimulation: Codable {
                     add(solid, lane: blocked[1], z: followZ, y: 0, length: solidLength)
                     add(jumpKind, lane: blocked[0], z: followZ, y: 0, length: jumpLength)
                 }
+            }
+            // Meteors land late: the ring warns, the rock falls, and only then does the collider exist (>= 1.0 s ahead).
+            for index in rowStart..<entities.count where entities[index].kind == .meteor && !entities[index].activeFrom.isFinite {
+                entities[index].activeFrom = predictedSpeed * 1.0 + entities[index].length / 2 + 0.35
             }
             if pattern == 4 {
                 // The roof coins ask for a ramp leap: an action line.
@@ -1502,7 +1519,7 @@ struct RunnerSimulation: Codable {
         let floor = worldStage == .orbit ? (expert ? 1.95 : 2.13) : worldStage == .cryo ? (expert ? 1.50 : 1.65) : (expert ? 1.25 : 1.40)
         var interval = max(floor, pressure)
         if pattern == 4 { interval = max(interval, (worldStage == .mars ? 1.75 : 1.65) + (expert ? 0 : 0.12)) }
-        if [3, 8].contains(pattern) { interval = max(interval, (worldStage == .cryo ? 1.60 : 1.30) + (expert ? 0 : 0.14)) }
+        if [3, 8, 12].contains(pattern) { interval = max(interval, (worldStage == .cryo ? 1.60 : 1.30) + (expert ? 0 : 0.14)) }
         return interval
     }
 

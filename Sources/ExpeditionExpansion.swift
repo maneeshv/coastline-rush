@@ -119,14 +119,14 @@ extension WorldStage {
         case .forge: return [5, 1, 6, 3, 5, 0, 1]
         }
     }
-    /// G2 hazard patterns this world adds to its pressure-and-later pools (8 lane-changer, 9 timed laser, 10 gap wall, 11 stacked).
+    /// G2 hazard patterns this world adds to its pressure-and-later pools (8 lane-changer, 9 timed laser, 10 gap wall, 11 stacked, 12 meteor strike, 13 collapsing deck).
     var hazardPatterns: [Int] {
         switch self {
         case .harbor: return [8, 10, 11]
-        case .orbit: return [9, 10, 11]
-        case .mars: return [8, 10, 11]
+        case .orbit: return [9, 10, 11, 13]
+        case .mars: return [8, 10, 11, 12]
         case .verdant: return [9, 10, 11]
-        case .cryo: return [8, 10, 11]
+        case .cryo: return [8, 10, 11, 13]
         case .forge: return [9, 10, 11]
         }
     }

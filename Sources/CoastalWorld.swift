@@ -1135,18 +1135,25 @@ final class CoastalWorld {
                 }
             case .ramp:
                 node.scale = vector(1, 1, entity.length / 6)
-            case .gap:
-                node.scale.z = scalar(entity.length / 7)
+            case .gap, .iceCrack:
+                node.scale.z = scalar(entity.length / (entity.kind == .gap ? 7 : 3.2))
+                node.childNode(withName: "crackWarning", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.7 + sin(time * 4) * 0.15
+                // Before collapse the deck is intact under a zigzag crack; after it, the void shows. Same z as the collider.
+                let intact = !entity.isActive
+                node.childNode(withName: "deckPlate", recursively: false)?.isHidden = !intact
+                if let crack = node.childNode(withName: "crackDecal", recursively: false) {
+                    crack.isHidden = !intact
+                    crack.scale.x = scalar(highContrastCues ? 1.6 : 1)
+                }
             case .meteor:
-                let descent = max(0, min(1, (entity.z - 18) / 36))
+                // The rock lands exactly where its collider becomes active; legacy meteors (no activeFrom) land 18 m out.
+                let impact = entity.activeFrom.isFinite ? entity.activeFrom : 18
+                let descent = max(0, min(1, (entity.z - impact) / 36))
                 node.childNode(withName: "impactRock", recursively: false)?.position.y = scalar(1.05 + descent * 16)
                 node.childNode(withName: "impactRock", recursively: false)?.eulerAngles = vector(time * 0.55, time * 0.35, 0.24)
                 node.childNode(withName: "target", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.65 + sin(time * 4) * 0.15
             case .root:
                 node.childNode(withName: "rootCrown", recursively: false)?.scale.y = scalar(0.90 + sin(time * 2 + Double(entity.id)) * 0.10)
-            case .iceCrack:
-                node.scale.z = scalar(entity.length / 3.2)
-                node.childNode(withName: "crackWarning", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.7 + sin(time * 4) * 0.15
             case .laserSweep:
                 // The collider's state drives the look, from simulation time: solid beam = on, dashes = off.
                 let on = entity.isOn(at: simulation.elapsed)
@@ -2643,6 +2650,16 @@ private extension CoastalWorld {
                     arrow.eulerAngles.y = scalar(.pi / 4)
                 }
             }
+            // Collapsing deck: an intact plate under a zigzag crack until the collider opens. Radius-0 boxes.
+            let plate = box(2.56, 0.05, 7, worldPalette.floor, at: vector(0, 0.03, 0), radius: 0, into: root)
+            plate.name = "deckPlate"; plate.isHidden = true
+            plate.geometry?.firstMaterial = deckMaterial(for: renderedStage)
+            let crack = SCNNode(); crack.name = "crackDecal"; crack.isHidden = true; root.addChildNode(crack)
+            for i in 0..<6 {
+                let stroke = glowBox(0.08, 0.02, 1.3, "FFD08A", at: vector(i % 2 == 0 ? -0.2 : 0.2, 0.065, -3 + Double(i) * 1.2), into: crack)
+                stroke.eulerAngles.y = scalar(i % 2 == 0 ? 0.5 : -0.5)
+                stroke.castsShadow = false
+            }
         case .meteor:
             let target = SCNNode(); target.name = "target"; root.addChildNode(target)
             for i in 0..<3 { ring(0.7 + Double(i) * 0.25, tube: 0.035, tint: "FF7547", at: vector(0, 0.03 + Double(i) * 0.005, 0), into: target, glow: true) }
@@ -2683,6 +2700,15 @@ private extension CoastalWorld {
             }
             let warning = SCNNode(); warning.name = "crackWarning"; root.addChildNode(warning)
             for z in [-1.65, 1.65] { glowBox(2.3, 0.025, 0.07, "B5EFFF", at: vector(0, 0.12, z), into: warning) }
+            let plate = box(2.5, 0.05, 3.2, "A6D9E9", at: vector(0, 0.03, 0), radius: 0, into: root)
+            plate.name = "deckPlate"; plate.isHidden = true
+            plate.geometry?.firstMaterial = iceMaterial()
+            let crack = SCNNode(); crack.name = "crackDecal"; crack.isHidden = true; root.addChildNode(crack)
+            for i in 0..<3 {
+                let stroke = glowBox(0.08, 0.02, 1.1, "E6FBFF", at: vector(i % 2 == 0 ? -0.2 : 0.2, 0.065, -1.0 + Double(i) * 1.0), into: crack)
+                stroke.eulerAngles.y = scalar(i % 2 == 0 ? 0.5 : -0.5)
+                stroke.castsShadow = false
+            }
         case .laserSweep:
             for side in [-1.0, 1.0] {
                 cylinder(0.20, 2.3, renderedStage == .verdant ? "456B55" : "635463", at: vector(side * 1.10, 1.14, 0), into: root)

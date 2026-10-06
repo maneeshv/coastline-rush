@@ -134,6 +134,8 @@ struct SkillAudit {
         "timed-laser": [.orbit, .verdant, .forge],
         "gap-wall": Set(WorldStage.allCases),
         "stacked": Set(WorldStage.allCases),
+        "real-meteor": [.mars],
+        "collapsing-deck": [.orbit, .cryo],
     ]
 
     /// Live check of the G2 lead-time rules at the moment each change happens, against the runner's real speed:
