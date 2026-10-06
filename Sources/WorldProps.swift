@@ -177,11 +177,18 @@ extension CoastalWorld {
             place(cone, at: top + direction * (length / 2), euler: SIMD3(0, 0, lean))
             top += direction * length
         }
-        // Buttress roots splay out and down from the base.
+        // Buttress roots: wide at the trunk, tapering outward and down to the ground (35° below horizontal).
+        let drop = 35.0 * .pi / 180
         for i in 0..<4 {
             let angle = Double(i) * .pi / 2 + 0.4
-            let root = SCNCone(topRadius: 0.05, bottomRadius: 0.32, height: 2.2); root.radialSegmentCount = 8; root.firstMaterial = bark
-            place(root, at: SIMD3(cos(angle) * 0.9, 0.45, sin(angle) * 0.9), euler: SIMD3(sin(angle) * 1.95, 0, -cos(angle) * 1.95))
+            let axis = SIMD3(cos(angle) * cos(drop), -sin(drop), sin(angle) * cos(drop))
+            let start = SIMD3(cos(angle) * 0.45, 1.05, sin(angle) * 0.45)
+            let cone = SCNCone(topRadius: 0.05, bottomRadius: 0.32, height: 2.2); cone.radialSegmentCount = 8; cone.firstMaterial = bark
+            let root = SCNNode(geometry: cone)
+            let center = start + axis * 1.1
+            root.position = SCNVector3(CoastScalar(center.x), CoastScalar(center.y), CoastScalar(center.z))
+            root.simdOrientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: SIMD3<Float>(Float(axis.x), Float(axis.y), Float(axis.z)))
+            tree.addChildNode(root)
         }
         // Three caps following the curve, each with a glowing gill ring and hanging seed pods.
         let gillGlow = material("7FE4BE", emissive: true), podGlow = material("8BF0CF", emissive: true), stemTint = material("2E5A50")

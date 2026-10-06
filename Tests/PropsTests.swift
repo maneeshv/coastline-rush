@@ -79,7 +79,8 @@ import SceneKit
             let b = box(tree)
             precondition(b.hi.y > 9 && b.hi.y < 11.5, "tree height \(b.hi.y)")
             let towardTrack = outward > 0 ? -b.lo.x : b.hi.x
-            precondition(towardTrack <= 4.9, "tree reaches \(towardTrack) m toward the track (old limit 4.9)")
+            precondition(towardTrack <= 4.0, "tree reaches \(towardTrack) m toward the track (limit 4.0)")
+            precondition(outward > 0 ? b.hi.x > -b.lo.x : -b.lo.x > b.hi.x, "tree must bend away from the track (outward \(outward))")
             precondition(abs(b.lo.z) <= 3.6 && b.hi.z <= 3.6, "tree depth out of bounds: \(b)")
         }
         // Houses: same footprint; variants 1 and 2 (mod 3) gain a gable roof or a penthouse floor.
