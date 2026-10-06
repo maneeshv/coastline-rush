@@ -262,17 +262,33 @@ import SceneKit
             for _ in 0..<80 { s = RunnerPose.step(s, target: 1, dt: 0.05, stiffness: stiffness, damping: damping); peak = max(peak, abs(s.value)) }
             precondition(abs(s.value - 1) < 0.02 && peak < 1.5, "spring \(stiffness)/\(damping) at dt 0.05 must settle (value \(s.value), peak \(peak))")
         }
-        let slow = Drive(resources, reduced: false)
+        // Roll finishes cleanly at any frame step, and when a jump cancels it: nothing dips below the deck after the
+        // roll ends, the pitch is back near upright within a few frames, and no spin is left over.
         var slowPeak = 0.0
-        for frame in 0..<160 {
-            if frame == 40 { slow.sim.act(.jump) }
-            if frame == 100 { slow.sim.act(.roll) }
-            slow.step(0.05)
-            for node in [slow.pack, slow.scarf] {
-                let x = Double(node.eulerAngles.x)
-                precondition(x.isFinite && abs(x) < 1.2, "spring node unstable at dt 0.05 (\(x)) frame \(frame)")
-                slowPeak = max(slowPeak, abs(x))
+        for (dt, cancel) in [(1.0 / 60, false), (1.0 / 30, false), (0.05, false), (1.0 / 60, true), (1.0 / 30, true), (0.05, true)] {
+            let d = Drive(resources, reduced: false)
+            var rolled = false, ended = -1, low = Double.infinity, runLow = Double.infinity, pitchAfter = 0.0
+            for frame in 0..<400 {
+                if frame == 20 { d.sim.act(.roll) }
+                if cancel && frame == 20 + Int(0.3 / dt) { d.sim.act(.jump) }
+                d.step(dt)
+                for node in [d.pack, d.scarf] {
+                    let x = Double(node.eulerAngles.x)
+                    precondition(x.isFinite && abs(x) < 1.2, "spring node unstable at dt \(dt) (\(x)) frame \(frame)")
+                    slowPeak = max(slowPeak, abs(x))
+                }
+                if d.sim.isRolling { rolled = true }
+                else if rolled && ended < 0 { ended = frame }
+                guard ended >= 0 else { continue }
+                let floor = points(under: d.player, in: d.player).map(\.y).min()!
+                if Double(frame - ended) * dt < 0.5 { low = min(low, floor) } else { runLow = min(runLow, floor) }
+                if frame - ended >= 10 { pitchAfter = max(pitchAfter, abs(Double(d.body.eulerAngles.x))) }
+                precondition(frame - ended < 10 || d.rollSpin == 0, "spin left over \(frame - ended) frames after the roll (dt \(dt))")
             }
+            precondition(rolled && ended >= 0, "roll never ran (dt \(dt), cancel \(cancel))")
+            // The run cycle's own dip (runLow, measured once the roll is long over) is the floor; the roll must not add to it.
+            precondition(low >= min(-0.05, runLow) - 0.02, "runner sinks into the deck after the roll (lowest \(low), running \(runLow), dt \(dt), cancel \(cancel))")
+            precondition(pitchAfter < 0.25, "runner not upright after the roll (pitch \(pitchAfter), dt \(dt), cancel \(cancel))")
         }
         // Reduced Motion halves hip sway, twist and tilt, drops the bob, keeps the squash gentle and does not spin the roll.
         let calm = Drive(resources, reduced: true), full = Drive(resources, reduced: false)
@@ -309,7 +325,7 @@ import SceneKit
         precondition(calmSquash > 0.915 && calmSquash < 0.99, "Reduced Motion squash must be half (\(calmSquash))")
         precondition(calmMaxSpin == 0, "Reduced Motion roll must not spin (\(calmMaxSpin))")
         precondition(calmLow >= -0.05 && calmHigh <= 1.30, "Reduced Motion roll leaves the roll bounds (\(calmLow)…\(calmHigh))")
-        print(String(format: "reduced motion: sway %.3f/%.3f twist %.3f/%.3f squash %.2f/%.2f roll y %.2f…%.2f; dt 0.05 peak %.2f",
+        print(String(format: "reduced motion: sway %.3f/%.3f twist %.3f/%.3f squash %.2f/%.2f roll y %.2f…%.2f; roll finish at dt 60/30/20 fps, cancelled or not: ok, spring peak %.2f",
                      calmSway, fullSway, calmTwist, fullTwist, calmSquash, fullSquash, calmLow, calmHigh, slowPeak))
         print("RunnerTests passed")
     }

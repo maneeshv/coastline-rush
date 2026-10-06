@@ -261,12 +261,18 @@ extension CoastalWorld {
         let lift = waterMode ? RunnerPose.rideDrop : bob - crouch * 0.14
         let squash = RunnerPose.volumeScale(1 + (RunnerPose.squash(landingAge: landingAge, takeoffAge: takeoffAge) - 1) * gentle)
         let ball = 1 + (RunnerPose.tuckScale - 1) * tuck
-        rollSpin = RunnerPose.advanceSpin(rollSpin, rolling: tuck > 0.5 && !reducedMotion, dt: dt)
+        // The spin only turns the body while it is tucked (the pitch below is weighted by `tuck`), and any remainder is
+        // dropped once the tuck has released, so a long frame or a cancelled roll can never pitch the upright runner.
+        rollSpin = tuck < 0.05 ? 0 : RunnerPose.advanceSpin(rollSpin, rolling: tuck > 0.5 && !reducedMotion, dt: dt)
         // The tuck spins about the ball's centre (body-space y), which rests tuckRadius above the deck. SceneKit's
         // `pivot` offsets after rotating, so the centre is compensated in `position`. With tuck 0 the centre is the soles.
-        let centre = tuck * RunnerPose.tuckCentre * squash.y * ball
-        let pitch = -lean * (1 - tuck) - rollSpin
-        body.position = vector(sway, lift + (RunnerPose.tuckRadius - lift) * tuck - centre * cos(pitch),
+        // The body sinks to the ball and the pitch only applies as the limbs are mostly folded (`fold`, a smoothstep of `tuck` that is 0 below 0.55 and 1 from 0.95),
+        // so a half-unfurled runner during the blend never dips below the deck.
+        let foldT = min(1, max(0, (tuck - 0.55) / 0.40))
+        let fold = foldT * foldT * (3 - 2 * foldT)
+        let centre = fold * RunnerPose.tuckCentre * squash.y * ball
+        let pitch = -lean * (1 - fold) - rollSpin * fold
+        body.position = vector(sway, lift + (RunnerPose.tuckRadius - lift) * fold - centre * cos(pitch),
                                (waterMode ? RunnerPose.rideShift : 0) - centre * sin(pitch))
         body.eulerAngles = vector(pitch, yaw, tilt - bank * (waterMode ? 0.22 : 0.20))
         body.scale = vector(squash.x * ball, squash.y * ball, squash.z * ball)
