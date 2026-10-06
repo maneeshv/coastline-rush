@@ -184,6 +184,14 @@ final class CoastalWorld {
             let ghost = player.clone() // shares the player's flat (detail-free) materials
             ghost.name = "personalGhost"
             ghost.opacity = 0.24
+            // The clone froze the runner's clone-time pose (mid-roll, mid-air, a boot on the deck). Return the pose root and the
+            // joints the per-frame sync below does not drive to the standing rest pose; the sync keeps swinging the four limbs.
+            ghost.childNode(withName: "runnerBody", recursively: false)?.transform = SCNMatrix4Identity
+            for (name, x) in [("runnerShin", RunnerPose.rest.shin), ("runnerForearm", RunnerPose.rest.forearm), ("runnerFoot", 0.0),
+                              ("runnerHead", 0), ("runnerPack", 0), ("runnerScarf", -0.6)] {
+                ghost.childNodes { node, _ in node.name == name }.forEach { $0.eulerAngles = vector(x, 0, 0) }
+            }
+            for name in ["runnerJetpack", "runnerBoard"] { ghost.childNode(withName: name, recursively: true)?.isHidden = true }
             ghost.enumerateChildNodes { node, _ in node.castsShadow = false }
             scene.rootNode.addChildNode(ghost)
             ghostCourier = ghost
@@ -410,7 +418,7 @@ final class CoastalWorld {
             speck.castsShadow = false; landingSparks.append(speck)
         }
         for i in 0..<3 {
-            let orbit = ring(0.8 + Double(i) * 0.10, tube: 0.017, tint: "8CF3ED", at: vector(0, 1.15, 0), into: abilityAura, glow: true)
+            let orbit = ring(1.05 + Double(i) * 0.10, tube: 0.017, tint: "8CF3ED", at: vector(0, 1.30, 0), into: abilityAura, glow: true)
             orbit.eulerAngles = vector(Double(i) * .pi / 3, 0, Double(i) * .pi / 3)
             orbit.castsShadow = false
         }

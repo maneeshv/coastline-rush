@@ -359,6 +359,72 @@ import SceneKit
         precondition(calmLow >= -0.05 && calmHigh <= 1.30, "Reduced Motion roll leaves the roll bounds (\(calmLow)…\(calmHigh))")
         print(String(format: "reduced motion: sway %.3f/%.3f twist %.3f/%.3f squash %.2f/%.2f roll y %.2f…%.2f; roll finish at dt 60/30/20 fps, cancelled or not: ok, spring peak %.2f",
                      calmSway, fullSway, calmTwist, fullTwist, calmSquash, fullSquash, calmLow, calmHigh, slowPeak))
+        // Jet ski: the rider crouches on the craft, feet on the footrests, hands at the bars.
+        let rider = CoastalWorld(assetsURL: resources)
+        let riderPlayer: SCNNode = field(rider, "player"), craft: SCNNode = field(rider, "ski")
+        let riderForearms: [SCNNode] = field(rider, "forearms")
+        var ride = RunnerSimulation()
+        ride.start(seed: 3, boards: 0, mode: .jetSki)
+        var rideClock = 0.0
+        for _ in 0..<120 {
+            ride.replaceTrackForTesting([], generate: false)
+            ride.update(dt: 1.0 / 60); rideClock += 1.0 / 60
+            rider.update(simulation: ride, character: "milo", board: "tideline", time: rideClock)
+        }
+        precondition(!craft.isHidden, "jet ski hidden in jet-ski mode")
+        func onCraft(_ x: Double, _ y: Double, _ z: Double) -> SIMD3<Double> {
+            let p = craft.convertPosition(SCNVector3(x, y, z), to: riderPlayer)
+            return SIMD3(Double(p.x), Double(p.y), Double(p.z))
+        }
+        // Craft geometry (makeJetSki): footrest top y 0.285, seat top y 0.52 spanning z −0.10…1.25, handlebar at (y 1.07, z −0.58).
+        let footrest = onCraft(0, 0.285, 0).y, seat = onCraft(0, 0.52, 0).y
+        let lowest = points(under: riderPlayer, in: riderPlayer, except: craft).map(\.y).min()!
+        precondition(lowest >= footrest - 0.06, "rider sinks through the hull (lowest \(lowest), footrest \(footrest))")
+        let seatHip = riderPlayer.childNode(withName: "leftLeg", recursively: true)!.convertPosition(SCNVector3Zero, to: riderPlayer)
+        precondition(Double(seatHip.y) >= seat + 0.05 && Double(seatHip.y) <= seat + 0.55, "hips must ride over the seat (hip \(seatHip.y), seat \(seat))")
+        precondition(Double(seatHip.z) >= onCraft(0, 0.52, -0.10).z && Double(seatHip.z) <= onCraft(0, 0.52, 1.25).z, "hips must be over the seat (z \(seatHip.z))")
+        let bar = onCraft(0, 1.07, -0.58)
+        for forearm in riderForearms {
+            let hand = forearm.convertPosition(SCNVector3(0, -0.38, 0), to: riderPlayer)
+            let reach = hypot(Double(hand.y) - bar.y, Double(hand.z) - bar.z)
+            precondition(reach <= 0.25, "hand \(reach) m from the handlebar")
+        }
+        // Ghost: cloned mid-roll it still stands upright, and it draws no more than the runner.
+        let haunted = CoastalWorld(assetsURL: resources)
+        var chase = RunnerSimulation()
+        chase.start(seed: 3, boards: 0, mode: .odyssey, startStage: 0)
+        var chaseClock = 0.0
+        for frame in 0..<80 {
+            if frame == 60 { chase.act(.roll) }
+            chase.replaceTrackForTesting([], generate: false)
+            chase.update(dt: 1.0 / 60); chaseClock += 1.0 / 60
+            haunted.update(simulation: chase, character: "milo", board: "tideline", time: chaseClock)
+        }
+        haunted.updateGhost(sample: GhostSample(time: chaseClock, distance: chase.distance + 5, stageIndex: 0, stageDistance: 5, x: 0, y: 0, roll: false))
+        let ghost = haunted.scene.rootNode.childNode(withName: "personalGhost", recursively: false)!
+        let ghostBody = ghost.childNode(withName: "runnerBody", recursively: false)!
+        precondition(SCNMatrix4EqualToMatrix4(ghostBody.transform, SCNMatrix4Identity), "ghost must reset the cloned pose root to upright")
+        let hauntedPlayer: SCNNode = field(haunted, "player")
+        precondition(visibleElements(ghost) <= visibleElements(hauntedPlayer) && visibleElements(ghost) <= 119, "ghost draws more than the runner")
+        // The clone also froze the knees, elbows, feet and head mid-roll: they return to the standing rest pose, and the ghost stays under the old ceiling.
+        for name in ["runnerShin", "runnerForearm", "runnerFoot", "runnerHead"] {
+            let found = ghost.childNodes(passingTest: { n, _ in n.name == name })
+            precondition(!found.isEmpty, "ghost has no \(name)")
+            for node in found {
+                let e = [Double(node.eulerAngles.x), Double(node.eulerAngles.y), Double(node.eulerAngles.z)]
+                precondition(abs(e[0]) < 0.4 && abs(e[1]) < 1e-6 && abs(e[2]) < 1e-6, "ghost \(name) keeps its mid-roll pose \(e)")
+            }
+        }
+        let ghostY = points(under: ghost, in: ghost).map(\.y)
+        precondition(ghostY.min()! >= -0.05 && ghostY.max()! <= 2.65, "ghost leaves the standing bounds (\(ghostY.min()!)…\(ghostY.max()!))")
+        // The ability aura encloses the 2.56 m figure's torso: centred about mid-height, wider than the shoulders and hips.
+        let aura: SCNNode = field(rider, "abilityAura")
+        let auraMid = aura.childNodes.map { Double($0.position.y) }.reduce(0, +) / Double(aura.childNodes.count)
+        let auraRadii = aura.childNodes.map { Double(($0.geometry as! SCNTorus).ringRadius) }
+        let auraReach = auraRadii.max()!
+        precondition(auraMid >= 1.29 && auraMid <= 1.55 && auraRadii.min()! >= 1.04 && auraReach <= 1.25 + 1e-6, "aura mis-sized for the figure (mid \(auraMid), radii \(auraRadii))")
+        print(String(format: "jet ski rider lowest %.2f (footrest %.2f), ghost y %.2f…%.2f, aura mid %.2f reach %.2f",
+                     lowest, footrest, ghostY.min()!, ghostY.max()!, auraMid, auraReach))
         print("RunnerTests passed")
     }
 }

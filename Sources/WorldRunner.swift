@@ -74,6 +74,10 @@ extension CoastalWorld {
     func makePlayer() {
         leftLeg.name = "leftLeg"; rightLeg.name = "rightLeg"
         leftArm.name = "leftArm"; rightArm.name = "rightArm"
+        body.name = "runnerBody"   // updateGhost resets the cloned pose root by name
+        // updateGhost also returns these to their rest pose by name (its clone freezes whatever the runner was doing).
+        headRig.name = "runnerHead"; pack.name = "runnerPack"; scarf.name = "runnerScarf"
+        jetpackNode.name = "runnerJetpack"; boardNode.name = "runnerBoard"
         scene.rootNode.addChildNode(player)
         player.addChildNode(body)
         let shirt = material("FF643E", unique: true)
@@ -163,6 +167,7 @@ extension CoastalWorld {
                 shell([(-0.305, 0.081, 0.095), (-0.297, 0.081, 0.095)], rim),
                 shell([(-0.20, 0.035, 0.01), (-0.17, 0.035, 0.01)], material("9ADBDC", emissive: true), at: SIMD3(0, 0, 0.075)),
             ])
+            elbow.name = "runnerForearm"
             arm.addChildNode(elbow); forearms.append(elbow)
             body.addChildNode(arm)
         }
@@ -199,6 +204,7 @@ extension CoastalWorld {
                 shell(lace, tread, at: SIMD3(0, 0.09, -0.167)),
                 shell([(-0.04, 0.06, 0.01), (-0.02, 0.06, 0.01)], material("A0ECEB", emissive: true), at: SIMD3(0, 0, 0.15)),
             ])
+            ankle.name = "runnerFoot"; shin.name = "runnerShin"
             shin.addChildNode(ankle); feet.append(ankle)
             leg.addChildNode(shin); shins.append(shin)
             body.addChildNode(leg)
@@ -252,7 +258,7 @@ extension CoastalWorld {
             leg.eulerAngles = vector(j.thigh, 0, side * (waterMode ? RunnerPose.rideSplay : surfing ? 0.12 : 0.02))
             shins[i].eulerAngles.x = scalar(j.shin)
             feet[i].eulerAngles.x = scalar(j.foot)
-            arm.eulerAngles = vector(j.arm - (flying ? 0.7 : 0), 0, side * (waterMode ? 0.18 : surfing ? 0.78 : 0.10 + air * 0.25 - tuck * 0.15))
+            arm.eulerAngles = vector(j.arm - (flying ? 0.7 : 0), 0, side * (waterMode ? 0.06 : surfing ? 0.78 : 0.10 + air * 0.25 - tuck * 0.15))
             forearms[i].eulerAngles.x = scalar(j.forearm)
         }
         let bob = reducedMotion ? 0 : torso.bob * amount

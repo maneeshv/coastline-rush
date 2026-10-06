@@ -35,8 +35,8 @@ enum RunnerPose {
     /// Roll tuck: knees to chest, hands on the shins.
     static let tuck = Limbs(thigh: 2.45, shin: -2.55, foot: 0.60, arm: 0.55, forearm: 0.90)
     /// Jet-ski rider: limbs, forward lean (rad), body drop and forward shift (m), knee splay (rad).
-    static let ride = Limbs(thigh: 0.80, shin: -1.20, foot: 0.28, arm: 1.00, forearm: 0.22)
-    static let rideLean = 0.38, rideDrop = -0.32, rideShift = 0.0, rideSplay = 0.02
+    static let ride = Limbs(thigh: 1.45, shin: -2.25, foot: 0.90, arm: 0.30, forearm: 1.35)
+    static let rideLean = 0.30, rideDrop = -0.60, rideShift = 0.52, rideSplay = 0.30
 
     /// The body's vertical scale: landing squash (0.32 s, down to 0.84) and takeoff stretch (0.12 s, up to 1.10).
     static func squash(landingAge: Double, takeoffAge: Double) -> Double {

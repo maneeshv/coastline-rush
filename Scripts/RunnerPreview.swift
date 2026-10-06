@@ -102,6 +102,12 @@ import SceneKit
         precondition(run.height <= 0, "jump did not land within 300 frames")
         step(9); try shoot(land, "landing", time: time, out: out)                        // ~0.15 s into the squash
         step(40); run.act(.roll); step(14); try shoot(land, "roll", time: time, out: out)
+        // Ghost close-up: cloned right now, mid-roll, so it shows the clone-time reset (upright, rest joints), alongside the live runner.
+        land.world.updateGhost(sample: GhostSample(time: time, distance: run.distance + 2.5, stageIndex: 0, stageDistance: 2.5, x: 0.45, y: 0, roll: false))
+        let ghost = land.world.scene.rootNode.childNode(withName: "personalGhost", recursively: false)!
+        print(counts(ghost).replacingOccurrences(of: "runner", with: "ghost"))
+        try shoot((land.world, ghost, land.close), "ghost", time: time, out: out)
+        land.world.updateGhost(sample: nil)
         step(60); try shoot(land, "milo", time: time, out: out)
         step(60, character: "sana"); try shoot(land, "sana", time: time, out: out)
         step(60, character: "rio"); try shoot(land, "rio", time: time, out: out)
