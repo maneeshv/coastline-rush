@@ -80,7 +80,7 @@ extension CoastalWorld {
         ambientFX.particleSizeVariation = CGFloat(a.sizeVariation)
         ambientFX.warmupDuration = CGFloat(a.life)   // the first render (offscreen snapshots) starts fully populated
         ambientFX.emitterShape = SCNBox(width: 22, height: CGFloat(a.high - a.low), length: 56, chamferRadius: 0)
-        for puff in footDust.compactMap({ $0.particleSystems?.first }) { puff.particleColor = color(stage.deckDust, alpha: 0.75) }
+        for puff in footDust.compactMap({ $0.particleSystems?.first }) { puff.particleColor = color(stage.deckDust, alpha: 0.5) }
         ambientFX.reset()
     }
 
@@ -139,7 +139,7 @@ extension CoastalWorld {
         // Footstep dust: one emitter per foot, open only while that foot is planted. The puffs drift up and are left behind.
         for _ in 0..<2 {
             let puff = SCNParticleSystem()
-            dress(puff, life: 0.45, size: 0.55, tint: "7E8A94", opacity: 0.75, additive: false)
+            dress(puff, life: 0.45, size: 0.4, tint: "7E8A94", opacity: 0.5, additive: false)
             puff.emittingDirection = vector(0, 0, 1)
             puff.spreadingAngle = 6
             puff.acceleration = vector(0, 1.2, 0)
@@ -204,10 +204,11 @@ extension CoastalWorld {
             node.position = vector(Double(foot.x), routeHeight + 0.25, Double(foot.z))
             node.particleSystems?.first?.birthRate = CGFloat(planted ? 70 * fxScale : 0)
             node.particleSystems?.first?.particleVelocity = CGFloat(simulation.speed * 0.9)
+            node.particleSystems?.first?.particleLifeSpan = CGFloat(min(0.45, 2 / max(1, simulation.speed * 0.9)))   // a puff dies within 2 m of the heel: it must not fly at the camera
         }
         // Pickup sparkle: the simulation exposes `coins`, so a rise is a pickup (no simulation change).
         if running && simulation.coins > lastCoins {
-            sparkleRoot.position = vector(Double(player.position.x), Double(player.position.y) + 1.25, -0.3)
+            sparkleRoot.position = vector(Double(player.position.x), Double(player.position.y) + 1.25, Double(player.position.z) - 0.3)
             burst([sparkleFX], at: sparkleRoot)
         }
         lastCoins = simulation.coins

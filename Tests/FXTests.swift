@@ -258,6 +258,24 @@ import SceneKit
             let half = [world.landingSparkFX, world.landingDustFX, world.sparkleFX].map { Double($0.birthRate) }
             precondition(zip(full, half).allSatisfy { abs($0 * 0.5 - $1) < 1e-6 }, "performance halves every burst")
         }
+        // 9. Footstep puffs die within about 2 m of the heel (they leave at 0.9 x run speed, toward the static camera), and every
+        //    burst and footstep rate follows the tier: 0.5 / 0.75 / 1.
+        do {
+            let (fast, run, _) = running(.odyssey, stage: 5, aspect: portrait, frames: 60)
+            for node in fast.footDust {
+                let puff = node.particleSystems!.first!
+                precondition(Double(puff.particleLifeSpan * puff.particleVelocity) <= 2.2, "a puff must travel <= 2.2 m (\(Double(puff.particleLifeSpan * puff.particleVelocity)) m at \(run.speed) m/s)")
+            }
+            for (quality, scale) in [(RenderQuality.performance, 0.5), (.balanced, 0.75), (.ultra, 1.0)] {
+                var (world, run, time) = running(.endless, stage: 0, aspect: portrait, frames: 0)
+                world.applyQuality(quality)
+                var peak = 0.0
+                for _ in 0..<60 { step(world, &run, &time); peak = max(peak, world.footDust.map { Double($0.particleSystems!.first!.birthRate) }.max()!) }
+                precondition(abs(peak - 70 * scale) < 1e-6, "footstep rate at \(quality): \(peak)")
+                let bursts = [world.landingSparkFX, world.landingDustFX, world.sparkleFX].map { Double($0.birthRate) }
+                precondition(zip(bursts, [400, 450, 350]).allSatisfy { abs($0 - $1 * scale) < 1e-6 }, "burst rates at \(quality): \(bursts)")
+            }
+        }
         print("FXTests passed")
     }
 }
