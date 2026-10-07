@@ -72,6 +72,33 @@ import SceneKit
             shot.step(180)
             try shot.shoot("ambient-" + name, into: out)
         }
+        // Footsteps on Mars: 3 frames after a foot's dust opens.
+        var steps = Shot(.odyssey, stage: 2)
+        steps.step(150)
+        while steps.world.footDust.allSatisfy({ ($0.particleSystems?.first?.birthRate ?? 0) == 0 }) { steps.step(1) }
+        steps.step(3)
+        try steps.shoot("footstep", into: out)
+        // Landing burst, 6 frames after touchdown in the harbor.
+        var land = Shot(.endless, stage: 0)
+        land.step(120)
+        land.run.act(.jump)
+        land.step(5)
+        while land.run.height > 0 { land.step(1) }
+        land.step(6)
+        try land.shoot("landing", into: out)
+        // Pickup sparkle: a coin placed in the runner's lane, shot 4 frames after it is collected.
+        var pickup = Shot(.endless, stage: 0)
+        pickup.step(120)
+        let coins = pickup.run.coins
+        var placed = false
+        while pickup.run.coins == coins {
+            pickup.step(1) { run in
+                defer { placed = true }
+                return placed ? run.entities : [TrackEntity(id: 9_000, kind: .coin, lane: run.lane, z: 8, y: 0.9, length: 0.6)]
+            }
+        }
+        pickup.step(4) { $0.entities }
+        try pickup.shoot("sparkle", into: out)
         print("wrote", out.path)
     }
 }

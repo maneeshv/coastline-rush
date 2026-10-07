@@ -74,7 +74,13 @@ final class CoastalWorld {
     let headRig = SCNNode()
     private let landingRoot = SCNNode()
     private var landingRings: [SCNNode] = []
-    private var landingSparks: [SCNNode] = []
+    let landingSparkFX = SCNParticleSystem()
+    let landingDustFX = SCNParticleSystem()
+    let speedLines = SCNParticleSystem()
+    var footDust: [SCNNode] = []
+    let sparkleRoot = SCNNode()
+    let sparkleFX = SCNParticleSystem()
+    var lastCoins = 0
     let ambientNode = SCNNode()
     let ambientFX = SCNParticleSystem()
     private let abilityAura = SCNNode()
@@ -159,6 +165,7 @@ final class CoastalWorld {
         withoutSurfaceDetail { makePlayer() }
         makeMotionEffects()
         makeFX()
+        makeMotionFX()
         makeDrone()
         withoutSurfaceDetail { makeJetSki() }
         makeMenuProps()
@@ -182,7 +189,7 @@ final class CoastalWorld {
         camera.camera?.zFar = qualityLevel == 0 ? 280 : 380
         for (index, node) in portalSpecks.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
         for (index, node) in spray.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
-        for (index, node) in landingSparks.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
+        applyBurstQuality()
         applyLook(renderedStage)
     }
 
@@ -337,6 +344,8 @@ final class CoastalWorld {
         if running && previousHeight > 0.13 && height <= 0.13 && !simulation.isPortalTransitioning {
             landingStarted = time
             landingRoot.position = vector(Double(player.position.x), routeHeight + (waterMode ? 0.02 : 0.065), Double(player.position.z))
+            landingDustFX.particleColor = color(waterMode ? "E6F7FF" : renderedStage.deckDust, alpha: 0.45)
+            if !reducedMotion { burst([landingSparkFX, landingDustFX], at: landingRoot) }
         }
         previousHeight = height
         let landingAge = max(0, time - landingStarted)
@@ -383,6 +392,8 @@ final class CoastalWorld {
         // The drone keeps its old place in the frame (3.6 m under and 7.3 m ahead of the camera), so the closer camera does not enlarge it over the runner.
         drone.position = vector(cameraEye.x + sin(time * 0.9) * 0.8, cameraEye.y - 3.6 + sin(time * 2) * 0.16, cameraEye.z - 7.3)
         updateAmbient(speed: running ? simulation.speed : 1.5)
+        updateMotionFX(simulation: simulation, running: running, gait: gait, footing: running && !waterMode && !surfing && !flying ? gaitAmount : 0,
+                       height: height, boosting: boosting)
         let visibilityDistance = simulation.mode == .odyssey ? min(200, max(135, simulation.speed * 3.2)) : 135
         syncEntities(simulation.entities, time: time, menu: isMenu || simulation.isPortalTransitioning,
                      visibilityDistance: visibilityDistance, simulation: simulation)
@@ -439,11 +450,6 @@ final class CoastalWorld {
             let ripple = ring(0.55, tube: 0.018 + Double(i) * 0.008, tint: i == 1 ? "FFCD92" : "85E2EC", at: vector(0, Double(i) * 0.018, 0), into: landingRoot, glow: true)
             ripple.castsShadow = false; landingRings.append(ripple)
         }
-        for i in 0..<18 {
-            let speck = box(0.03, 0.03, 0.14, i % 2 == 0 ? "FFD9B0" : "AAE6F4", radius: 0, into: landingRoot)
-            speck.geometry?.firstMaterial = material(i % 2 == 0 ? "FFD9B0" : "AAE6F4", emissive: true)
-            speck.castsShadow = false; landingSparks.append(speck)
-        }
         for i in 0..<3 {
             let orbit = ring(1.05 + Double(i) * 0.10, tube: 0.017, tint: "8CF3ED", at: vector(0, 1.30, 0), into: abilityAura, glow: true)
             orbit.eulerAngles = vector(Double(i) * .pi / 3, 0, Double(i) * .pi / 3)
@@ -464,13 +470,6 @@ final class CoastalWorld {
                 let radius = 0.6 + progress * (waterMode ? 4 : 2)
                 ripple.scale = vector(radius, 1, radius)
                 ripple.opacity = max(0, 1 - progress) * 0.55
-            }
-            for (i, spark) in landingSparks.enumerated() {
-                let angle = Double(i) / Double(landingSparks.count) * .pi * 2
-                let spread = 0.25 + age * (2.2 + Double(i % 4) * 0.55)
-                spark.position = vector(cos(angle) * spread, max(0, sin(age / 0.55 * .pi)) * (waterMode ? 0.6 : 0.35), sin(angle) * spread)
-                spark.eulerAngles = vector(0, -angle, angle)
-                spark.opacity = max(0, 1 - age / 0.55)
             }
         }
         abilityAura.isHidden = !simulation.isAbilityActive

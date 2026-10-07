@@ -180,6 +180,84 @@ import SceneKit
             }
             precondition(Set(WorldStage.allCases.map(\.ambient.tint)).count == WorldStage.allCases.count, "every world needs its own ambient particles")
         }
+        // 6. Speed lines: none below 26 m/s, in the menu or under Reduced Motion; on at Forge cruise; half on performance.
+        do {
+            func lines(_ mode: RunMode, _ stage: Int, _ quality: RenderQuality = .ultra, reducedMotion: Bool = false) -> Double {
+                let world = CoastalWorld(assetsURL: URL(fileURLWithPath: "Resources"))
+                world.applyQuality(quality); world.reducedMotion = reducedMotion
+                var run = RunnerSimulation(); run.start(seed: 3, mode: mode, startStage: stage)
+                var time = 0.0
+                for _ in 0..<30 { step(world, &run, &time) }
+                return Double(world.speedLines.birthRate)
+            }
+            precondition(lines(.odyssey, 0) == 0, "no speed lines at harbor cruise (17 m/s)")
+            precondition(lines(.odyssey, 5) > 0, "speed lines at Forge cruise (42 m/s)")
+            precondition(abs(lines(.odyssey, 5, .performance) - lines(.odyssey, 5) * 0.5) < 1e-6, "performance halves the speed lines")
+            precondition(lines(.odyssey, 5, reducedMotion: true) == 0, "Reduced Motion: no speed lines")
+            let menu = CoastalWorld(assetsURL: URL(fileURLWithPath: "Resources"))
+            menu.update(simulation: RunnerSimulation(), character: "milo", board: "tideline", time: 1)
+            precondition(menu.speedLines.birthRate == 0, "no speed lines in the menu")
+        }
+
+        // 7. Footstep dust opens and closes with each stance, never in the air or on the jet ski.
+        do {
+            var (world, run, time) = running(.endless, stage: 0, aspect: portrait, frames: 60)
+            var open = [0, 0], shut = [0, 0]
+            for _ in 0..<60 {
+                step(world, &run, &time)
+                for i in 0..<2 { if (world.footDust[i].particleSystems?.first?.birthRate ?? 0) > 0 { open[i] += 1 } else { shut[i] += 1 } }
+            }
+            precondition(open.allSatisfy { $0 > 0 } && shut.allSatisfy { $0 > 0 }, "each foot must puff on contact only (open \(open), shut \(shut))")
+            run.act(.jump)
+            for _ in 0..<12 {
+                step(world, &run, &time)
+                if run.height > 0.1 { precondition(world.footDust.allSatisfy { ($0.particleSystems?.first?.birthRate ?? 0) == 0 }, "no footstep dust in the air") }
+            }
+            var (water, ride, rideTime) = running(.jetSki, stage: 0, aspect: portrait, frames: 60)
+            for _ in 0..<30 {
+                step(water, &ride, &rideTime)
+                precondition(water.footDust.allSatisfy { ($0.particleSystems?.first?.birthRate ?? 0) == 0 }, "no footstep dust on the jet ski")
+            }
+        }
+
+        // 8. Bursts: a landing restarts the pooled sparks and dust (not under Reduced Motion); a collected coin restarts the
+        //    sparkle. Across all of it the scene never holds more than the 7 pooled systems: nothing is created per frame or event.
+        for reducedMotion in [false, true] {
+            var (world, run, time) = running(.endless, stage: 0, aspect: portrait, frames: 60, reducedMotion: reducedMotion)
+            let landing: SCNNode = field(world, "landingRoot")
+            var pooled = Set<ObjectIdentifier>()
+            func census() {
+                world.scene.rootNode.enumerateHierarchy { node, _ in (node.particleSystems ?? []).forEach { pooled.insert(ObjectIdentifier($0)) } }
+                precondition(pooled.count <= 7, "particle systems must be pooled (\(pooled.count) distinct)")
+            }
+            run.act(.jump)
+            for _ in 0..<5 { step(world, &run, &time); census() }
+            while run.height > 0 { step(world, &run, &time); census() }
+            step(world, &run, &time); census()
+            let attached = landing.particleSystems ?? []
+            if reducedMotion { precondition(attached.isEmpty, "Reduced Motion: no landing burst") }
+            else { precondition(attached.contains(world.landingSparkFX) && attached.contains(world.landingDustFX), "a landing must restart the pooled burst") }
+            precondition(world.sparkleRoot.particleSystems?.isEmpty ?? true, "no sparkle before a pickup")
+            let coins = run.coins
+            var placed = false
+            for _ in 0..<60 where run.coins == coins {
+                run.replaceTrackForTesting(placed ? run.entities : [TrackEntity(id: 9_000, kind: .coin, lane: run.lane, z: 6, y: 0.9, length: 0.6)])
+                placed = true
+                run.update(dt: 1.0 / 60); time += 1.0 / 60
+                world.update(simulation: run, character: "milo", board: "tideline", time: time); census()
+            }
+            precondition(run.coins > coins, "test setup: the coin must be collected")
+            precondition(world.sparkleRoot.particleSystems?.contains(world.sparkleFX) ?? false, "a pickup must restart the pooled sparkle")
+            for _ in 0..<120 { step(world, &run, &time); census() }
+        }
+        do {   // bursts scale with the tier too
+            let world = CoastalWorld(assetsURL: URL(fileURLWithPath: "Resources"))
+            world.applyQuality(.ultra)
+            let full = [world.landingSparkFX, world.landingDustFX, world.sparkleFX].map { Double($0.birthRate) }
+            world.applyQuality(.performance)
+            let half = [world.landingSparkFX, world.landingDustFX, world.sparkleFX].map { Double($0.birthRate) }
+            precondition(zip(full, half).allSatisfy { abs($0 * 0.5 - $1) < 1e-6 }, "performance halves every burst")
+        }
         print("FXTests passed")
     }
 }
