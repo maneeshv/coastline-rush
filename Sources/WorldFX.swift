@@ -9,12 +9,12 @@ struct AmbientFX {
     /// Birth heights above the route (m).
     var low: Double, high: Double
     var additive: Bool, stretch: Double
-    /// Particles within this |x| (the road) fade out over 3 m beyond it; 0 = everywhere.
+    /// Births within this |x| of world x = 0 (the road) are pushed out to |x| in `clear`…`boxWidth / 2`; 0 = everywhere.
+    /// None are born while the route bends away from x = 0 (`routeBends`).
     var clear = 0.0
+    /// Width (x) of the emitter box in m, centred on the camera.
+    static let boxWidth = 22.0
 }
-
-/// Ambient deaths so far: how many, the nearest to the lens and the nearest to the route line (tests read it).
-struct AmbientSeen { var count = 0, nearest = Float.infinity, lateral = Float.infinity }
 
 extension WorldStage {
     var ambient: AmbientFX {
@@ -76,9 +76,6 @@ extension CoastalWorld {
         ambientFX.handle(.birth, forProperties: [.position, .life, .velocity]) { [unowned self] data, stride, _, count in
             shapeAmbientBirths(data, stride, count: count)
         }
-        ambientFX.handle(.death, forProperties: [.position]) { [unowned self] data, stride, _, count in
-            noteAmbientDeaths(data, stride, count: count)
-        }
         let fade = CAKeyframeAnimation(keyPath: "opacity")
         fade.values = [1, 1, 0]; fade.keyTimes = [0, 0.7, 1]; fade.duration = 1
         ambientFX.propertyControllers = [.opacity: SCNParticlePropertyController(animation: fade)]
@@ -87,45 +84,47 @@ extension CoastalWorld {
     }
 
     /// Re-dresses the pooled ambient system for `stage` and restarts it, so the old world's particles vanish with it.
+    /// Called on a world change only: a quality-tier change keeps the live particles (`updateAmbient` reads `fxScale` every frame).
     /// Birth rate, heading, speed and stretch are per-frame (`updateAmbient`).
     func applyAmbient(_ stage: WorldStage) {
         let a = stage.ambient
         dress(ambientFX, life: a.life, size: a.size, tint: a.tint, opacity: a.opacity, additive: a.additive)
         ambientFX.particleSizeVariation = CGFloat(a.sizeVariation)
         ambientFX.warmupDuration = CGFloat(a.life)   // the first render (offscreen snapshots) starts fully populated
-        ambientFX.emitterShape = SCNBox(width: 22, height: CGFloat(a.high - a.low), length: 52, chamferRadius: 0)
+        ambientFX.emitterShape = SCNBox(width: CGFloat(AmbientFX.boxWidth), height: CGFloat(a.high - a.low), length: 52, chamferRadius: 0)
         for puff in footDust.compactMap({ $0.particleSystems?.first }) { puff.particleColor = color(stage.deckDust, alpha: 0.5) }
         ambientFX.reset()
     }
 
-    /// Births (properties position, life, velocity): a particle is shortened so it dies `ambientNear` in front of the lens
-    /// (5 m, or three sprite sizes: a sprite beside the lens is a blob, not weather; it fades out over its last 30%), and in a world with a
-    /// `clear` zone it is pushed out of the road onto the water. Positions are world space.
+    /// Births (properties position, life, velocity), on SceneKit's render thread: a particle is shortened so it dies `ambientNear`
+    /// in front of the lens (5 m, or three sprite sizes: a sprite beside the lens is a blob, not weather; it fades out over its
+    /// last 30%), and in a world with a `clear` zone it is pushed out of the road onto the water. Positions are world space.
+    /// The main-thread values are read once per batch.
     func shapeAmbientBirths(_ data: UnsafeMutablePointer<UnsafeMutableRawPointer>, _ stride: UnsafeMutablePointer<Int>, count: Int) {
+        let limitZ = ambientEye.z - ambientNear, clear = ambientClear, half = Float(AmbientFX.boxWidth / 2)
         for i in 0..<count {
             let p = (data[0] + i * stride[0]).assumingMemoryBound(to: Float.self)
             let life = (data[1] + i * stride[1]).assumingMemoryBound(to: Float.self)
             let vz = (data[2] + i * stride[2]).assumingMemoryBound(to: Float.self)[2]
-            if ambientClear > 0 { p[0] = (p[0] < 0 ? -1 : 1) * (ambientClear + abs(p[0]) * (11 - ambientClear) / 11) }
-            if vz > 0.01 { life.pointee = min(life.pointee, max(0, ambientEye.z - ambientNear - p[2]) / vz) }
+            if clear > 0 { p[0] = (p[0] < 0 ? -1 : 1) * (clear + abs(p[0]) * (half - clear) / half) }
+            if vz > 0.01 { life.pointee = min(life.pointee, max(0, limitZ - p[2]) / vz) }
         }
     }
 
-    /// Deaths (property position): the nearest to the lens and to the route line, for the tests.
-    func noteAmbientDeaths(_ data: UnsafeMutablePointer<UnsafeMutableRawPointer>, _ stride: UnsafeMutablePointer<Int>, count: Int) {
-        for i in 0..<count {
-            let p = (data[0] + i * stride[0]).assumingMemoryBound(to: Float.self)
-            ambientSeen.count += 1
-            ambientSeen.nearest = min(ambientSeen.nearest, simd_distance(SIMD3(p[0], p[1], p[2]), ambientEye))
-            ambientSeen.lateral = min(ambientSeen.lateral, abs(p[0]))
-        }
+    /// True while the route, from the runner to the far end of the ambient volume (50 m), is more than half a metre off world x = 0
+    /// (the Odyssey harbor's branches sit at x = -8 and +8): the mist remap is about x = 0, so it would lie on the route.
+    /// Mist stands still over the track and lives under 1.5 s at speed, so what is alive when births stop is gone by the time the route bends.
+    func routeBends(_ simulation: RunnerSimulation, route: Double, ahead: Double) -> Bool {
+        abs(route) > 0.5 || abs(ahead) > 0.5
+            || abs(simulation.routeTransform(atAheadDistance: 32).lateralOffset) > 0.5
+            || abs(simulation.routeTransform(atAheadDistance: 50).lateralOffset) > 0.5
     }
 
     /// Per frame: the ambient volume follows the camera and the air streams past at run speed.
-    func updateAmbient(speed: Double) {
+    func updateAmbient(speed: Double, routeBends: Bool) {
         let a = renderedStage.ambient
-        // The volume spans 50 m ahead to 6 m behind the runner. At speed a particle lives only while it travels about 25 m,
-        // so most of the budget stays in view (roughly 15% still passes behind the camera); the birth rate keeps the live count fixed.
+        // The volume spans 50 m ahead to 2 m behind the runner. At speed a particle lives only while it travels about 25 m,
+        // and its life is cut so it dies `ambientNear` before the lens; the birth rate keeps the live count fixed.
         // Reduced Motion: no stretched or faster-than-run streaks, which would read as speed lines.
         let flowScale = reducedMotion ? min(a.flow, 1) : a.flow
         ambientNode.position = vector(cameraEye.x, routeHeight + (a.low + a.high) / 2, -24)
@@ -139,7 +138,7 @@ extension CoastalWorld {
         ambientFX.stretchFactor = CGFloat(reducedMotion ? 0 : a.stretch)
         ambientFX.particleVelocity = CGFloat(simd_length(flow))
         ambientFX.particleLifeSpan = CGFloat(life)
-        ambientFX.birthRate = CGFloat(a.count * fxScale / life)
+        ambientFX.birthRate = a.clear > 0 && routeBends ? 0 : CGFloat(a.count * fxScale / life)
     }
 }
 
@@ -237,14 +236,15 @@ extension CoastalWorld {
         speedLines.birthRate = CGFloat(lines * 90 * fxScale)
         // Each foot puffs for the first 0.6 rad of its stance; the dust is left behind at 0.9 × run speed.
         for (i, node) in footDust.enumerated() {
+            guard let puff = node.particleSystems?.first else { continue }
             var since = (gait - Double(i) * .pi).truncatingRemainder(dividingBy: 2 * .pi)
             if since < 0 { since += 2 * .pi }
             let planted = running && footing > 0.6 && height < 0.05 && since < 0.6
             let foot = feet[i].worldPosition
             node.position = vector(Double(foot.x), routeHeight + 0.25, Double(foot.z))
-            node.particleSystems?.first?.birthRate = CGFloat(planted ? 70 * fxScale : 0)
-            node.particleSystems?.first?.particleVelocity = CGFloat(simulation.speed * 0.9)
-            node.particleSystems?.first?.particleLifeSpan = CGFloat(min(0.45, 2 / max(1, simulation.speed * 0.9)))   // a puff dies within 2 m of the heel: it must not fly at the camera
+            puff.birthRate = CGFloat(planted ? 70 * fxScale : 0)
+            puff.particleVelocity = CGFloat(simulation.speed * 0.9)
+            puff.particleLifeSpan = CGFloat(min(0.45, 2 / max(1, simulation.speed * 0.9)))   // a puff dies within 2 m of the heel: it must not fly at the camera
         }
         // Pickup sparkle: the simulation exposes `coins`, so a rise is a pickup (no simulation change).
         if running && simulation.coins > lastCoins {

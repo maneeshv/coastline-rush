@@ -53,6 +53,24 @@ import SceneKit
         world.update(simulation: run, character: "milo", board: "tideline", time: time)
     }
 
+    /// Ambient deaths seen by the real particle pass: how many, the nearest to the lens and to the route centre at that point of the track.
+    final class Deaths { var count = 0, nearest = Float.infinity, lateral = Float.infinity, run = RunnerSimulation() }
+
+    static func watchDeaths(_ world: CoastalWorld) -> Deaths {
+        let seen = Deaths()
+        world.ambientFX.handle(.death, forProperties: [.position]) { [unowned world] data, stride, _, count in
+            for i in 0..<count {
+                let p = (data[0] + i * stride[0]).assumingMemoryBound(to: Float.self)
+                seen.count += 1
+                seen.nearest = min(seen.nearest, simd_distance(SIMD3(p[0], p[1], p[2]), world.ambientEye))
+                if p[2] < 0 {   // ahead of the runner: the track there bends the route to `routeTransform(atAheadDistance: -z)`
+                    seen.lateral = min(seen.lateral, abs(p[0] - Float(seen.run.routeTransform(atAheadDistance: Double(-p[2])).lateralOffset)))
+                }
+            }
+        }
+        return seen
+    }
+
     static func main() {
         setvbuf(stdout, nil, _IONBF, 0)
         let portrait = 0.46, landscape = 16.0 / 9
@@ -80,7 +98,7 @@ import SceneKit
         //    HUD band and clear of the runner's head, in both orientations, at cruise and top speed, through a lane change.
         //    MotionTests' recycling assumes the camera never sits behind world z 12, where sections leave.
         for aspect in [portrait, landscape] {
-            for (mode, stage) in [(RunMode.endless, 0), (.odyssey, 5)] {
+            for (mode, stage) in [(RunMode.endless, 0), (.odyssey, 5), (.jetSki, 0)] {
                 var (world, run, time) = running(mode, stage: stage, aspect: aspect, frames: 120)
                 for frame in 0..<60 {
                     if frame == 0 { run.act(.right) }
@@ -182,24 +200,45 @@ import SceneKit
             precondition(Set(WorldStage.allCases.map(\.ambient.tint)).count == WorldStage.allCases.count, "every world needs its own ambient particles")
         }
         // 5b. Near-camera fade: rendered through the real particle pass, every ambient particle dies ahead of the lens
-        //     (never within 3 m, and faded out by then), and in a world with a clear zone none strays over the road.
+        //     (never within 3 m, and faded out by then), and in a world with a clear zone none strays onto the route.
+        //     The last two cases are the Odyssey harbor's branch (safe route at x = -8, risky at +8, stage progress about 0.41):
+        //     the mist must leave the route there too, so deaths are measured from the route centre, not from world x = 0.
         do {
             let renderer = SCNRenderer(device: MTLCreateSystemDefaultDevice(), options: nil)
-            for (index, stage) in WorldStage.allCases.enumerated() {
+            let cases: [(WorldStage, Int, Bool?)] = WorldStage.allCases.enumerated().map { ($1, $0, nil) } + [(.harbor, 0, false), (.harbor, 0, true)]
+            for (stage, index, risky) in cases {
                 let world = CoastalWorld(assetsURL: URL(fileURLWithPath: "Resources"))
                 world.applyQuality(.ultra); world.resize(aspect: portrait)
                 renderer.scene = world.scene; renderer.pointOfView = world.camera
                 var run = RunnerSimulation(); run.start(seed: 3, mode: .odyssey, startStage: index)
                 var time = 0.0
-                for _ in 0..<240 {
+                var farthest = 0.0
+                let seen = watchDeaths(world)
+                if let risky {   // run up to the branch unrendered, then render (so the mist is alive) from 30% of the stage
+                    while run.stageProgress < 0.36 {
+                        if risky && run.routeChoiceAvailable { run.act(.right) }
+                        run.replaceTrackForTesting([], generate: false)
+                        run.update(dt: 1 / 60); time += 1 / 60
+                        precondition(run.phase == .running, "branch case: the run ended before the branch")
+                        if run.stageProgress > 0.3 {
+                            world.update(simulation: run, character: "milo", board: "tideline", time: time)
+                            seen.run = run
+                            _ = renderer.snapshot(atTime: time, with: CGSize(width: 90, height: 150), antialiasingMode: .none)
+                        }
+                    }
+                }
+                for _ in 0..<(risky == nil ? 240 : 300) {
                     step(world, &run, &time)
+                    seen.run = run
+                    farthest = max(farthest, abs(world.routeOffset))
                     _ = renderer.snapshot(atTime: time, with: CGSize(width: 90, height: 150), antialiasingMode: .none)
                 }
-                let seen = world.ambientSeen
-                print(String(format: "ambient %@: %d deaths, nearest %.2f m from the lens, nearest %.2f m from the route line", "\(stage)", seen.count, seen.nearest, seen.lateral))
-                precondition(stage.ambient.count == 0 || seen.count > 0, "\(stage): no ambient particle ever died: the death pass never ran")
-                precondition(seen.nearest >= 3, "\(stage): an ambient particle lived to \(seen.nearest) m from the lens")
-                precondition(seen.lateral >= Float(stage.ambient.clear) - 1, "\(stage): ambient over the road (\(seen.lateral) m)")
+                let label = risky.map { "\(stage) \($0 ? "risky" : "safe") branch (progress \(String(format: "%.2f", run.stageProgress)))" } ?? "\(stage)"
+                print(String(format: "ambient %@: %d deaths, nearest %.2f m from the lens, nearest %.2f m from the route centre", label, seen.count, seen.nearest, seen.lateral))
+                precondition(risky == nil || farthest > 7, "\(label): the route never left the road centre (\(farthest) m): the case does not test the branch")
+                precondition(stage.ambient.count == 0 || seen.count > 0, "\(label): no ambient particle ever died: the death pass never ran")
+                precondition(seen.nearest >= 3, "\(label): an ambient particle lived to \(seen.nearest) m from the lens")
+                precondition(seen.lateral >= Float(max(3, stage.ambient.clear - 1)) || stage.ambient.clear == 0, "\(label): ambient over the route (\(seen.lateral) m from its centre)")
             }
         }
         // 6. Speed lines: none below 26 m/s, in the menu or under Reduced Motion; on at Forge cruise; half on performance.

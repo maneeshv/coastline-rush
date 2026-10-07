@@ -83,9 +83,9 @@ final class CoastalWorld {
     var lastCoins = 0
     let ambientNode = SCNNode()
     let ambientFX = SCNParticleSystem()
-    /// Read by the ambient fade on the render thread: the lens, how far ahead of it particles die, the lateral clear zone, and what the last pass left visible.
+    /// Written on the main thread, read by the particle birth handler on the render thread: the lens, how far ahead of it
+    /// particles die (their life is cut to fit) and the lateral clear zone.
     var ambientEye = SIMD3<Float>(0, 0, 0), ambientClear: Float = 0, ambientNear: Float = 5
-    var ambientSeen = AmbientSeen()
     private let abilityAura = SCNNode()
     private var ghostCourier: SCNNode?
     private var currentRunDistance = 0.0
@@ -177,6 +177,7 @@ final class CoastalWorld {
         finaleRoot = harborFinale
         makeAlternateRoute()
         applyLook(.harbor)
+        applyAmbient(.harbor)
     }
 
     func resize(aspect: Double) {
@@ -272,7 +273,7 @@ final class CoastalWorld {
         let dt = min(0.05, max(0, time - lastTime))
         lastTime = time
         let steeringVelocity = (simulation.lateral - previousLateral) / max(0.01, dt)
-        let routeAhead = isMenu ? route : simulation.routeTransform(atAheadDistance: 14)
+        let routeAhead = isMenu ? route : simulation.routeTransform(atAheadDistance: CameraRig.lookAhead)
         let curveLean = (route.lateralOffset - routeAhead.lateralOffset) * 0.05
         let desiredBank = max(-0.65, min(0.65, (waterMode ? -simulation.lateralVelocity * 0.12 : -steeringVelocity * 0.08) + curveLean))
         bank += (desiredBank - bank) * min(1, dt * 12)
@@ -391,10 +392,11 @@ final class CoastalWorld {
 
         let flightLift = reducedMotion ? 0 : flying ? min(height * 0.44, 3.0) : min(height * 0.12, 0.35)
         updateCamera(menu: isMenu, waterMode: waterMode, lateral: simulation.lateral, speed: simulation.speed, boosting: boosting, flightLift: flightLift,
-                     ahead: isMenu ? route : simulation.routeTransform(atAheadDistance: CameraRig.lookAhead), time: time, dt: dt, snap: rewound)
-        // The drone keeps its old place in the frame (3.6 m under and 7.3 m ahead of the camera), so the closer camera does not enlarge it over the runner.
-        drone.position = vector(cameraEye.x + sin(time * 0.9) * 0.8, cameraEye.y - 3.6 + sin(time * 2) * 0.16, cameraEye.z - 7.3)
-        updateAmbient(speed: running ? simulation.speed : 1.5)
+                     ahead: routeAhead, time: time, dt: dt, snap: rewound)
+        // The drone hangs 4.4 m under and 7.3 m ahead of the camera: below the runner's feet in both orientations, clear of the deck.
+        drone.position = vector(cameraEye.x + sin(time * 0.9) * 0.8, cameraEye.y - 4.4 + sin(time * 2) * 0.16, cameraEye.z - 7.3)
+        updateAmbient(speed: running ? simulation.speed : 1.5,
+                      routeBends: !isMenu && renderedStage.ambient.clear > 0 && routeBends(simulation, route: route.lateralOffset, ahead: routeAhead.lateralOffset))
         updateMotionFX(simulation: simulation, running: running, gait: gait, footing: running && !waterMode && !surfing && !flying ? gaitAmount : 0,
                        height: height, boosting: boosting)
         let visibilityDistance = simulation.mode == .odyssey ? min(200, max(135, simulation.speed * 3.2)) : 135
@@ -1770,6 +1772,7 @@ private extension CoastalWorld {
             worldSun?.shadowBias = 2.0; worldSun?.zFar = 320; worldSun?.orthographicScale = 60
         }
         applyLook(stage)
+        applyAmbient(stage)
         let stages = WorldStage.allCases
         let next = stages.firstIndex(of: stage).flatMap { $0 + 1 < stages.count ? stages[$0 + 1] : nil }
         destinations = destinations.filter { $0.key == stage || $0.key == next }

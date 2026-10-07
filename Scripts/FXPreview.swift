@@ -99,6 +99,15 @@ import SceneKit
         }
         pickup.step(4) { $0.entities }
         try pickup.shoot("sparkle", into: out)
+        // Odyssey harbor branch (stage progress about 0.41): the route sits at x = -8 (safe) or +8 (risky) and the mist must stay off it.
+        for (name, risky) in [("branch-safe", false), ("branch-risky", true)] {
+            var branch = Shot(.odyssey, stage: 0)
+            while branch.run.stageProgress < 0.41 && branch.run.phase == .running {
+                if risky && branch.run.routeChoiceAvailable { branch.run.act(.right) }
+                branch.step(1) { _ in [] }
+            }
+            try branch.shoot(name, into: out)
+        }
         print("wrote", out.path)
     }
 }
