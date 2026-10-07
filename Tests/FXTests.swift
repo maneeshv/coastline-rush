@@ -152,6 +152,26 @@ import SceneKit
             let p = world.camera.position
             precondition(abs(Double(p.x) - 0.35) < 1e-4 && abs(Double(p.y) - 6.1) < 1e-4 && abs(Double(p.z) - depth) < 1e-4, "menu framing changed: \(p)")
         }
+        // 5. Ambient particles: each world has its own; the live budget is count × tier scale; the flow heading is a unit
+        //    vector (SceneKit multiplies particleVelocity by its length).
+        do {
+            let world = CoastalWorld(assetsURL: URL(fileURLWithPath: "Resources"))
+            var time = 0.0
+            for (quality, scale) in [(RenderQuality.performance, 0.5), (.balanced, 0.75), (.ultra, 1.0)] {
+                world.applyQuality(quality)
+                for (index, stage) in WorldStage.allCases.enumerated() {
+                    var run = RunnerSimulation(); run.start(seed: 3, mode: .odyssey, startStage: index)
+                    for _ in 0..<3 { step(world, &run, &time) }
+                    let a = stage.ambient, fx = world.ambientFX
+                    let live = Double(fx.birthRate * fx.particleLifeSpan)
+                    precondition(abs(live - a.count * scale) < 0.5, "\(stage) \(quality): \(live) live particles, expected \(a.count * scale)")
+                    precondition(a.count <= 160 && a.size <= 6, "\(stage): ambient budget is ≤160 particles of ≤6 m")
+                    let d = fx.emittingDirection
+                    precondition(abs(Double(d.x * d.x + d.y * d.y + d.z * d.z) - 1) < 1e-3, "\(stage): ambient heading must be a unit vector")
+                }
+            }
+            precondition(Set(WorldStage.allCases.map(\.ambient.tint)).count == WorldStage.allCases.count, "every world needs its own ambient particles")
+        }
         print("FXTests passed")
     }
 }

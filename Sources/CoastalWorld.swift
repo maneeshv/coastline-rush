@@ -75,6 +75,8 @@ final class CoastalWorld {
     private let landingRoot = SCNNode()
     private var landingRings: [SCNNode] = []
     private var landingSparks: [SCNNode] = []
+    let ambientNode = SCNNode()
+    let ambientFX = SCNParticleSystem()
     private let abilityAura = SCNNode()
     private var ghostCourier: SCNNode?
     private var currentRunDistance = 0.0
@@ -156,6 +158,7 @@ final class CoastalWorld {
         }
         withoutSurfaceDetail { makePlayer() }
         makeMotionEffects()
+        makeFX()
         makeDrone()
         withoutSurfaceDetail { makeJetSki() }
         makeMenuProps()
@@ -379,6 +382,7 @@ final class CoastalWorld {
                      ahead: isMenu ? route : simulation.routeTransform(atAheadDistance: CameraRig.lookAhead), time: time, dt: dt, snap: rewound)
         // The drone keeps its old place in the frame (3.6 m under and 7.3 m ahead of the camera), so the closer camera does not enlarge it over the runner.
         drone.position = vector(cameraEye.x + sin(time * 0.9) * 0.8, cameraEye.y - 3.6 + sin(time * 2) * 0.16, cameraEye.z - 7.3)
+        updateAmbient(speed: running ? simulation.speed : 1.5)
         let visibilityDistance = simulation.mode == .odyssey ? min(200, max(135, simulation.speed * 3.2)) : 135
         syncEntities(simulation.entities, time: time, menu: isMenu || simulation.isPortalTransitioning,
                      visibilityDistance: visibilityDistance, simulation: simulation)
@@ -1461,7 +1465,7 @@ final class CoastalWorld {
         return node
     }
 
-    private func image(width: Int, height: Int, draw: (CGContext) -> Void) -> CGImage? {
+    func image(width: Int, height: Int, draw: (CGContext) -> Void) -> CGImage? {
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
                                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         draw(context)

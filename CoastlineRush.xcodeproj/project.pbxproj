@@ -81,8 +81,10 @@
 		C12C5E45627158F97FD602BF /* warningSlide.wav in Resources */ = {isa = PBXBuildFile; fileRef = ABA264A1D1585BBFFC5EAD5C /* warningSlide.wav */; };
 		C2B2CA94F2E9B01C157E9C17 /* start.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8D1EC8E6894B827136036F62 /* start.wav */; };
 		C2E666EF927CD138CFBF8A6E /* ambient-cryo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 78C3D215366B2A7F22E6D341 /* ambient-cryo.wav */; };
+		C34F80188816C6513E6E2D47 /* WorldFX.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E9C594458F01F3EC64CE9C /* WorldFX.swift */; };
 		C66A3F0A4F3223F24B4CD1C9 /* MarsSky.png in Resources */ = {isa = PBXBuildFile; fileRef = B95AAEE3C89EC94468455EC9 /* MarsSky.png */; };
 		C9577625F29F9748B6D2CD7F /* ambient-mars.wav in Resources */ = {isa = PBXBuildFile; fileRef = FE9BF4FBBED09A782216DEF1 /* ambient-mars.wav */; };
+		CADD90BBD622B3996F8C3108 /* WorldFX.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E9C594458F01F3EC64CE9C /* WorldFX.swift */; };
 		CD524D35E06B024DCBE8E82C /* WorldRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4836B90824FCD2F9750815 /* WorldRunner.swift */; };
 		CE5D8E468B5C61DD9F9788D5 /* ambient-harbor.wav in Resources */ = {isa = PBXBuildFile; fileRef = C301E4EEDA602B770CD0D8F3 /* ambient-harbor.wav */; };
 		D0B6132220B437BC5BDD1A37 /* PlayerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB92C0D967ED794E939A227 /* PlayerProfile.swift */; };
@@ -155,6 +157,7 @@
 		DFC5115C898DB180660C0790 /* warningJump.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = warningJump.wav; sourceTree = "<group>"; };
 		E14384481731928F29E6CE3A /* slide.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = slide.wav; sourceTree = "<group>"; };
 		E25443F4A38500F2DF2034D1 /* WorldCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCamera.swift; sourceTree = "<group>"; };
+		E3E9C594458F01F3EC64CE9C /* WorldFX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldFX.swift; sourceTree = "<group>"; };
 		EFB92C0D967ED794E939A227 /* PlayerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerProfile.swift; sourceTree = "<group>"; };
 		F4E71B0173D0F07C02339F12 /* WorldRunnerPose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldRunnerPose.swift; sourceTree = "<group>"; };
 		FD68AA912003B5178E58792A /* CoastlineRush-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "CoastlineRush-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -234,6 +237,7 @@
 				C95F4A8F338B6F5DE78284AA /* RunnerSimulation.swift */,
 				460898FD7CCF322E10C5B99A /* RunPresentation.swift */,
 				E25443F4A38500F2DF2034D1 /* WorldCamera.swift */,
+				E3E9C594458F01F3EC64CE9C /* WorldFX.swift */,
 				5798B9C921967B02E2344CC2 /* WorldLook.swift */,
 				67483A8DB1CBF3097DDCA42D /* WorldMaterials.swift */,
 				C766B45856FC49D65BA709C9 /* WorldProps.swift */,
@@ -415,6 +419,7 @@
 				F93254B058966DDF38903465 /* RunPresentation.swift in Sources */,
 				F3C6BA597EB730C49A8C4F4F /* RunnerSimulation.swift in Sources */,
 				5EC1CCFE473EB21412211E60 /* WorldCamera.swift in Sources */,
+				C34F80188816C6513E6E2D47 /* WorldFX.swift in Sources */,
 				34A291F8A70EC0FF37FAE015 /* WorldLook.swift in Sources */,
 				A6C49A791352732791497B8D /* WorldMaterials.swift in Sources */,
 				D34F1D5E8AAD560AAF542AD4 /* WorldProps.swift in Sources */,
@@ -441,6 +446,7 @@
 				6919CD1D26E22364BD92F46A /* RunPresentation.swift in Sources */,
 				D35E074519360AC1B4BED4FA /* RunnerSimulation.swift in Sources */,
 				EE9A15F40E672DD0C4EECBEF /* WorldCamera.swift in Sources */,
+				CADD90BBD622B3996F8C3108 /* WorldFX.swift in Sources */,
 				1A79EE8B95C4704759530C56 /* WorldLook.swift in Sources */,
 				DB9073FF67A5FEEC88C8A35D /* WorldMaterials.swift in Sources */,
 				614B1F5D771D0831910DD03E /* WorldProps.swift in Sources */,

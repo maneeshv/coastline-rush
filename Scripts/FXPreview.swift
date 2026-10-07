@@ -66,6 +66,12 @@ import SceneKit
             lean.step(6)
             try lean.shoot(name, into: out)
         }
+        // Ambient particles per world, 3 s in.
+        for (index, name) in ["harbor", "orbit", "mars", "verdant", "cryo", "forge"].enumerated() {
+            var shot = Shot(.odyssey, stage: index)
+            shot.step(180)
+            try shot.shoot("ambient-" + name, into: out)
+        }
         print("wrote", out.path)
     }
 }

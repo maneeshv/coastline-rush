@@ -100,5 +100,6 @@ extension CoastalWorld {
         lens.grainScale = 1.2
         // No grading LUT: SceneKit samples it by linear colour with no half-texel offset, which floors the darks.
         lens.colorGrading.contents = nil
+        applyAmbient(stage)
     }
 }
