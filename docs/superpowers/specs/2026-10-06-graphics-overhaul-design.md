@@ -54,6 +54,7 @@ The shared helpers in `CoastalWorld.swift` (`color`, `material`, `box`, `sphere`
 - Speed lines above a speed threshold, footstep dust, landing burst; pickup sparkle only if a pickup event is available without simulation changes.
 - Camera: slightly lower, smoothed follow lag, speed-scaled FOV, subtle lean into lane changes.
 - Phase 4 gaps from phase 1: per-world white balance is unused (temperature/tint 0 everywhere), and the rim light is identical in every world (Orbit needs a strong rim).
+- Note: the camera sits at 5.3/10.0 m (portrait) and 4.8/8.9 m (landscape), follows at rate 7/s (snapping in the menu, on replay rewind and under Reduced Motion), widens by up to 3° with speed and leans bank × 0.06; the runner is ≥1.15× its phase-3 screen height in every FXTests case. Particles are pooled SCNParticleSystems (≤7 in the scene) on one generated sprite; looping systems restart with reset(), one-shots by re-adding; motion blur stays off on every tier. Ambient particles die at least 5 m (three sprite sizes for mist) in front of the lens and fade out over their last 30%; harbor mist is born only over the water (|x| ≥ 6 m).
 
 ## Constraints
 
