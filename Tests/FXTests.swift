@@ -170,6 +170,14 @@ import SceneKit
                     precondition(abs(Double(d.x * d.x + d.y * d.y + d.z * d.z) - 1) < 1e-3, "\(stage): ambient heading must be a unit vector")
                 }
             }
+            // Reduced Motion: Orbit's streaks lose their stretch and the faster-than-run flow.
+            do {
+                let calm = CoastalWorld(assetsURL: URL(fileURLWithPath: "Resources")); calm.reducedMotion = true
+                var run = RunnerSimulation(); run.start(seed: 3, mode: .odyssey, startStage: 1)
+                for _ in 0..<3 { step(calm, &run, &time) }
+                precondition(calm.ambientFX.stretchFactor == 0, "Reduced Motion: no stretched ambient streaks")
+                precondition(Double(calm.ambientFX.particleVelocity) < run.speed * 1.2, "Reduced Motion: ambient flow must not outrun the run")
+            }
             precondition(Set(WorldStage.allCases.map(\.ambient.tint)).count == WorldStage.allCases.count, "every world needs its own ambient particles")
         }
         print("FXTests passed")

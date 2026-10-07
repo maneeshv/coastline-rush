@@ -14,8 +14,8 @@ struct AmbientFX {
 extension WorldStage {
     var ambient: AmbientFX {
         switch self {
-        case .harbor:   // low sea mist: few, huge, faint
-            return AmbientFX(tint: "C9D8E6", opacity: 0.08, count: 12, life: 6, size: 4.2, sizeVariation: 1.0,
+        case .harbor:   // no mist: any sprite big enough to read as a bank greys the road and cuts far-hazard contrast (fade-in/out tried, −7…−19%)
+            return AmbientFX(tint: "C9D8E6", opacity: 0.12, count: 0, life: 6, size: 6.0, sizeVariation: 1.5,
                              drift: SIMD3(0.4, 0.05, 0), flow: 1, low: 0.2, high: 3, additive: false, stretch: 0)
         case .orbit:    // star streaks rushing past faster than the run
             return AmbientFX(tint: "DDEBFF", opacity: 0.8, count: 80, life: 1.2, size: 0.10, sizeVariation: 0.03,
@@ -65,20 +65,20 @@ extension CoastalWorld {
 
     /// Builds the pooled ambient emitter once. Nothing is created per frame. A looping system restarts with `reset()`
     /// and is never re-added: re-adding a looping system to the same node stops it rendering (probe at 3781698).
+    /// `reset()` does not re-run the warm-up: only the first render starts populated, a later world or tier refills over one life.
     func makeFX() {
         ambientFX.birthLocation = .volume
         ambientNode.addParticleSystem(ambientFX)
         scene.rootNode.addChildNode(ambientNode)
     }
 
-    /// Re-dresses the pooled ambient system for `stage` and restarts it pre-warmed, so the old world's particles vanish with it.
+    /// Re-dresses the pooled ambient system for `stage` and restarts it, so the old world's particles vanish with it.
+    /// Birth rate, heading, speed and stretch are per-frame (`updateAmbient`).
     func applyAmbient(_ stage: WorldStage) {
         let a = stage.ambient
         dress(ambientFX, life: a.life, size: a.size, tint: a.tint, opacity: a.opacity, additive: a.additive)
         ambientFX.particleSizeVariation = CGFloat(a.sizeVariation)
-        ambientFX.stretchFactor = CGFloat(a.stretch)
-        ambientFX.birthRate = CGFloat(a.count / a.life * fxScale)
-        ambientFX.warmupDuration = CGFloat(a.life)   // offscreen snapshots and a new world start fully populated
+        ambientFX.warmupDuration = CGFloat(a.life)   // the first render (offscreen snapshots) starts fully populated
         ambientFX.emitterShape = SCNBox(width: 22, height: CGFloat(a.high - a.low), length: 56, chamferRadius: 0)
         ambientFX.reset()
     }
@@ -87,12 +87,15 @@ extension CoastalWorld {
     func updateAmbient(speed: Double) {
         let a = renderedStage.ambient
         // The volume spans 50 m ahead to 6 m behind the runner. At speed a particle lives only while it travels about 25 m,
-        // so the budget stays in view instead of streaming past the camera; the birth rate keeps the live count fixed.
+        // so most of the budget stays in view (roughly 15% still passes behind the camera); the birth rate keeps the live count fixed.
+        // Reduced Motion: no stretched or faster-than-run streaks, which would read as speed lines.
+        let flowScale = reducedMotion ? min(a.flow, 1) : a.flow
         ambientNode.position = vector(cameraEye.x, routeHeight + (a.low + a.high) / 2, -22)
-        let flow = a.drift + SIMD3(0, 0, a.flow * speed)
-        let life = min(a.life, 25 / max(0.1, a.flow * speed))
+        let flow = a.drift + SIMD3(0, 0, flowScale * speed)
+        let life = min(a.life, 25 / max(0.1, flowScale * speed))
         let heading = simd_normalize(flow)   // must be a unit vector: SceneKit scales particleVelocity by its length
         ambientFX.emittingDirection = vector(heading.x, heading.y, heading.z)
+        ambientFX.stretchFactor = CGFloat(reducedMotion ? 0 : a.stretch)
         ambientFX.particleVelocity = CGFloat(simd_length(flow))
         ambientFX.particleLifeSpan = CGFloat(life)
         ambientFX.birthRate = CGFloat(a.count * fxScale / life)
