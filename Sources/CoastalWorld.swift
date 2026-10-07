@@ -27,6 +27,7 @@ final class CoastalWorld {
     private(set) var worldSun: SCNLight?
     private(set) var worldAmbient: SCNLight?
     private(set) var worldSunNode: SCNNode?
+    private(set) var worldRim: SCNLight?
     private let portal = SCNNode()
     private let warpVeil = SCNNode()
     private var portalSurface: SCNNode?
@@ -581,8 +582,7 @@ final class CoastalWorld {
         let rim = SCNNode()
         rim.light = SCNLight()
         rim.light?.type = .directional
-        rim.light?.color = color("72B8F8")
-        rim.light?.intensity = 310
+        worldRim = rim.light   // colour and intensity per world: applyLook
         rim.eulerAngles = vector(-0.45, 2.5, 0)
         scene.rootNode.addChildNode(rim)
         let fill = SCNNode()
