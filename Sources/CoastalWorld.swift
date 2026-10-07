@@ -83,6 +83,9 @@ final class CoastalWorld {
     var lastCoins = 0
     let ambientNode = SCNNode()
     let ambientFX = SCNParticleSystem()
+    /// Read by the ambient fade on the render thread: the lens, how far ahead of it particles die, the lateral clear zone, and what the last pass left visible.
+    var ambientEye = SIMD3<Float>(0, 0, 0), ambientClear: Float = 0, ambientNear: Float = 5
+    var ambientSeen = AmbientSeen()
     private let abilityAura = SCNNode()
     private var ghostCourier: SCNNode?
     private var currentRunDistance = 0.0

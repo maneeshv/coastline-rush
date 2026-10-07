@@ -9,14 +9,19 @@ struct AmbientFX {
     /// Birth heights above the route (m).
     var low: Double, high: Double
     var additive: Bool, stretch: Double
+    /// Particles within this |x| (the road) fade out over 3 m beyond it; 0 = everywhere.
+    var clear = 0.0
 }
+
+/// Ambient deaths so far: how many, the nearest to the lens and the nearest to the route line (tests read it).
+struct AmbientSeen { var count = 0, nearest = Float.infinity, lateral = Float.infinity }
 
 extension WorldStage {
     var ambient: AmbientFX {
         switch self {
-        case .harbor:   // no mist: any sprite big enough to read as a bank greys the road and cuts far-hazard contrast (fade-in/out tried, −7…−19%)
-            return AmbientFX(tint: "C9D8E6", opacity: 0.12, count: 0, life: 6, size: 6.0, sizeVariation: 1.5,
-                             drift: SIMD3(0.4, 0.05, 0), flow: 1, low: 0.2, high: 3, additive: false, stretch: 0)
+        case .harbor:   // mist banks over the water only: sprites over the road cut far-hazard contrast, so `clear` keeps them off it
+            return AmbientFX(tint: "C9D8E6", opacity: 0.35, count: 16, life: 6, size: 5.0, sizeVariation: 1.5,
+                             drift: SIMD3(0.4, 0.05, 0), flow: 1, low: 0.2, high: 3, additive: false, stretch: 0, clear: 6)
         case .orbit:    // star streaks rushing past faster than the run
             return AmbientFX(tint: "DDEBFF", opacity: 0.8, count: 80, life: 1.2, size: 0.10, sizeVariation: 0.03,
                              drift: SIMD3(0, 0, 0), flow: 1.8, low: 1, high: 14, additive: true, stretch: 0.08)
@@ -68,6 +73,15 @@ extension CoastalWorld {
     /// `reset()` does not re-run the warm-up: only the first render starts populated, a later world or tier refills over one life.
     func makeFX() {
         ambientFX.birthLocation = .volume
+        ambientFX.handle(.birth, forProperties: [.position, .life, .velocity]) { [unowned self] data, stride, _, count in
+            shapeAmbientBirths(data, stride, count: count)
+        }
+        ambientFX.handle(.death, forProperties: [.position]) { [unowned self] data, stride, _, count in
+            noteAmbientDeaths(data, stride, count: count)
+        }
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [1, 1, 0]; fade.keyTimes = [0, 0.7, 1]; fade.duration = 1
+        ambientFX.propertyControllers = [.opacity: SCNParticlePropertyController(animation: fade)]
         ambientNode.addParticleSystem(ambientFX)
         scene.rootNode.addChildNode(ambientNode)
     }
@@ -79,9 +93,32 @@ extension CoastalWorld {
         dress(ambientFX, life: a.life, size: a.size, tint: a.tint, opacity: a.opacity, additive: a.additive)
         ambientFX.particleSizeVariation = CGFloat(a.sizeVariation)
         ambientFX.warmupDuration = CGFloat(a.life)   // the first render (offscreen snapshots) starts fully populated
-        ambientFX.emitterShape = SCNBox(width: 22, height: CGFloat(a.high - a.low), length: 56, chamferRadius: 0)
+        ambientFX.emitterShape = SCNBox(width: 22, height: CGFloat(a.high - a.low), length: 52, chamferRadius: 0)
         for puff in footDust.compactMap({ $0.particleSystems?.first }) { puff.particleColor = color(stage.deckDust, alpha: 0.5) }
         ambientFX.reset()
+    }
+
+    /// Births (properties position, life, velocity): a particle is shortened so it dies `ambientNear` in front of the lens
+    /// (5 m, or three sprite sizes: a sprite beside the lens is a blob, not weather; it fades out over its last 30%), and in a world with a
+    /// `clear` zone it is pushed out of the road onto the water. Positions are world space.
+    func shapeAmbientBirths(_ data: UnsafeMutablePointer<UnsafeMutableRawPointer>, _ stride: UnsafeMutablePointer<Int>, count: Int) {
+        for i in 0..<count {
+            let p = (data[0] + i * stride[0]).assumingMemoryBound(to: Float.self)
+            let life = (data[1] + i * stride[1]).assumingMemoryBound(to: Float.self)
+            let vz = (data[2] + i * stride[2]).assumingMemoryBound(to: Float.self)[2]
+            if ambientClear > 0 { p[0] = (p[0] < 0 ? -1 : 1) * (ambientClear + abs(p[0]) * (11 - ambientClear) / 11) }
+            if vz > 0.01 { life.pointee = min(life.pointee, max(0, ambientEye.z - ambientNear - p[2]) / vz) }
+        }
+    }
+
+    /// Deaths (property position): the nearest to the lens and to the route line, for the tests.
+    func noteAmbientDeaths(_ data: UnsafeMutablePointer<UnsafeMutableRawPointer>, _ stride: UnsafeMutablePointer<Int>, count: Int) {
+        for i in 0..<count {
+            let p = (data[0] + i * stride[0]).assumingMemoryBound(to: Float.self)
+            ambientSeen.count += 1
+            ambientSeen.nearest = min(ambientSeen.nearest, simd_distance(SIMD3(p[0], p[1], p[2]), ambientEye))
+            ambientSeen.lateral = min(ambientSeen.lateral, abs(p[0]))
+        }
     }
 
     /// Per frame: the ambient volume follows the camera and the air streams past at run speed.
@@ -91,7 +128,10 @@ extension CoastalWorld {
         // so most of the budget stays in view (roughly 15% still passes behind the camera); the birth rate keeps the live count fixed.
         // Reduced Motion: no stretched or faster-than-run streaks, which would read as speed lines.
         let flowScale = reducedMotion ? min(a.flow, 1) : a.flow
-        ambientNode.position = vector(cameraEye.x, routeHeight + (a.low + a.high) / 2, -22)
+        ambientNode.position = vector(cameraEye.x, routeHeight + (a.low + a.high) / 2, -24)
+        ambientEye = SIMD3(Float(cameraEye.x), Float(cameraEye.y), Float(cameraEye.z))
+        ambientClear = Float(a.clear)
+        ambientNear = Float(max(5, 3 * (a.size + a.sizeVariation)))
         let flow = a.drift + SIMD3(0, 0, flowScale * speed)
         let life = min(a.life, 25 / max(0.1, flowScale * speed))
         let heading = simd_normalize(flow)   // must be a unit vector: SceneKit scales particleVelocity by its length

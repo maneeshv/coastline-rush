@@ -1,4 +1,5 @@
-import Foundation
+import AppKit
+import Metal
 import SceneKit
 
 /// Phase 4 camera and FX: runner screen size, hazard look-ahead, follow lag, lean, Reduced Motion, particles and quality tiers.
@@ -179,6 +180,27 @@ import SceneKit
                 precondition(Double(calm.ambientFX.particleVelocity) < run.speed * 1.2, "Reduced Motion: ambient flow must not outrun the run")
             }
             precondition(Set(WorldStage.allCases.map(\.ambient.tint)).count == WorldStage.allCases.count, "every world needs its own ambient particles")
+        }
+        // 5b. Near-camera fade: rendered through the real particle pass, every ambient particle dies ahead of the lens
+        //     (never within 3 m, and faded out by then), and in a world with a clear zone none strays over the road.
+        do {
+            let renderer = SCNRenderer(device: MTLCreateSystemDefaultDevice(), options: nil)
+            for (index, stage) in WorldStage.allCases.enumerated() {
+                let world = CoastalWorld(assetsURL: URL(fileURLWithPath: "Resources"))
+                world.applyQuality(.ultra); world.resize(aspect: portrait)
+                renderer.scene = world.scene; renderer.pointOfView = world.camera
+                var run = RunnerSimulation(); run.start(seed: 3, mode: .odyssey, startStage: index)
+                var time = 0.0
+                for _ in 0..<240 {
+                    step(world, &run, &time)
+                    _ = renderer.snapshot(atTime: time, with: CGSize(width: 90, height: 150), antialiasingMode: .none)
+                }
+                let seen = world.ambientSeen
+                print(String(format: "ambient %@: %d deaths, nearest %.2f m from the lens, nearest %.2f m from the route line", "\(stage)", seen.count, seen.nearest, seen.lateral))
+                precondition(stage.ambient.count == 0 || seen.count > 0, "\(stage): no ambient particle ever died: the death pass never ran")
+                precondition(seen.nearest >= 3, "\(stage): an ambient particle lived to \(seen.nearest) m from the lens")
+                precondition(seen.lateral >= Float(stage.ambient.clear) - 1, "\(stage): ambient over the road (\(seen.lateral) m)")
+            }
         }
         // 6. Speed lines: none below 26 m/s, in the menu or under Reduced Motion; on at Forge cruise; half on performance.
         do {
