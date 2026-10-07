@@ -56,8 +56,8 @@ final class CoastalWorld {
     private var stridePhase = 0.0
     private var lastStrideDistance = 0.0
     private var takeoffStarted = -100.0
-    private var routeOffset = 0.0
-    private var routeHeight = 0.0
+    var routeOffset = 0.0
+    var routeHeight = 0.0
     private var currentRouteSimulation: RunnerSimulation?
 
     private let setRoot = SCNNode()
@@ -109,7 +109,7 @@ final class CoastalWorld {
     var clothing: [SCNMaterial] = []
     private var selectedCharacter = ""
     private var selectedBoard = ""
-    private var aspect = 0.5
+    var aspect = 0.5
     private let water = SCNNode()
     private let ski = SCNNode()
     private let wake = SCNNode()
@@ -119,6 +119,9 @@ final class CoastalWorld {
     private var lastTime = 0.0
     private var trickStartedAt: Double?
     var bank = 0.0
+    var cameraEye = SIMD3<Double>(0, 0, 0)
+    var cameraTarget = SIMD3<Double>(0, 0, 0)
+    var cameraFOV = 66.0
     private var previousLateral = 0.0
     var textureCache: [String: CGImage] = [:]
     var geometryCache: [String: SCNGeometry] = [:]
@@ -251,6 +254,7 @@ final class CoastalWorld {
         harborScenery.forEach { $0.isHidden = offworld }
         journeyRoot.isHidden = !offworld
         let boosting = simulation.isBoosting && running
+        let rewound = time < lastTime || lastTime == 0
         let dt = min(0.05, max(0, time - lastTime))
         lastTime = time
         let steeringVelocity = (simulation.lateral - previousLateral) / max(0.01, dt)
@@ -306,7 +310,6 @@ final class CoastalWorld {
         else if running { stridePhase += travelled / max(1, simulation.speed) * (12 + min(60, simulation.speed) * 0.13) }
         lastStrideDistance = simulation.distance
         let gait = isMenu ? time * 2.8 : stridePhase
-        let motion = reducedMotion ? 0.0 : 1.0
         let portalJump = simulation.isPortalTransitioning && !reducedMotion ? sin(simulation.portalTransitionProgress * .pi) * 3.2 : 0
         let height = (isMenu ? 0 : simulation.height) + portalJump
         let bob = reducedMotion ? 0 : waterMode ? sin(time * 9) * 0.06 : running && height < 0.1 && !roll && !surfing ? 0 : sin(time * 2) * 0.025
@@ -366,18 +369,15 @@ final class CoastalWorld {
         let shadowScale = max(0.35, 1 - height * 0.055)
         playerShadow.scale = vector(shadowScale, 1, shadowScale)
         playerShadow.opacity = flying ? 0.18 : 0.92
-        drone.position = vector(sin(time * 0.9) * 0.8, 2.5 + sin(time * 2) * 0.16, running ? 4.5 : 5.8)
         drone.eulerAngles.z = scalar(sin(time * 0.9) * 0.12)
         drone.isHidden = isMenu || waterMode || offworld || (simulation.distance > 130 && simulation.invulnerableTime <= 0)
         if !drone.isHidden { for rotor in rotorNodes { rotor.eulerAngles.y = scalar(time * 45) } }
 
         let flightLift = reducedMotion ? 0 : flying ? min(height * 0.44, 3.0) : min(height * 0.12, 0.35)
-        let desiredX = isMenu ? 0.35 : simulation.lateral * 0.3 + routeOffset
-        let cameraHeight = waterMode ? 5.4 : 6.1
-        camera.position = vector(desiredX, cameraHeight + routeHeight + flightLift + (boosting ? sin(time * 30) * 0.025 * motion : 0), aspect < 0.8 ? 11.8 : 10.4)
-        let cameraRoute = isMenu ? route : simulation.routeTransform(atAheadDistance: 14)
-        camera.look(at: vector((desiredX - routeOffset) * 0.25 + cameraRoute.lateralOffset, 0.5 + cameraRoute.elevation + flightLift, -14))
-        camera.camera?.fieldOfView = (aspect < 0.8 ? 66 : 58) + (boosting && !reducedMotion ? 5 : 0)
+        updateCamera(menu: isMenu, waterMode: waterMode, lateral: simulation.lateral, speed: simulation.speed, boosting: boosting, flightLift: flightLift,
+                     ahead: isMenu ? route : simulation.routeTransform(atAheadDistance: CameraRig.lookAhead), time: time, dt: dt, snap: rewound)
+        // The drone keeps its old place in the frame (3.6 m under and 7.3 m ahead of the camera), so the closer camera does not enlarge it over the runner.
+        drone.position = vector(cameraEye.x + sin(time * 0.9) * 0.8, cameraEye.y - 3.6 + sin(time * 2) * 0.16, cameraEye.z - 7.3)
         let visibilityDistance = simulation.mode == .odyssey ? min(200, max(135, simulation.speed * 3.2)) : 135
         syncEntities(simulation.entities, time: time, menu: isMenu || simulation.isPortalTransitioning,
                      visibilityDistance: visibilityDistance, simulation: simulation)
@@ -2807,7 +2807,7 @@ private extension CoastalWorld {
         warpVeil.geometry?.firstMaterial?.diffuse.contents = color(reducedMotion ? "101D2F" : "A7E5FC")
         warpVeil.opacity = transitioning ? min(1, max(0, (progress - 0.48) / 0.34)) : entryFade
         if transitioning && !reducedMotion {
-            camera.camera?.fieldOfView = (aspect < 0.8 ? 66 : 58) + sin(progress * .pi / 2) * 24
+            camera.camera?.fieldOfView = CGFloat(cameraFOV + sin(progress * .pi / 2) * 24)
             player.eulerAngles.x = scalar(-sin(progress * .pi) * 0.35)
         }
     }

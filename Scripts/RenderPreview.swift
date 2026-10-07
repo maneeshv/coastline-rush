@@ -53,7 +53,13 @@ import SceneKit
                 }
             }
             let pct = { (n: Int) in String(format: "%.1f%%", Double(n) * 100 / Double(max(1, samples))) }
-            print(name, String(format: "mean=%.3f", sum / Double(max(1, samples))), "crushed=\(pct(crushed))", "clipped=\(pct(clipped))", String(format: "ms=%.1f", ms))
+            // Live particles the emitters sustain (looping rate × life, plus attached bursts). ms stays last: the A/B awk reads $NF.
+            var particles = 0.0
+            world.scene.rootNode.enumerateHierarchy { node, _ in
+                for s in node.particleSystems ?? [] { particles += Double(s.birthRate) * Double(s.loops ? s.particleLifeSpan : s.emissionDuration) }
+            }
+            print(name, String(format: "mean=%.3f", sum / Double(max(1, samples))), "crushed=\(pct(crushed))", "clipped=\(pct(clipped))",
+                  String(format: "particles=%.0f", particles), String(format: "ms=%.1f", ms))
         }
     }
 }
