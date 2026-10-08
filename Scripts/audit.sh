@@ -18,6 +18,19 @@ swiftc "${flags[@]}" "${core[@]}" Tests/Audits/WaterAudit.swift -o "$audit_work/
 "$audit_work/water"
 swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Sources/ReplayGhost.swift Sources/PlayerProfile.swift Sources/RunCheckpoint.swift Tests/Audits/RouteAudit.swift Tests/Audits/GhostCheckpointAudit.swift -o "$audit_work/checkpoints"
 "$audit_work/checkpoints"
-swiftc "${flags[@]}" "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld.swift Tests/Audits/WorldCacheAudit.swift -o "$audit_work/cache"
+swiftc "${flags[@]}" "${core[@]}" Sources/ReplayGhost.swift Sources/CoastalWorld.swift Sources/World*.swift Tests/Audits/WorldCacheAudit.swift -o "$audit_work/cache"
 "$audit_work/cache"
+swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Tests/Audits/RouteAudit.swift Tests/Audits/SkillAudit.swift -o "$audit_work/skill"
+"$audit_work/skill"
+# Resume: a run saved and reloaded every 157 ticks must match an uninterrupted run, in every mode and Daily.
+swiftc "${flags[@]}" -D ROUTE_HELPER "${core[@]}" Tests/Audits/RouteAudit.swift Tests/Audits/ResumeAudit.swift -o "$audit_work/resume"
+"$audit_work/resume"
+# Legacy checkpoints: v4 stages (frozen legacy generator) must match the pre-overhaul build exactly;
+# v5/v6 stages adopt the current generator (spec: resumed runs build new rows with new rules) and must reach their portal.
+mkdir -p "$audit_work/legacy-base"
+git archive e3049e5 Sources/PortalJourney.swift Sources/ExpeditionExpansion.swift Sources/RunnerSimulation.swift | tar -x -C "$audit_work/legacy-base"
+swiftc "${flags[@]}" "$audit_work"/legacy-base/Sources/*.swift Tests/Audits/LegacyContinuityAudit.swift -o "$audit_work/legacy-base-probe"
+swiftc "${flags[@]}" "${core[@]}" Tests/Audits/LegacyContinuityAudit.swift -o "$audit_work/legacy-probe"
+"$audit_work/legacy-base-probe" create "$audit_work/legacy" "$audit_work/legacy-baseline.json"
+"$audit_work/legacy-probe" verify "$audit_work/legacy" "$audit_work/legacy-baseline.json"
 printf 'Audit executables retained at %s\n' "$audit_work"

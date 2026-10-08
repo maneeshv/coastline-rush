@@ -2046,7 +2046,7 @@ private struct CRHelpPanel: View {
     private static let touchControls: [(String, String)] = [
         ("Swipe left or right", "Hop to the next lane. Three lanes, that's it."),
         ("Swipe up", "Jump a cargo barrier, or land on a tram roof."),
-        ("Swipe down", "Roll under the low signs."),
+        ("Swipe down", "Roll under the low signs. Roll to scoop low coins."),
         ("Double-tap", "Ride a board. It absorbs one crash, then it's gone.")
     ]
 
@@ -2065,7 +2065,9 @@ private struct CRHelpPanel: View {
                     CRHelpRow(title: mode.title, detail: mode.instructions)
                 }
                 CRHelpRow(title: "Flow chains", detail: "Clear hazards, skim close calls and hit gates to build your chain. Keep acting before it decays. A collision or missed gate breaks your flow.")
-                CRHelpRow(title: "Expert", detail: "Faster starts, tighter patterns and a separate personal best for each mode.")
+                CRHelpRow(title: "Expert", detail: "Faster starts, tighter patterns, stricter collisions, 12-second boards and a separate personal best for each mode.")
+                CRHelpRow(title: "Reading hazards", detail: "A chevron on a vehicle points to the lane it is moving into. Solid lasers are on and dashed lasers are off; rolling is always safe. Crossed bars mark walls and stacked barriers: change lanes. A sneakers jump clears a stack, never a wall. Rings mark where a meteor will land, and zigzag cracks mark a deck that is about to open. Coins are a temptation, not a route.")
+                CRHelpRow(title: "Roll in mid-air", detail: "Rolling while airborne drops you fast. Use it to take a jump-then-slide pair, especially on sneakers.")
                 CRHelpRow(title: "Mastery medals", detail: "Bronze: clear a world. Silver: clear it without a hit and perform two obstacle actions. Gold: also recover two risky relics and time your portal jump. Replay unlocked worlds to improve your medal.")
                 CRHelpRow(title: "Risk routes", detail: "Gold relics sit behind optional skill challenges. Follow the marked route and jump or slide as signaled; the ordinary route remains available.")
                 CRHelpRow(title: "Artifacts", detail: "Relics charge your equipped ability, up to three uses. Tap the artifact control or press E to activate it. Change your ability in the Atlas before a run or at an approaching portal.")
@@ -2087,7 +2089,7 @@ private struct CRHelpPanel: View {
             section("THE RULES") {
                 CRHelpRow(symbol: "shield.fill",
                           title: "A board absorbs one crash",
-                          detail: "Ride it before a tricky stretch. One crash, one board.")
+                          detail: "It lasts 20 seconds (12 on Expert). One crash, one board.")
                 CRHelpRow(symbol: "key.fill",
                           title: "One revive per run",
                           detail: "A rescue key puts you back on the track with three seconds of protection.")

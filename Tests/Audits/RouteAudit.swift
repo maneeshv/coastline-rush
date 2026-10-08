@@ -4,7 +4,9 @@ import Foundation
 @main
 #endif
 struct RouteAudit {
-    static let hazards: Set<EntityKind> = [.barrier, .arch, .tram, .gap, .meteor, .root, .iceCrack, .laserSweep, .buoy, .waterTraffic]
+    static let hazards: Set<EntityKind> = [.barrier, .arch, .tram, .gap, .meteor, .root, .iceCrack, .laserSweep, .buoy, .waterTraffic, .wall, .stack]
+    /// Hazards that no jump or roll clears.
+    static let solids: Set<EntityKind> = [.tram, .meteor, .wall, .stack]
     static let pursueRelics = ProcessInfo.processInfo.environment["QA_RELICS"] == "1"
     static let requestedRoute = BranchRoute(rawValue: ProcessInfo.processInfo.environment["QA_ROUTE"] ?? "safe") ?? .safe
     static func drive(_ run: inout RunnerSimulation, allowVerticalActions: Bool = true, route: BranchRoute? = nil) {
@@ -20,13 +22,23 @@ struct RouteAudit {
             // wastes the recovery space before a following cargo line.
             run.act(.jump)
         }
-        let active = run.entities.filter { hazards.contains($0.kind) && $0.z + $0.length / 2 > -0.5 }.sorted { $0.z < $1.z }
+        // A jetpack pickup swaps the hazard set: ground hazards are ignored in flight, drones are not.
+        let flying = run.activePowerUps[.jetpack] != nil
+        // A lane-changer is read from its shift chevron: plan around the lane it will occupy on arrival.
+        let active = run.entities.filter { (flying ? $0.kind == .airHazard : hazards.contains($0.kind)) && $0.z + $0.length / 2 > -0.5 }
+            .map { e -> TrackEntity in var read = e; read.lane = e.arrivalLane; return read }
+            .sorted { $0.z < $1.z }
         guard let first = active.first, first.z < run.speed * 2.1 else { return }
         let row = active.filter { abs($0.z - first.z) < 2 }
         // Plan before a ramp starts. Hold the route until its full collider has passed.
         var target = run.lane
         let free = (-1...1).filter { lane in !row.contains { $0.lane == lane } }
-        if let closest = free.min(by: { abs($0 - run.lane) < abs($1 - run.lane) }) { target = closest }
+        // Look ahead: among free lanes, avoid one whose next hazard is a solid (tram/meteor) the reader cannot jump.
+        func freeCost(_ lane: Int) -> Int {
+            let solidAfter = active.contains { $0.lane == lane && $0.z > first.z + 2 && $0.z < first.z + run.speed * 1.1 && solids.contains($0.kind) } ? 4 : 0
+            return abs(lane - run.lane) + solidAfter
+        }
+        if let best = free.min(by: { freeCost($0) < freeCost($1) }) { target = best }
         else if let supported = row.first(where: { vehicle in
             vehicle.kind == .tram && run.entities.contains(where: {
                 $0.kind == .ramp && $0.lane == vehicle.lane && abs(($0.z + 9) - vehicle.z) < 0.5
@@ -34,21 +46,24 @@ struct RouteAudit {
         }) { target = supported.lane }
         else {
             // Full-width mixed rows expose a jump lane, a slide lane and a solid
-            // lane. Read those visible shapes rather than assuming a free lane.
-            let choices = row.filter { $0.kind != .tram && $0.kind != .meteor }
-            if let choice = choices.min(by: { lhs, rhs in
-                let leftAirPenalty = run.height > 0.3 && [.arch, .laserSweep].contains(lhs.kind) ? 3 : 0
-                let rightAirPenalty = run.height > 0.3 && [.arch, .laserSweep].contains(rhs.kind) ? 3 : 0
-                return abs(lhs.lane - run.lane) + leftAirPenalty < abs(rhs.lane - run.lane) + rightAirPenalty
-            }) { target = choice.lane }
+            // lane. Read those shapes, and prefer a lane whose next hazard is not solid.
+            let choices = row.filter { !solids.contains($0.kind) }
+            func cost(_ e: TrackEntity) -> Int {
+                let airborneSlide = run.height > 0.3 && [.arch, .laserSweep].contains(e.kind) ? 3 : 0
+                let solidAfter = active.contains { $0.lane == e.lane && $0.z > e.z + 2 && $0.z < e.z + run.speed * 1.1 && solids.contains($0.kind) } ? 4 : 0
+                return abs(e.lane - run.lane) + airborneSlide + solidAfter
+            }
+            if let choice = choices.min(by: { cost($0) < cost($1) }) { target = choice.lane }
         }
-        if Set(row.map(\.lane)).count == 3,
-           let marker = run.entities.filter({ $0.kind == .coin && abs($0.z - first.z) < 2 })
-                .min(by: { abs($0.z - first.z) < abs($1.z - first.z) }) {
-            // Coin arcs visibly mark the intended jump/landing lane. Commit before
-            // the leap on ice; waiting until landing hazards become the first row
-            // leaves too little time for a two-lane correction.
-            target = marker.lane
+        if Set(row.map(\.lane)).count == 3, row.allSatisfy({ [.gap, .barrier, .root, .iceCrack].contains($0.kind) }) {
+            // A full-width leap: read the landing, not the coins. Commit before the
+            // leap to the lane the next hazard row leaves open.
+            let landing = active.filter { $0.z > first.z + 2 && $0.z < first.z + run.speed * 1.1 }
+            if let next = landing.first {
+                let landingRow = landing.filter { abs($0.z - next.z) < 2 }
+                let open = (-1...1).filter { lane in !landingRow.contains { $0.lane == lane } }
+                if let lane = open.min(by: { abs($0 - run.lane) < abs($1 - run.lane) }) { target = lane }
+            }
         }
         if pursueRelics, let relic = run.entities.first(where: { $0.kind == .relic && abs($0.z - first.z) < 3 }) { target = relic.lane }
         // Do not abandon an elevated/skill route as soon as its relic disappears.
@@ -59,8 +74,14 @@ struct RouteAudit {
         // A moving crate may pull ahead of its neighboring beam. Always read
         // the next hazard in the occupied/target lane, even when another lane's
         // earlier collider is still passing. This also protects a lane-change exit.
+        // A lane change in progress is read at its predicted lateral on arrival: a hazard the runner will have
+        // steered clear of by then is not jumped, so a late change does not waste a jump before a close row.
+        let steeringRate = run.steeringRate
+        let remaining = Double(run.lane) - run.lateral
         guard allowVerticalActions, let obstacle = active.first(where: {
-            $0.z > 0 && ($0.lane == target || abs(run.lateral - Double($0.lane)) < 0.55)
+            let reach = steeringRate * max(0, $0.z) / max(1, run.speed)
+            let arriving = run.lateral + max(-reach, min(reach, remaining))
+            return $0.z > 0 && ($0.lane == target || abs(arriving - Double($0.lane)) < run.lateralTolerance)
         }) else { return }
         switch obstacle.kind {
         case .gap:
@@ -70,9 +91,17 @@ struct RouteAudit {
         case .barrier, .root:
             if obstacle.z < run.speed * 0.32, run.height < 0.05 { run.act(.jump) }
         case .arch, .laserSweep:
-            if obstacle.z < run.speed * 0.30, !run.isRolling { run.act(.roll) }
+            if obstacle.z < run.speed * 0.30, !run.isRolling, laserOnDuringPass(obstacle, run) { run.act(.roll) }
         default: break
         }
+    }
+
+    /// A timed laser is read from its visible cycle: roll only if it is on at any moment of the pass,
+    /// predicting arrival as elapsed + z / speed. Untimed slide hazards are always on.
+    static func laserOnDuringPass(_ e: TrackEntity, _ run: RunnerSimulation) -> Bool {
+        let arrival = run.elapsed + e.z / max(1, run.speed)
+        let window = (e.length / 2 + run.collisionPadding) / max(1, run.speed) + 0.05
+        return [arrival - window, arrival, arrival + window].contains { e.isOn(at: $0) }
     }
 
     static func driveWater(_ run: inout RunnerSimulation) {

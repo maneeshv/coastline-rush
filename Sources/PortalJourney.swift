@@ -69,6 +69,8 @@ enum WorldStage: String, CaseIterable, Codable, Hashable {
     }
     var gravity: Double { self == .orbit ? 9 : self == .mars ? 14 : 22 }
     var jumpVelocity: Double { self == .orbit ? 7.8 : self == .mars ? 8.0 : 8.5 }
+    /// A normal jump's apex plus 0.5 m, never below 2.6 m: a stacked hazard's drawn top and its collider.
+    var stackTop: Double { max(2.6, jumpVelocity * jumpVelocity / (2 * gravity) + 0.5) }
     var cruiseSpeed: Double {
         switch self {
         case .harbor: return 17

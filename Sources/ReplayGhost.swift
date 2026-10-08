@@ -2,7 +2,16 @@ import Foundation
 
 /// Replays can only race the identical generator, difficulty and starting world.
 struct GhostCourseKey: Codable, Equatable, Hashable {
-    static let currentRevision = PortalJourney.currentRevision
+    /// Course generator revision for ghost recordings. It is bumped whenever generation changes,
+    /// so old ghosts retire. It is independent of PortalJourney.currentRevision, which also archives world records.
+    /// 8: G1 coin lines. 9: G2 hazards and the G3 shuffle bag, fork and finale order.
+    static let currentRevision = 9
+    /// Endless and Sprint ghosts: 5 for G1 coins and pickups, 6 for G3 escalation and forgiveness.
+    static let legacyModeRevision = 6
+    /// Jet Ski generation has not changed since revision 4, so its ghosts stay valid.
+    static func revision(for mode: RunMode) -> Int {
+        mode == .odyssey ? currentRevision : mode == .jetSki ? 4 : legacyModeRevision
+    }
     var mode: RunMode
     var expert: Bool
     var seed: UInt64
@@ -18,12 +27,11 @@ struct GhostCourseKey: Codable, Equatable, Hashable {
         self.expeditionStyle = mode == .odyssey ? expeditionStyle : .campaign
         self.decisionPlan = mode == .odyssey ? decisionPlan : []
         self.artifact = mode == .odyssey ? artifact : nil
-        // The original modes retain their unchanged course identity.
-        revision = mode == .odyssey ? Self.currentRevision : 4
+        revision = Self.revision(for: mode)
     }
 
     var isValid: Bool {
-        guard revision == (mode == .odyssey ? Self.currentRevision : 4),
+        guard revision == Self.revision(for: mode),
               (0..<WorldStage.allCases.count).contains(startWorld), expeditionStyle == .campaign else { return false }
         guard mode == .odyssey else { return startWorld == 0 && decisionPlan.isEmpty && artifact == nil }
         guard decisionPlan.count <= WorldStage.allCases.count else { return false }

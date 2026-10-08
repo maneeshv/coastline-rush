@@ -2,12 +2,12 @@ import SceneKit
 import CoreGraphics
 #if os(iOS)
 import UIKit
-private typealias CoastColor = UIColor
-private typealias CoastScalar = Float
+typealias CoastColor = UIColor
+typealias CoastScalar = Float
 #else
 import AppKit
-private typealias CoastColor = NSColor
-private typealias CoastScalar = CGFloat
+typealias CoastColor = NSColor
+typealias CoastScalar = CGFloat
 #endif
 
 /// A procedural, reusable seaside set. Gameplay owns all movement and collisions.
@@ -19,13 +19,15 @@ final class CoastalWorld {
     var highContrastCues = false
     var previewMode: RunMode = .endless
     var previewStage: WorldStage = .harbor
-    private var renderedStage: WorldStage = .harbor
+    private(set) var renderedStage: WorldStage = .harbor
     private var journeyRoot = SCNNode()
     private var journeySections: [SCNNode] = []
     private var journeyAnimated: [SCNNode] = []
     private var harborScenery: [SCNNode] = []
-    private var worldSun: SCNLight?
-    private var worldAmbient: SCNLight?
+    private(set) var worldSun: SCNLight?
+    private(set) var worldAmbient: SCNLight?
+    private(set) var worldSunNode: SCNNode?
+    private(set) var worldRim: SCNLight?
     private let portal = SCNNode()
     private let warpVeil = SCNNode()
     private var portalSurface: SCNNode?
@@ -43,10 +45,11 @@ final class CoastalWorld {
         let finale: SCNNode
     }
     private var destinations: [WorldStage: Destination] = [:]
+    private static let skyNames: [WorldStage: String] = [.orbit: "OrbitSky", .mars: "MarsSky", .verdant: "VerdantSky", .cryo: "CryoSky", .forge: "ForgeSky"]
     private(set) var preparationNode: SCNNode?
     private(set) var preparationRevision = 0
     private var warmedStages: Set<WorldStage> = []
-    private var qualityLevel = 1
+    private(set) var qualityLevel = 1
     private let harborFinale = SCNNode()
     private var finaleRoot = SCNNode()
     private let alternateRouteRoot = SCNNode()
@@ -54,51 +57,71 @@ final class CoastalWorld {
     private var stridePhase = 0.0
     private var lastStrideDistance = 0.0
     private var takeoffStarted = -100.0
-    private var routeOffset = 0.0
-    private var routeHeight = 0.0
+    var routeOffset = 0.0
+    var routeHeight = 0.0
     private var currentRouteSimulation: RunnerSimulation?
 
     private let setRoot = SCNNode()
-    private let player = SCNNode()
-    private let body = SCNNode()
-    private let leftArm = SCNNode()
-    private let rightArm = SCNNode()
-    private let leftLeg = SCNNode()
-    private let rightLeg = SCNNode()
-    private var shins: [SCNNode] = []
-    private var forearms: [SCNNode] = []
-    private var feet: [SCNNode] = []
-    private let headRig = SCNNode()
+    let player = SCNNode()
+    let body = SCNNode()
+    let leftArm = SCNNode()
+    let rightArm = SCNNode()
+    let leftLeg = SCNNode()
+    let rightLeg = SCNNode()
+    var shins: [SCNNode] = []
+    var forearms: [SCNNode] = []
+    var feet: [SCNNode] = []
+    let headRig = SCNNode()
     private let landingRoot = SCNNode()
     private var landingRings: [SCNNode] = []
-    private var landingSparks: [SCNNode] = []
+    let landingSparkFX = SCNParticleSystem()
+    let landingDustFX = SCNParticleSystem()
+    let speedLines = SCNParticleSystem()
+    var footDust: [SCNNode] = []
+    let sparkleRoot = SCNNode()
+    let sparkleFX = SCNParticleSystem()
+    var lastCoins = 0
+    let ambientNode = SCNNode()
+    let ambientFX = SCNParticleSystem()
+    /// Written on the main thread, read by the particle birth handler on the render thread: the lens, how far ahead of it
+    /// particles die (their life is cut to fit) and the lateral clear zone.
+    var ambientEye = SIMD3<Float>(0, 0, 0), ambientClear: Float = 0, ambientNear: Float = 5
     private let abilityAura = SCNNode()
     private var ghostCourier: SCNNode?
     private var currentRunDistance = 0.0
     private var landingStarted = -100.0
     private var previousHeight = 0.0
-    private var airborneBlend = 0.0
-    private var rollBlend = 0.0
-    private let scarf = SCNNode()
-    private let boardNode = SCNNode()
-    private let jetpackNode = SCNNode()
-    private let playerShadow = SCNNode()
+    var airborneBlend = 0.0
+    var rollBlend = 0.0
+    var deckBlend = 0.0
+    var scarfSwing = RunnerPose.Spring()
+    var packSwing = RunnerPose.Spring()
+    var lastRunnerLift = 0.0
+    var rollSpin = 0.0
+    var plantHold = 0.0
+    var shownPitch = 0.0
+    let scarf = SCNNode()
+    let pack = SCNNode()
+    let boardNode = SCNNode()
+    let jetpackNode = SCNNode()
+    let playerShadow = SCNNode()
     private let drone = SCNNode()
     private let menuProps = SCNNode()
     private let waterMenuProps = SCNNode()
     private var segments: [SCNNode] = []
     private var waterGlints: [SCNNode] = []
     private var gulls: [SCNNode] = []
-    private var exhaust: [SCNNode] = []
+    var exhaust: [SCNNode] = []
     private var rotorNodes: [SCNNode] = []
     private var liveNodes: [Int: SCNNode] = [:]
     private var liveKinds: [Int: String] = [:]
     private var pools: [String: [SCNNode]] = [:]
     private var materials: [String: SCNMaterial] = [:]
-    private var clothing: [SCNMaterial] = []
+    var surfaceDetailEnabled = true
+    var clothing: [SCNMaterial] = []
     private var selectedCharacter = ""
     private var selectedBoard = ""
-    private var aspect = 0.5
+    var aspect = 0.5
     private let water = SCNNode()
     private let ski = SCNNode()
     private let wake = SCNNode()
@@ -107,9 +130,13 @@ final class CoastalWorld {
     private var lastWaterMode = false
     private var lastTime = 0.0
     private var trickStartedAt: Double?
-    private var bank = 0.0
+    var bank = 0.0
+    var cameraEye = SIMD3<Double>(0, 0, 0)
+    var cameraTarget = SIMD3<Double>(0, 0, 0)
+    var cameraFOV = 66.0
     private var previousLateral = 0.0
-    private var textureCache: [String: CGImage] = [:]
+    var textureCache: [String: CGImage] = [:]
+    var geometryCache: [String: SCNGeometry] = [:]
     private let assetsURL: URL?
 
     private let cream = "D9E1E5"
@@ -123,10 +150,6 @@ final class CoastalWorld {
     init(assetsURL: URL? = nil) {
         self.assetsURL = assetsURL
         scene.background.contents = color("344465")
-        scene.fogColor = color("354B66")
-        scene.fogStartDistance = 75
-        scene.fogEndDistance = 215
-        scene.fogDensityExponent = 1.8
         scene.rootNode.addChildNode(setRoot)
         makeLighting()
         makeCamera()
@@ -142,15 +165,19 @@ final class CoastalWorld {
             setRoot.addChildNode(section)
             segments.append(section)
         }
-        makePlayer()
+        withoutSurfaceDetail { makePlayer() }
         makeMotionEffects()
+        makeFX()
+        makeMotionFX()
         makeDrone()
-        makeJetSki()
+        withoutSurfaceDetail { makeJetSki() }
         makeMenuProps()
         makeFinale(stage: .harbor, into: harborFinale)
         scene.rootNode.addChildNode(harborFinale)
         finaleRoot = harborFinale
         makeAlternateRoute()
+        applyLook(.harbor)
+        applyAmbient(.harbor)
     }
 
     func resize(aspect: Double) {
@@ -163,20 +190,25 @@ final class CoastalWorld {
         worldSun?.shadowMapSize = CGSize(width: qualityLevel == 0 ? 1024 : 2048, height: qualityLevel == 0 ? 1024 : 2048)
         worldSun?.shadowSampleCount = qualityLevel == 0 ? 2 : qualityLevel == 1 ? 4 : 8
         camera.camera?.screenSpaceAmbientOcclusionIntensity = qualityLevel == 0 ? 0 : qualityLevel == 1 ? 0.4 : 0.7
-        camera.camera?.bloomIntensity = qualityLevel == 0 ? 0.12 : 0.28
-        camera.camera?.bloomBlurRadius = qualityLevel == 0 ? 3 : 8
         camera.camera?.zFar = qualityLevel == 0 ? 280 : 380
         for (index, node) in portalSpecks.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
         for (index, node) in spray.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
-        for (index, node) in landingSparks.enumerated() { node.isHidden = qualityLevel == 0 && index % 2 == 1 }
+        applyBurstQuality()
+        applyLook(renderedStage)
     }
 
     func updateGhost(sample: GhostSample?) {
         guard let sample else { ghostCourier?.isHidden = true; return }
         if ghostCourier == nil {
-            let ghost = player.clone()
+            let ghost = player.clone() // shares the player's flat (detail-free) materials
             ghost.name = "personalGhost"
             ghost.opacity = 0.24
+            // The clone froze the runner's clone-time pose (mid-roll, mid-air, a boot on the deck). Rest the pack and scarf and hide the
+            // cloned board and jetpack; the body, limbs and head are posed every frame below.
+            for (name, x) in [("runnerPack", 0.0), ("runnerScarf", -0.6)] {
+                ghost.childNodes { node, _ in node.name == name }.forEach { $0.eulerAngles = vector(x, 0, 0) }
+            }
+            for name in ["runnerJetpack", "runnerBoard"] { ghost.childNode(withName: name, recursively: true)?.isHidden = true }
             ghost.enumerateChildNodes { node, _ in node.castsShadow = false }
             scene.rootNode.addChildNode(ghost)
             ghostCourier = ghost
@@ -185,13 +217,35 @@ final class CoastalWorld {
         let separation = sample.distance - currentRunDistance
         ghost.isHidden = separation > 100 || separation < -7
         let route = currentRouteSimulation?.routeTransform(atAheadDistance: separation)
-        ghost.position = vector(sample.x * 2.6 + (route?.lateralOffset ?? 0), sample.y + (route?.elevation ?? 0), -separation)
+        // Same water ride height as the live player (player.position.y adds 0.38 in water), so the ghost's craft floats on the surface.
+        ghost.position = vector(sample.x * 2.6 + (route?.lateralOffset ?? 0), sample.y + (route?.elevation ?? 0) + (lastWaterMode ? 0.38 : 0), -separation)
         ghost.scale = vector(1, sample.roll ? 0.45 : 1, 1)
         ghost.eulerAngles = SCNVector3Zero
-        for (name, sign) in [("leftLeg", 1.0), ("rightLeg", -1.0), ("leftArm", -0.8), ("rightArm", 0.8)] {
-            ghost.childNode(withName: name, recursively: true)?.eulerAngles.x = scalar(sample.y > 0.15 ? sign * 0.45 : sin(sample.time * 13) * sign * 0.7)
+        // Pose the clone each frame: standing swing on land, the crouched ride pose over its jet ski in water.
+        let water = lastWaterMode
+        let ride = RunnerPose.ride
+        if let body = ghost.childNode(withName: "runnerBody", recursively: false) {
+            body.transform = SCNMatrix4Identity
+            if water { body.position = vector(0, RunnerPose.rideDrop, RunnerPose.rideShift); body.eulerAngles.x = scalar(-RunnerPose.rideLean) }
         }
-        ghost.childNode(withName: "jetSki", recursively: true)?.isHidden = !lastWaterMode
+        if let head = ghost.childNode(withName: "runnerHead", recursively: true) {   // the clone froze the head's yaw, tilt and bob height
+            head.eulerAngles = vector(water ? RunnerPose.rideLean * 0.9 : 0, 0, 0)
+            head.position.y = scalar(RunnerPose.neckHeight)
+        }
+        for (name, sign) in [("leftLeg", 1.0), ("rightLeg", -1.0), ("leftArm", -0.8), ("rightArm", 0.8)] {
+            let side = name.hasPrefix("left") ? -1.0 : 1.0
+            let swing = scalar(sample.y > 0.15 ? sign * 0.45 : sin(sample.time * 13) * sign * 0.7)
+            let limb = ghost.childNode(withName: name, recursively: true)
+            let leg = name.hasSuffix("Leg")
+            if water { limb?.eulerAngles = vector(leg ? ride.thigh : ride.arm, 0, side * (leg ? RunnerPose.rideSplay : 0.06)) }
+            else { limb?.eulerAngles = vector(Double(swing), 0, side * (leg ? 0.02 : 0.10)) }
+        }
+        for (name, stand, sit) in [("runnerShin", RunnerPose.rest.shin, ride.shin), ("runnerForearm", RunnerPose.rest.forearm, ride.forearm), ("runnerFoot", 0, ride.foot)] {
+            ghost.childNodes { node, _ in node.name == name }.forEach { $0.eulerAngles.x = scalar(water ? sit : stand) }
+        }
+        let craft = ghost.childNode(withName: "jetSki", recursively: true)
+        craft?.isHidden = !water
+        craft?.eulerAngles.x = 0   // the clone froze the runner's brake or boost pitch
         ghost.childNode(withName: "artifactAura", recursively: true)?.isHidden = true
     }
 
@@ -215,10 +269,11 @@ final class CoastalWorld {
         harborScenery.forEach { $0.isHidden = offworld }
         journeyRoot.isHidden = !offworld
         let boosting = simulation.isBoosting && running
+        let rewound = time < lastTime || lastTime == 0
         let dt = min(0.05, max(0, time - lastTime))
         lastTime = time
         let steeringVelocity = (simulation.lateral - previousLateral) / max(0.01, dt)
-        let routeAhead = isMenu ? route : simulation.routeTransform(atAheadDistance: 14)
+        let routeAhead = isMenu ? route : simulation.routeTransform(atAheadDistance: CameraRig.lookAhead)
         let curveLean = (route.lateralOffset - routeAhead.lateralOffset) * 0.05
         let desiredBank = max(-0.65, min(0.65, (waterMode ? -simulation.lateralVelocity * 0.12 : -steeringVelocity * 0.08) + curveLean))
         bank += (desiredBank - bank) * min(1, dt * 12)
@@ -233,9 +288,10 @@ final class CoastalWorld {
             water.position.y = scalar(waterMode ? -0.13 : -1.1)
             water.geometry?.firstMaterial?.normal.contentsTransform = SCNMatrix4Mult(SCNMatrix4MakeScale(30, 50, 1), SCNMatrix4MakeTranslation(scalar(time * 0.004), scalar(time * 0.013), 0))
             for (index, section) in segments.enumerated() {
-                let z = travel.truncatingRemainder(dividingBy: segmentLength) - Double(index) * segmentLength + 12
+                let z = recycledZ(index: index, count: segments.count, length: segmentLength, front: 12 + segmentLength, travel: travel)
                 placeRouteSection(section, centerZ: z - 12, localCenterZ: -12, length: 24,
                                   simulation: simulation, menu: isMenu)
+                section.opacity = CGFloat(arrivalFade(z: z, count: segments.count, length: segmentLength, front: 12 + segmentLength))
             }
         }
         menuProps.isHidden = !isMenu || waterMode || offworld
@@ -269,10 +325,9 @@ final class CoastalWorld {
         else if running { stridePhase += travelled / max(1, simulation.speed) * (12 + min(60, simulation.speed) * 0.13) }
         lastStrideDistance = simulation.distance
         let gait = isMenu ? time * 2.8 : stridePhase
-        let motion = reducedMotion ? 0.0 : 1.0
         let portalJump = simulation.isPortalTransitioning && !reducedMotion ? sin(simulation.portalTransitionProgress * .pi) * 3.2 : 0
         let height = (isMenu ? 0 : simulation.height) + portalJump
-        let bob = reducedMotion ? 0 : waterMode ? sin(time * 9) * 0.06 : running && height < 0.1 && !roll && !surfing ? abs(sin(gait)) * 0.075 : sin(time * 2) * 0.025
+        let bob = reducedMotion ? 0 : waterMode ? sin(time * 9) * 0.06 : running && height < 0.1 && !roll && !surfing ? 0 : sin(time * 2) * 0.025
         // Stage the portrait menu hero above the mode picker, while the live camera remains unchanged.
         let menuDepth = isMenu && aspect < 0.8 ? -8.0 : 0.45
         let menuScale = isMenu && aspect < 0.8 ? 1.4 : 1.0
@@ -293,42 +348,22 @@ final class CoastalWorld {
         if running && previousHeight > 0.13 && height <= 0.13 && !simulation.isPortalTransitioning {
             landingStarted = time
             landingRoot.position = vector(Double(player.position.x), routeHeight + (waterMode ? 0.02 : 0.065), Double(player.position.z))
+            landingDustFX.particleColor = color(waterMode ? "E6F7FF" : renderedStage.deckDust, alpha: 0.45)
+            if !reducedMotion { burst([landingSparkFX, landingDustFX], at: landingRoot) }
         }
         previousHeight = height
         let landingAge = max(0, time - landingStarted)
         let takeoffAge = max(0, time - takeoffStarted)
-        let launchCompression = takeoffAge < 0.10 ? (1 - takeoffAge / 0.10) * 0.10 : 0
-        let compression = (landingAge < 0.32 ? sin(landingAge / 0.32 * .pi) * 0.22 : 0) + launchCompression
-        let stride = (running && !waterMode && !surfing && !flying) ? 0.76 * (1 - airborneBlend) * (1 - rollBlend) : isMenu ? 0.045 : 0.08
-        let gaitWave = sin(gait)
-        body.position.y = scalar(rollBlend * 0.38 - (waterMode ? 0.32 : 0) - compression)
-        body.eulerAngles.x = scalar(-rollBlend * .pi / 2 + (waterMode ? -0.38 : flying ? -0.12 : 0.055 + airborneBlend * 0.10))
-        body.eulerAngles.y = scalar(gaitWave * stride * 0.12)
-        body.eulerAngles.z = scalar(waterMode ? -bank * 0.22 : -bank * 0.20)
-        body.scale = vector(1, 1 - rollBlend * 0.24 - compression * 0.12, 1)
-        headRig.eulerAngles = vector(-airborneBlend * 0.09, -gaitWave * stride * 0.10, waterMode ? -bank * 0.12 : 0)
-        for (i, leg) in [leftLeg, rightLeg].enumerated() {
-            let cycle = gait + Double(i) * .pi
-            let swing = sin(cycle)
-            leg.eulerAngles.x = scalar(waterMode ? 0.8 : swing * stride + airborneBlend * (i == 0 ? 0.78 : -0.28) + rollBlend * 0.55 + compression * 1.4)
-            leg.eulerAngles.z = scalar((i == 0 ? -1.0 : 1.0) * (surfing ? 0.12 : 0.02))
-            if i < shins.count {
-                // Heel lift happens on each leg's own recovery half-cycle, not both knees together.
-                shins[i].eulerAngles.x = scalar(waterMode ? -1.2 : -max(0, -swing) * stride * 1.1 - airborneBlend * 0.85 - rollBlend * 1.1 - compression * 2.0)
-            }
-            if i < feet.count { feet[i].eulerAngles.x = scalar(waterMode ? 0.28 : max(0, swing) * stride * 0.25 + airborneBlend * 0.2) }
-        }
-        for (i, arm) in [leftArm, rightArm].enumerated() {
-            let swing = sin(gait + Double(i) * .pi)
-            arm.eulerAngles.x = scalar(waterMode ? 1.0 : -swing * stride * 0.72 - (flying ? 0.7 : 0.12) + airborneBlend * 0.58 + rollBlend * 1.05)
-            arm.eulerAngles.z = scalar((i == 0 ? -1.0 : 1.0) * (waterMode ? 0.18 : surfing ? 0.78 : 0.12 + airborneBlend * 0.25))
-            if i < forearms.count { forearms[i].eulerAngles.x = scalar(waterMode ? -0.22 : -0.48 - max(0, swing) * stride * 0.35 - airborneBlend * 0.48 - rollBlend * 0.4) }
-        }
+        // Run cycle at full strength only while running on foot; a small idle otherwise.
+        let gaitAmount = running && !waterMode && !surfing && !flying ? (1 - airborneBlend) * (1 - rollBlend) : isMenu ? 0.06 : 0.10
+        let craftPitch = waterMode ? simulation.isBraking ? 0.12 : boosting ? -0.08 : 0.0 : 0.0
+        poseRunner(gait: gait, amount: gaitAmount, waterMode: waterMode, surfing: surfing, flying: flying, landingAge: landingAge,
+                   takeoffAge: takeoffAge, speed: simulation.speed, height: height, time: time, dt: dt, craftPitch: craftPitch)
         updateMotionEffects(simulation: simulation, time: time, waterMode: waterMode)
         ski.isHidden = !waterMode
         wake.isHidden = !waterMode
         ski.position.y = scalar(-0.35)
-        ski.eulerAngles.x = scalar(simulation.isBraking ? 0.12 : boosting ? -0.08 : 0)
+        ski.eulerAngles.x = scalar(craftPitch)   // the rider pitches with it (poseRunner)
         for (index, particle) in spray.enumerated() where waterMode {
             let age = (time * (boosting ? 1.8 : 1.1) + Double(index) / Double(spray.count)).truncatingRemainder(dividingBy: 1)
             let side = index % 2 == 0 ? -1.0 : 1.0
@@ -340,7 +375,6 @@ final class CoastalWorld {
         wake.eulerAngles.z = scalar(-bank * 0.55)
         wake.scale.x = scalar(1 + abs(bank) * 0.65)
         wake.opacity = height > 0.5 ? 0.25 : 0.72
-        scarf.eulerAngles.x = scalar(0.13 + sin(time * 8) * 0.08)
         boardNode.isHidden = !surfing || waterMode
         boardNode.eulerAngles.z = scalar(reducedMotion ? 0 : sin(time * 4) * 0.055)
         jetpackNode.isHidden = !flying
@@ -352,18 +386,19 @@ final class CoastalWorld {
         let shadowScale = max(0.35, 1 - height * 0.055)
         playerShadow.scale = vector(shadowScale, 1, shadowScale)
         playerShadow.opacity = flying ? 0.18 : 0.92
-        drone.position = vector(sin(time * 0.9) * 0.8, 2.5 + sin(time * 2) * 0.16, running ? 4.5 : 5.8)
         drone.eulerAngles.z = scalar(sin(time * 0.9) * 0.12)
         drone.isHidden = isMenu || waterMode || offworld || (simulation.distance > 130 && simulation.invulnerableTime <= 0)
         if !drone.isHidden { for rotor in rotorNodes { rotor.eulerAngles.y = scalar(time * 45) } }
 
         let flightLift = reducedMotion ? 0 : flying ? min(height * 0.44, 3.0) : min(height * 0.12, 0.35)
-        let desiredX = isMenu ? 0.35 : simulation.lateral * 0.3 + routeOffset
-        let cameraHeight = waterMode ? 5.4 : 6.1
-        camera.position = vector(desiredX, cameraHeight + routeHeight + flightLift + (boosting ? sin(time * 30) * 0.025 * motion : 0), aspect < 0.8 ? 11.8 : 10.4)
-        let cameraRoute = isMenu ? route : simulation.routeTransform(atAheadDistance: 14)
-        camera.look(at: vector((desiredX - routeOffset) * 0.25 + cameraRoute.lateralOffset, 0.5 + cameraRoute.elevation + flightLift, -14))
-        camera.camera?.fieldOfView = (aspect < 0.8 ? 66 : 58) + (boosting && !reducedMotion ? 5 : 0)
+        updateCamera(menu: isMenu, waterMode: waterMode, lateral: simulation.lateral, speed: simulation.speed, boosting: boosting, flightLift: flightLift,
+                     ahead: routeAhead, time: time, dt: dt, snap: rewound)
+        // The drone hangs 4.4 m under and 7.3 m ahead of the camera: below the runner's feet in both orientations, clear of the deck.
+        drone.position = vector(cameraEye.x + sin(time * 0.9) * 0.8, cameraEye.y - 4.4 + sin(time * 2) * 0.16, cameraEye.z - 7.3)
+        updateAmbient(speed: running ? simulation.speed : 1.5,
+                      routeBends: !isMenu && renderedStage.ambient.clear > 0 && routeBends(simulation, route: route.lateralOffset, ahead: routeAhead.lateralOffset))
+        updateMotionFX(simulation: simulation, running: running, gait: gait, footing: running && !waterMode && !surfing && !flying ? gaitAmount : 0,
+                       height: height, boosting: boosting)
         let visibilityDistance = simulation.mode == .odyssey ? min(200, max(135, simulation.speed * 3.2)) : 135
         syncEntities(simulation.entities, time: time, menu: isMenu || simulation.isPortalTransitioning,
                      visibilityDistance: visibilityDistance, simulation: simulation)
@@ -376,15 +411,16 @@ final class CoastalWorld {
 
     // MARK: - Shared art helpers
 
-    private func color(_ hex: String, alpha: Double = 1) -> CoastColor {
+    func color(_ hex: String, alpha: Double = 1) -> CoastColor {
         let value = UInt64(hex, radix: 16) ?? 0xFFFFFF
         return CoastColor(red: CGFloat((value >> 16) & 255) / 255,
                           green: CGFloat((value >> 8) & 255) / 255,
                           blue: CGFloat(value & 255) / 255, alpha: CGFloat(alpha))
     }
 
-    private func material(_ hex: String, emissive: Bool = false, unique: Bool = false) -> SCNMaterial {
-        let key = hex + (emissive ? "-light" : "")
+    func material(_ hex: String, emissive: Bool = false, unique: Bool = false) -> SCNMaterial {
+        let detailed = !emissive && surfaceDetailEnabled
+        let key = hex + (emissive ? "-light" : "") + (detailed || emissive ? "" : "-flat")
         if !unique, let cached = materials[key] { return cached }
         let result = SCNMaterial()
         result.diffuse.contents = color(hex)
@@ -396,35 +432,19 @@ final class CoastalWorld {
             result.roughness.contents = 0.27
         }
         if emissive { result.emission.contents = color(hex); result.emission.intensity = 1.8 }
+        if detailed { applySurfaceDetail(to: result) }
         if !unique { materials[key] = result }
         return result
     }
 
-    private func vector(_ x: Double, _ y: Double, _ z: Double) -> SCNVector3 { SCNVector3(x, y, z) }
-    private func scalar(_ value: Double) -> CoastScalar { CoastScalar(value) }
+    func vector(_ x: Double, _ y: Double, _ z: Double) -> SCNVector3 { SCNVector3(x, y, z) }
+    func scalar(_ value: Double) -> CoastScalar { CoastScalar(value) }
 
-    /// Original smooth surface mesh for tailored suit panels and bracers, articulated by the rig.
-    private func sculptedMesh(rings: [(Double, Double, Double)], tint: String) -> SCNNode {
-        let segments = 24
-        var vertices: [SCNVector3] = [], normals: [SCNVector3] = [], uv: [CGPoint] = []
-        var indices: [Int32] = []
-        for (row, section) in rings.enumerated() {
-            let before = rings[max(0, row - 1)], after = rings[min(rings.count - 1, row + 1)]
-            let dy = max(0.01, after.0 - before.0)
-            for column in 0...segments {
-                let angle = Double(column) / Double(segments) * .pi * 2
-                let c = cos(angle), s = sin(angle)
-                vertices.append(vector(section.1 * c, section.0, section.2 * s))
-                let n = simd_normalize(SIMD3<Float>(Float(c / section.1), Float(-((after.1 - before.1) * c * c / section.1 + (after.2 - before.2) * s * s / section.2) / dy), Float(s / section.2)))
-                normals.append(vector(Double(n.x), Double(n.y), Double(n.z)))
-                uv.append(CGPoint(x: Double(column) / Double(segments), y: Double(row) / Double(max(1, rings.count - 1))))
-                if row < rings.count - 1 && column < segments {
-                    let a = Int32(row * (segments + 1) + column), b = a + Int32(segments + 1)
-                    indices += [a, b, a + 1, a + 1, b, b + 1]
-                }
-            }
-        }
-        let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: vertices), SCNGeometrySource(normals: normals), SCNGeometrySource(textureCoordinates: uv)], elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)])
+    /// Original smooth surface mesh (boat hull, sentinel torso): an open lathe, see `latheMesh`.
+    func sculptedMesh(rings: [(Double, Double, Double)], tint: String) -> SCNNode {
+        let mesh = latheMesh(rings: rings, caps: false)
+        let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: mesh.vertices), SCNGeometrySource(normals: mesh.normals), SCNGeometrySource(textureCoordinates: mesh.uv)],
+                                   elements: [SCNGeometryElement(indices: mesh.indices, primitiveType: .triangles)])
         geometry.firstMaterial = material(tint)
         return SCNNode(geometry: geometry)
     }
@@ -435,13 +455,8 @@ final class CoastalWorld {
             let ripple = ring(0.55, tube: 0.018 + Double(i) * 0.008, tint: i == 1 ? "FFCD92" : "85E2EC", at: vector(0, Double(i) * 0.018, 0), into: landingRoot, glow: true)
             ripple.castsShadow = false; landingRings.append(ripple)
         }
-        for i in 0..<18 {
-            let speck = box(0.03, 0.03, 0.14, i % 2 == 0 ? "FFD9B0" : "AAE6F4", radius: 0, into: landingRoot)
-            speck.geometry?.firstMaterial = material(i % 2 == 0 ? "FFD9B0" : "AAE6F4", emissive: true)
-            speck.castsShadow = false; landingSparks.append(speck)
-        }
         for i in 0..<3 {
-            let orbit = ring(0.8 + Double(i) * 0.10, tube: 0.017, tint: "8CF3ED", at: vector(0, 1.15, 0), into: abilityAura, glow: true)
+            let orbit = ring(1.05 + Double(i) * 0.10, tube: 0.017, tint: "8CF3ED", at: vector(0, 1.30, 0), into: abilityAura, glow: true)
             orbit.eulerAngles = vector(Double(i) * .pi / 3, 0, Double(i) * .pi / 3)
             orbit.castsShadow = false
         }
@@ -461,20 +476,13 @@ final class CoastalWorld {
                 ripple.scale = vector(radius, 1, radius)
                 ripple.opacity = max(0, 1 - progress) * 0.55
             }
-            for (i, spark) in landingSparks.enumerated() {
-                let angle = Double(i) / Double(landingSparks.count) * .pi * 2
-                let spread = 0.25 + age * (2.2 + Double(i % 4) * 0.55)
-                spark.position = vector(cos(angle) * spread, max(0, sin(age / 0.55 * .pi)) * (waterMode ? 0.6 : 0.35), sin(angle) * spread)
-                spark.eulerAngles = vector(0, -angle, angle)
-                spark.opacity = max(0, 1 - age / 0.55)
-            }
         }
         abilityAura.isHidden = !simulation.isAbilityActive
         abilityAura.eulerAngles.y = scalar(reducedMotion ? 0 : time * 2)
         abilityAura.opacity = reducedMotion ? 0.55 : 0.52 + sin(time * 4) * 0.09
     }
 
-    @discardableResult private func box(_ w: Double, _ h: Double, _ d: Double, _ hex: String,
+    @discardableResult func box(_ w: Double, _ h: Double, _ d: Double, _ hex: String,
                                        at position: SCNVector3 = SCNVector3Zero,
                                        radius: Double = 0.025, into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNBox(width: w, height: h, length: d, chamferRadius: radius > 0.04 ? min(radius, min(w, min(h, d)) * 0.45) : 0)
@@ -486,7 +494,7 @@ final class CoastalWorld {
         return node
     }
 
-    @discardableResult private func sphere(_ radius: Double, _ hex: String, at position: SCNVector3,
+    @discardableResult func sphere(_ radius: Double, _ hex: String, at position: SCNVector3,
                                           scale: SCNVector3 = SCNVector3(1, 1, 1), into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNSphere(radius: radius)
         shape.segmentCount = 24
@@ -498,7 +506,7 @@ final class CoastalWorld {
         return node
     }
 
-    @discardableResult private func cylinder(_ radius: Double, _ height: Double, _ hex: String,
+    @discardableResult func cylinder(_ radius: Double, _ height: Double, _ hex: String,
                                             at position: SCNVector3, into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNCylinder(radius: radius, height: height)
         shape.radialSegmentCount = 20
@@ -509,7 +517,7 @@ final class CoastalWorld {
         return node
     }
 
-    @discardableResult private func capsule(_ radius: Double, _ height: Double, _ hex: String,
+    @discardableResult func capsule(_ radius: Double, _ height: Double, _ hex: String,
                                            at position: SCNVector3, into parent: SCNNode? = nil) -> SCNNode {
         let shape = SCNCapsule(capRadius: radius, height: height)
         shape.radialSegmentCount = 20
@@ -521,7 +529,7 @@ final class CoastalWorld {
         return node
     }
 
-    private func shadow(width: Double, length: Double) -> SCNNode {
+    func shadow(width: Double, length: Double) -> SCNNode {
         let geometry = SCNPlane(width: width, height: length)
         let mat = SCNMaterial()
         mat.diffuse.contents = shadowTexture()
@@ -559,20 +567,16 @@ final class CoastalWorld {
 
     private func makeLighting() {
         scene.lightingEnvironment.contents = loadAsset("HarborSky") ?? environmentMap()
-        scene.lightingEnvironment.intensity = 0.65
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.color = color("8199C9")
-        ambient.light?.intensity = 75
         worldAmbient = ambient.light
         scene.rootNode.addChildNode(ambient)
         let sunlight = SCNNode()
         sunlight.light = SCNLight()
         sunlight.light?.type = .directional
-        sunlight.light?.color = color("FFC392")
-        sunlight.light?.intensity = 1500
         worldSun = sunlight.light
+        worldSunNode = sunlight
         sunlight.light?.castsShadow = true
         sunlight.light?.shadowColor = color("091529", alpha: 0.9)
         sunlight.light?.shadowRadius = 3
@@ -582,14 +586,11 @@ final class CoastalWorld {
         sunlight.light?.shadowBias = 0.01
         sunlight.light?.zNear = 0.5
         sunlight.light?.zFar = 95
-        sunlight.position = vector(-25, 18, -12)
-        sunlight.look(at: vector(0, 0, -8))
         scene.rootNode.addChildNode(sunlight)
         let rim = SCNNode()
         rim.light = SCNLight()
         rim.light?.type = .directional
-        rim.light?.color = color("72B8F8")
-        rim.light?.intensity = 310
+        worldRim = rim.light   // colour and intensity per world: applyLook
         rim.eulerAngles = vector(-0.45, 2.5, 0)
         scene.rootNode.addChildNode(rim)
         let fill = SCNNode()
@@ -609,13 +610,7 @@ final class CoastalWorld {
         camera.camera?.zFar = 380
         camera.camera?.fieldOfView = 66
         camera.camera?.wantsHDR = true
-        camera.camera?.exposureOffset = -0.35
         camera.camera?.wantsExposureAdaptation = false
-        camera.camera?.bloomIntensity = 0.28
-        camera.camera?.bloomThreshold = 1.1
-        camera.camera?.bloomBlurRadius = 8
-        camera.camera?.vignettingIntensity = 0.35
-        camera.camera?.vignettingPower = 0.75
         camera.camera?.screenSpaceAmbientOcclusionIntensity = 0.7
         camera.camera?.screenSpaceAmbientOcclusionRadius = 2
         camera.camera?.screenSpaceAmbientOcclusionBias = 0.03
@@ -716,7 +711,8 @@ final class CoastalWorld {
         for prop in [asphalt.diffuse, asphalt.normal, asphalt.roughness] {
             prop.wrapS = .repeat; prop.wrapT = .repeat
             prop.contentsTransform = SCNMatrix4MakeScale(3, 8, 1)
-            prop.maxAnisotropy = 8
+            prop.maxAnisotropy = 4
+            prop.mipFilter = .linear
         }
         surface.geometry?.firstMaterial = asphalt
         for side in [-1.0, 1.0] {
@@ -727,6 +723,7 @@ final class CoastalWorld {
             stone.normal.intensity = 0.25
             stone.diffuse.wrapS = .repeat; stone.diffuse.wrapT = .repeat
             stone.diffuse.contentsTransform = SCNMatrix4MakeScale(1, 10, 1)
+            for prop in [stone.diffuse, stone.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
             pavement.geometry?.firstMaterial = stone
             box(0.13, 0.2, 24, cream, at: vector(side * 4.05, 0.02, -12), radius: 0.025, into: roadway)
             let glow = box(0.035, 0.025, 24, "42E1DE", at: vector(side * 4.01, 0.13, -12), radius: 0, into: roadway)
@@ -738,6 +735,7 @@ final class CoastalWorld {
             quayMat.normal.intensity = 0.3
             quayMat.diffuse.wrapS = .repeat; quayMat.diffuse.wrapT = .repeat
             quayMat.diffuse.contentsTransform = SCNMatrix4MakeScale(3, 8, 1)
+            for prop in [quayMat.diffuse, quayMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
             quay.geometry?.firstMaterial = quayMat
             box(0.22, 0.18, 24, "8898A4", at: vector(side * 5.98, 0.2, -12), radius: 0.025, into: section)
             for z in stride(from: -1.0, through: -24.0, by: -2.5) {
@@ -810,7 +808,19 @@ final class CoastalWorld {
         return result
     }
 
-    private func makeHouse(into parent: SCNNode, at position: SCNVector3, facing: Double, variant: Int) {
+    func makeHouse(into parent: SCNNode, at position: SCNVector3, facing: Double, variant: Int) {
+        let house = houseNode(at: position, facing: facing, variant: variant)
+        // Merge static surfaces per building. Restore placement explicitly because
+        // flattenedClone bakes children but intentionally omits this root's transform.
+        let placement = house.transform
+        house.transform = SCNMatrix4Identity
+        let merged = house.flattenedClone()
+        merged.transform = placement
+        parent.addChildNode(merged)
+    }
+
+    /// The unmerged house; kept separate so tests can measure it (merged geometry reports no bounds off-screen).
+    func houseNode(at position: SCNVector3, facing: Double, variant: Int) -> SCNNode {
         let house = SCNNode()
         box(6.6, 0.8, 8.8, "334553", at: vector(0, -0.15, 0), radius: 0.08, into: house)
         let palette = ["46586A", "845E53", "34616B", "616274", "44536E", "806C5E"]
@@ -824,9 +834,10 @@ final class CoastalWorld {
         wallMat.roughness.contents = 0.82
         wallMat.diffuse.wrapS = .repeat; wallMat.diffuse.wrapT = .repeat
         wallMat.diffuse.contentsTransform = SCNMatrix4MakeScale(2, 2, 1)
+        for prop in [wallMat.diffuse, wallMat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
         wall.geometry?.firstMaterial = wallMat
         box(5.94, 0.25, 8.24, "89979F", at: vector(0, height + 0.03, 0), radius: 0.04, into: house)
-        box(5.76, 0.3, 0.16, tint, at: vector(0, height + 0.25, 3.95), radius: 0.025, into: house)
+        if variant % 3 != 1 { box(5.76, 0.3, 0.16, tint, at: vector(0, height + 0.25, 3.95), radius: 0.025, into: house) }  // the gable roof replaces the back parapet
         let front = -facing * 2.87
         for level in 0..<Int(height / 2.7) {
             let y = 1.5 + Double(level) * 2.65
@@ -867,18 +878,28 @@ final class CoastalWorld {
         signage.emission.contents = signage.diffuse.contents
         signage.emission.intensity = 0.7
         sign.geometry?.firstMaterial = signage
-        for x in [-1.1, 1.1] {
-            box(0.9, 0.7, 1.5, "384753", at: vector(x, height + 0.55, 1.7), radius: 0.07, into: house)
-            cylinder(0.28, 1.2, "69747C", at: vector(x, height + 0.7, -1.7), into: house)
+        if variant % 3 == 0 {
+            for x in [-1.1, 1.1] {
+                box(0.9, 0.7, 1.5, "384753", at: vector(x, height + 0.55, 1.7), radius: 0.07, into: house)
+                cylinder(0.28, 1.2, "69747C", at: vector(x, height + 0.7, -1.7), into: house)
+            }
+        }
+        switch variant % 3 {
+        case 1:
+            // Gable roof along the quay, with a chimney.
+            let roof = gableRoof(width: 6.1, length: 8.5, rise: 1.9, tint: "4A3A3A")
+            roof.position = vector(0, height + 0.15, 0)
+            house.addChildNode(roof)
+            box(0.55, 1.6, 0.55, "5E4B45", at: vector(-1.2, height + 1.5, -2.4), radius: 0.06, into: house)
+        case 2:
+            // Set-back penthouse floor, away from the quay front, with its own cornice.
+            let penthouse = box(4.1, 1.7, 6.2, tint, at: vector(facing * 0.5, height + 1.0, 0), radius: 0.08, into: house)
+            penthouse.geometry?.firstMaterial = wallMat
+            box(4.4, 0.18, 6.5, "89979F", at: vector(facing * 0.5, height + 1.92, 0), radius: 0.04, into: house)
+        default: break
         }
         house.position = position
-        // Merge static surfaces per building. Restore placement explicitly because
-        // flattenedClone bakes children but intentionally omits this root's transform.
-        let placement = house.transform
-        house.transform = SCNMatrix4Identity
-        let merged = house.flattenedClone()
-        merged.transform = placement
-        parent.addChildNode(merged)
+        return house
     }
 
     private func makePalm(into parent: SCNNode, at position: SCNVector3, lean: Double, variation: Int) {
@@ -919,143 +940,6 @@ final class CoastalWorld {
 
     // MARK: - Courier, board and chase drone
 
-    private func makePlayer() {
-        leftLeg.name = "leftLeg"; rightLeg.name = "rightLeg"
-        leftArm.name = "leftArm"; rightArm.name = "rightArm"
-        scene.rootNode.addChildNode(player)
-        player.addChildNode(body)
-        let shirt = sculptedMesh(rings: [(-0.43, 0.23, 0.16), (-0.30, 0.25, 0.17),
-                                        (0.06, 0.31, 0.20), (0.28, 0.35, 0.19), (0.39, 0.22, 0.14)], tint: coral)
-        shirt.position = vector(0, 1.23, 0)
-        body.addChildNode(shirt)
-        let shirtMat = material(coral, unique: true)
-        shirtMat.normal.contents = texture("cloth-normal")
-        shirtMat.normal.intensity = 0.25
-        shirtMat.roughness.contents = 0.8
-        shirt.geometry?.firstMaterial = shirtMat
-        clothing.append(shirtMat)
-        box(0.55, 0.34, 0.40, "152637", at: vector(0, 0.81, 0), radius: 0.14, into: body)
-        cylinder(0.115, 0.20, "BD846C", at: vector(0, 1.73, 0), into: body)
-        sphere(0.31, "CB977C", at: vector(0, 1.98, -0.005), scale: vector(0.92, 1.1, 0.93), into: body)
-        sphere(0.32, "132435", at: vector(0, 2.08, 0.055), scale: vector(1.01, 0.95, 0.95), into: body)
-        let cap = sphere(0.35, cream, at: vector(0, 2.13, 0), scale: vector(1.04, 0.95, 1.03), into: body)
-        let helmetMat = material("D95238", unique: true)
-        helmetMat.metalness.contents = 0.0
-        helmetMat.roughness.contents = 0.7
-        cap.geometry?.firstMaterial = helmetMat
-        let visor = sphere(0.31, "164F68", at: vector(0, 2.09, -0.115), scale: vector(1.04, 0.48, 1.0), into: body)
-        visor.geometry?.firstMaterial?.metalness.contents = 0.9
-        visor.geometry?.firstMaterial?.roughness.contents = 0.12
-        box(0.08, 0.10, 0.66, coral, at: vector(0, 2.43, 0), radius: 0.03, into: body)
-        for x in [-0.24, 0.24] {
-            box(0.04, 0.36, 0.40, "253A4B", at: vector(x, 2.18, 0.1), radius: 0.02, into: body)
-        }
-        box(0.12, 0.12, 0.035, coral, at: vector(0, 2.26, -0.31), radius: 0.025, into: body)
-        // Ears and face are visible during the three-quarter menu idle.
-        sphere(0.074, "CB977C", at: vector(-0.29, 1.99, 0), into: body)
-        sphere(0.074, "CB977C", at: vector(0.29, 1.99, 0), into: body)
-        for x in [-0.10, 0.10] { sphere(0.024, ink, at: vector(x, 2.02, -0.267), into: body) }
-        sphere(0.046, "D49B75", at: vector(0, 1.95, -0.29), scale: vector(0.8, 1, 1), into: body)
-        // Independent neck rig stabilizes the gaze while the torso counter-rotates.
-        headRig.position = vector(0, 1.65, 0)
-        for node in body.childNodes where Double(node.position.y) >= 1.73 {
-            node.position.y -= scalar(1.65)
-            headRig.addChildNode(node)
-        }
-        body.addChildNode(headRig)
-        for side in [-1.0, 1.0] {
-            let seam = box(0.035, 0.64, 0.04, "C3DDE5", at: vector(side * 0.25, 1.2, -0.18), radius: 0.01, into: body)
-            seam.eulerAngles.z = scalar(side * 0.12)
-            box(0.09, 0.11, 0.045, "182937", at: vector(side * 0.27, 1.41, -0.20), radius: 0.02, into: body)
-            let shoulder = sphere(0.16, side < 0 ? "DCE5E9" : "203B4A", at: vector(side * 0.34, 1.49, 0), scale: vector(1, 0.55, 1.2), into: body)
-            shoulder.geometry?.firstMaterial?.roughness.contents = 0.35
-        }
-        box(0.23, 0.15, 0.06, "193744", at: vector(0.12, 1.42, -0.19), radius: 0.025, into: body)
-        leftArm.position = vector(-0.36, 1.47, 0)
-        rightArm.position = vector(0.36, 1.47, 0)
-        for arm in [leftArm, rightArm] {
-            let sleeve = capsule(0.13, 0.41, coral, at: vector(0, -0.15, 0), into: arm)
-            let mat = material(coral, unique: true)
-            sleeve.geometry?.firstMaterial = mat
-            clothing.append(mat)
-            let elbow = SCNNode(); elbow.position = vector(0, -0.31, 0)
-            sphere(0.098, "243C4A", at: SCNVector3Zero, into: elbow)
-            let bracer = sculptedMesh(rings: [(-0.29, 0.075, 0.085), (-0.10, 0.10, 0.10), (0, 0.09, 0.09)], tint: "213B4B")
-            elbow.addChildNode(bracer)
-            box(0.13, 0.19, 0.06, "A9C0CF", at: vector(0, -0.13, -0.085), radius: 0.035, into: elbow)
-            sphere(0.094, "192F40", at: vector(0, -0.33, -0.025), scale: vector(0.85, 1.16, 0.85), into: elbow)
-            for finger in 0..<3 {
-                capsule(0.018, 0.08, "778D99", at: vector(-0.035 + Double(finger) * 0.035, -0.385, -0.055), into: elbow)
-            }
-            arm.addChildNode(elbow); forearms.append(elbow)
-            body.addChildNode(arm)
-        }
-        leftLeg.position = vector(-0.18, 0.77, 0)
-        rightLeg.position = vector(0.18, 0.77, 0)
-        for leg in [leftLeg, rightLeg] {
-            capsule(0.135, 0.37, "172A3C", at: vector(0, -0.14, 0), into: leg)
-            sphere(0.12, "263F50", at: vector(0, -0.32, 0), into: leg)
-            let shin = SCNNode()
-            shin.position = vector(0, -0.31, 0)
-            capsule(0.105, 0.31, "172A3C", at: vector(0, -0.13, 0), into: shin)
-            box(0.17, 0.16, 0.075, "435A6A", at: vector(0, -0.10, -0.09), radius: 0.05, into: shin)
-            box(0.035, 0.28, 0.05, "7EA5AC", at: vector(0.09, -0.11, 0), radius: 0.01, into: shin)
-            let ankle = SCNNode(); ankle.position = vector(0, -0.35, 0)
-            box(0.24, 0.18, 0.43, cream, at: vector(0, 0, -0.07), radius: 0.075, into: ankle)
-            box(0.245, 0.045, 0.43, coral, at: vector(0, -0.08, -0.07), radius: 0.016, into: ankle)
-            for lace in 0..<3 { box(0.14, 0.014, 0.018, "273F51", at: vector(0, 0.09, -0.06 - Double(lace) * 0.05), radius: 0, into: ankle) }
-            glowBox(0.17, 0.027, 0.025, "A0ECEB", at: vector(0, -0.02, 0.15), into: ankle)
-            shin.addChildNode(ankle); feet.append(ankle)
-            leg.addChildNode(shin)
-            shins.append(shin)
-            body.addChildNode(leg)
-        }
-        // A hard-shell expedition pack has its own frame, inset plates and restrained light strip.
-        let pack = sculptedMesh(rings: [(0.88, 0.19, 0.12), (0.96, 0.29, 0.17), (1.36, 0.27, 0.16), (1.51, 0.19, 0.11)], tint: "293E4E")
-        pack.position.z = scalar(0.29); body.addChildNode(pack)
-        for side in [-1.0, 1.0] {
-            let shell = box(0.19, 0.44, 0.05, "A8B7BF", at: vector(side * 0.16, 1.2, 0.445), radius: 0.07, into: body)
-            shell.eulerAngles.z = scalar(side * 0.08)
-            for seam in 0..<3 { box(0.13, 0.013, 0.02, "223C4B", at: vector(side * 0.16, 1.1 + Double(seam) * 0.07, 0.478), radius: 0, into: body) }
-        }
-        box(0.5, 0.16, 0.265, "1A293A", at: vector(0.08, 1.40, 0.32), radius: 0.06, into: body)
-        box(0.065, 0.19, 0.03, "BA8658", at: vector(0.08, 1.29, 0.449), radius: 0.01, into: body)
-        let spine = box(0.28, 0.035, 0.025, "69F4E0", at: vector(0.08, 1.23, 0.465), radius: 0.01, into: body)
-        spine.geometry?.firstMaterial = material("69F4E0", emissive: true)
-        for x in [-0.21, 0.30] { box(0.045, 0.50, 0.025, "718594", at: vector(x, 1.2, 0.45), radius: 0.015, into: body) }
-        let strap = box(0.08, 0.80, 0.06, "D8BB86", at: vector(-0.17, 1.26, 0.235), radius: 0.015, into: body)
-        strap.eulerAngles.z = scalar(-0.30)
-        cylinder(0.18, 0.16, mint, at: vector(0, 1.66, 0), into: body)
-        scarf.position = vector(0.08, 1.65, 0.14)
-        box(0.16, 0.40, 0.055, mint, at: vector(0, -0.16, 0.12), radius: 0.025, into: scarf)
-        body.addChildNode(scarf)
-        makeCourierArmor()
-        let deck = box(0.73, 0.15, 1.7, "69B8C5", at: vector(0, 0.04, -0.05), radius: 0.2, into: boardNode)
-        deck.name = "deck"
-        deck.geometry?.firstMaterial = material("69B8C5", unique: true)
-        box(0.22, 0.018, 1.45, cream, at: vector(0, 0.125, -0.05), radius: 0.04, into: boardNode)
-        for z in [-0.48, 0.43] {
-            let thruster = cylinder(0.18, 0.08, gold, at: vector(0, -0.065, z), into: boardNode)
-            thruster.geometry?.firstMaterial = material(gold, emissive: true)
-        }
-        player.addChildNode(boardNode)
-        boardNode.isHidden = true
-        for x in [-0.25, 0.25] {
-            capsule(0.15, 0.59, cream, at: vector(x, 1.25, 0.40), into: jetpackNode)
-            cylinder(0.17, 0.12, coral, at: vector(x, 1.03, 0.40), into: jetpackNode)
-            let flame = sphere(0.13, gold, at: vector(x, 0.74, 0.40), scale: vector(1, 2.1, 1), into: jetpackNode)
-            flame.geometry?.firstMaterial = material(gold, emissive: true)
-            exhaust.append(flame)
-        }
-        body.addChildNode(jetpackNode)
-        jetpackNode.isHidden = true
-        playerShadow.geometry = shadow(width: 2.2, length: 1.6).geometry
-        playerShadow.renderingOrder = 5
-        playerShadow.eulerAngles.x = scalar(-.pi / 2)
-        playerShadow.castsShadow = false
-        scene.rootNode.addChildNode(playerShadow)
-    }
-
     private func makeDrone() {
         box(0.60, 0.30, 0.46, cream, radius: 0.14, into: drone)
         box(0.32, 0.12, 0.02, ink, at: vector(0, 0, -0.235), radius: 0.04, into: drone)
@@ -1090,38 +974,63 @@ final class CoastalWorld {
                 } else {
                     node = makeEntity(kind: entity.kind)
                     addActionCue(to: node, kind: entity.kind)
+                    if entity.kind == .tram { addShiftCue(to: node) }
                 }
                 liveNodes[entity.id] = node
                 liveKinds[entity.id] = key
                 scene.rootNode.addChildNode(node)
             }
             let path = simulation.routeTransform(atAheadDistance: entity.z)
-            node.position = vector(Double(entity.lane) * 2.6 + path.lateralOffset, entity.y + path.elevation, -entity.z)
+            // Drawn where it collides: a lane-changer's x follows the same eased offset as its collider.
+            node.position = vector((Double(entity.lane) + entity.laneOffset()) * 2.6 + path.lateralOffset, entity.y + path.elevation, -entity.z)
             switch entity.kind {
             case .tram:
                 node.scale = vector(1, 1, entity.length / 8)
                 let tramColors = ["146B79", "9C4B3E", "C59043"]
                 node.childNode(withName: "tramBody", recursively: false)?.geometry?.firstMaterial?.diffuse.contents = color(tramColors[entity.id % tramColors.count])
+                if let cue = node.childNode(withName: "shiftCue", recursively: false) {
+                    // The chevron points at the lane the vehicle will take and stays until the shift completes.
+                    cue.isHidden = !entity.isShifting
+                    cue.eulerAngles.y = scalar(entity.arrivalLane > entity.lane ? 0 : .pi)
+                    cue.scale = vector(highContrastCues ? 1.4 : 1, highContrastCues ? 1.4 : 1, 1 / max(0.01, entity.length / 8))
+                    cue.opacity = reducedMotion ? 1 : 0.75 + sin(time * 6) * 0.25
+                }
                 if let beacon = node.childNode(withName: "warningBeacon", recursively: false) {
-                    beacon.isHidden = entity.oncomingSpeed <= 0
+                    beacon.isHidden = entity.oncomingSpeed <= 0 && entity.targetLane == nil
                     beacon.opacity = reducedMotion ? 0.8 : 0.70 + sin(time * 4) * 0.2
                 }
             case .ramp:
                 node.scale = vector(1, 1, entity.length / 6)
-            case .gap:
-                node.scale.z = scalar(entity.length / 7)
+            case .gap, .iceCrack:
+                node.scale.z = scalar(entity.length / (entity.kind == .gap ? 7 : 3.2))
+                node.childNode(withName: "crackWarning", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.7 + sin(time * 4) * 0.15
+                // Before collapse the deck is intact under a zigzag crack; after it, the void shows. Same z as the collider.
+                let intact = !entity.isActive
+                node.childNode(withName: "deckPlate", recursively: false)?.isHidden = !intact
+                if let crack = node.childNode(withName: "crackDecal", recursively: false) {
+                    crack.isHidden = !intact
+                    crack.scale.x = scalar(highContrastCues ? 1.6 : 1)
+                }
             case .meteor:
-                let descent = max(0, min(1, (entity.z - 18) / 36))
+                // The rock lands exactly where its collider becomes active; legacy meteors (no activeFrom) land 18 m out.
+                let impact = entity.activeFrom.isFinite ? entity.activeFrom : 18
+                let descent = max(0, min(1, (entity.z - impact) / 36))
                 node.childNode(withName: "impactRock", recursively: false)?.position.y = scalar(1.05 + descent * 16)
-                node.childNode(withName: "impactRock", recursively: false)?.eulerAngles = vector(time * 0.55, time * 0.35, 0.24)
+                node.childNode(withName: "impactRock", recursively: false)?.eulerAngles = reducedMotion ? vector(0.3, 0.2, 0.24) : vector(time * 0.55, time * 0.35, 0.24)
                 node.childNode(withName: "target", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.65 + sin(time * 4) * 0.15
             case .root:
                 node.childNode(withName: "rootCrown", recursively: false)?.scale.y = scalar(0.90 + sin(time * 2 + Double(entity.id)) * 0.10)
-            case .iceCrack:
-                node.scale.z = scalar(entity.length / 3.2)
-                node.childNode(withName: "crackWarning", recursively: false)?.opacity = reducedMotion ? 0.8 : 0.7 + sin(time * 4) * 0.15
             case .laserSweep:
-                node.childNode(withName: "beam", recursively: false)?.opacity = reducedMotion ? 0.88 : 0.86 + sin(time * 4) * 0.10
+                // The collider's state drives the look, from simulation time: solid beam = on, dashes = off.
+                let on = entity.isOn(at: simulation.elapsed)
+                let beam = node.childNode(withName: "beam", recursively: false)
+                beam?.isHidden = !on
+                beam?.opacity = reducedMotion ? 0.88 : 0.86 + sin(time * 4) * 0.10
+                node.childNode(withName: "bloom", recursively: false)?.isHidden = !on
+                if let standby = node.childNode(withName: "standby", recursively: false) {
+                    standby.isHidden = on
+                    standby.opacity = highContrastCues ? 1 : 0.6
+                }
             case .waterTraffic:
                 node.position.y += scalar(sin(time * 3 + Double(entity.id)) * 0.075)
                 node.eulerAngles.z = scalar(sin(time * 2 + Double(entity.id)) * 0.045)
@@ -1134,7 +1043,8 @@ final class CoastalWorld {
             }
             if let cue = node.childNode(withName: "actionCue", recursively: false) {
                 let approach = entity.z / max(1, simulation.speed + entity.oncomingSpeed)
-                cue.isHidden = approach > 2.7 || entity.z < 1 || lastWaterMode
+                // While a lane-changer is still shifting, its shift chevron is the cue; "change lanes" would point at the exit.
+                cue.isHidden = approach > 2.7 || entity.z < 1 || lastWaterMode || entity.isShifting
                 cue.opacity = highContrastCues ? 1 : 0.74
                 cue.scale.x = highContrastCues ? 1.35 : 1
                 cue.childNode(withName: "cueBackplate", recursively: false)?.isHidden = !highContrastCues
@@ -1145,6 +1055,14 @@ final class CoastalWorld {
     }
 
     private func makeEntity(kind: EntityKind) -> SCNNode {
+        // Pickups stay clean: flat materials keep coins, keys and power-ups readable.
+        switch kind {
+        case .coin, .key, .magnet, .jetpack, .sneakers, .multiplier, .relic: return withoutSurfaceDetail { buildEntity(kind: kind) }
+        default: return buildEntity(kind: kind)
+        }
+    }
+
+    private func buildEntity(kind: EntityKind) -> SCNNode {
         if let signature = makeSignatureHazard(kind) { return signature }
         if kind == .relic { return makeWorldRelic() }
         if renderedStage != .harbor, let node = makeWorldObstacle(kind) { return node }
@@ -1163,7 +1081,7 @@ final class CoastalWorld {
         case .airRing: return makeAirRing(hazard: false)
         case .airHazard: return makeAirRing(hazard: true)
         case .relic: return makeWorldRelic()
-        case .gap, .meteor, .root, .iceCrack, .laserSweep, .waterTraffic: return SCNNode()
+        case .gap, .meteor, .root, .iceCrack, .laserSweep, .waterTraffic, .wall, .stack: return SCNNode()
         }
     }
 
@@ -1343,7 +1261,7 @@ final class CoastalWorld {
         tram.position = vector(2.6, 0, -13)
         menuProps.addChildNode(tram)
         for index in 0..<8 {
-            let coin = makeCoin()
+            let coin = withoutSurfaceDetail { makeCoin() }
             coin.position = vector(-2.6, 1.0, -5 - Double(index) * 2.6)
             coin.eulerAngles.y = scalar(Double(index) * 0.22)
             menuProps.addChildNode(coin)
@@ -1551,7 +1469,7 @@ final class CoastalWorld {
         return node
     }
 
-    private func image(width: Int, height: Int, draw: (CGContext) -> Void) -> CGImage? {
+    func image(width: Int, height: Int, draw: (CGContext) -> Void) -> CGImage? {
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
                                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         draw(context)
@@ -1579,9 +1497,9 @@ final class CoastalWorld {
     }
 
     /// Small deterministic texture atlases, generated once. No network or runtime assets.
-    private func texture(_ name: String) -> CGImage? {
+    func texture(_ name: String) -> CGImage? {
         if let cached = textureCache[name] { return cached }
-        let size = name.hasPrefix("sign") ? 512 : 256
+        let size = name.hasPrefix("sign") || name == "asphalt" || name == "paving" ? 512 : 256
         let result = image(width: size, height: size) { ctx in
             var rng: UInt64 = 0xCA57CAFE
             func random() -> Double {
@@ -1665,27 +1583,60 @@ final class CoastalWorld {
                 for offset in [-50.0, 0, 50] {
                     ctx.move(to: CGPoint(x: 145, y: 175 + offset)); ctx.addLine(to: CGPoint(x: 365, y: 250 + offset)); ctx.strokePath()
                 }
+            } else if name == "asphalt" {
+                let s = Double(size)
+                ctx.setFillColor(color("263744").cgColor); ctx.fill(bounds)
+                for _ in 0..<52000 {
+                    ctx.setFillColor(CGColor(gray: random(), alpha: 0.12))
+                    ctx.fill(CGRect(x: random() * s, y: random() * s, width: 1 + random() * 2, height: 1 + random()))
+                }
+                // Patch repairs: fresher rectangles with a sealed seam.
+                for _ in 0..<4 {
+                    let rect = CGRect(x: random() * s * 0.8, y: random() * s * 0.8, width: 50 + random() * 110, height: 40 + random() * 90)
+                    ctx.setFillColor(color("1D2C38", alpha: 0.55).cgColor); ctx.fill(rect)
+                    ctx.setStrokeColor(color("0E1822", alpha: 0.8).cgColor); ctx.setLineWidth(2); ctx.stroke(rect)
+                }
+                // Oil stains.
+                let stain = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("0B121A", alpha: 0.32).cgColor, color("0B121A", alpha: 0).cgColor] as CFArray, locations: [0, 1])!
+                for _ in 0..<6 {
+                    let center = CGPoint(x: random() * s, y: random() * s)
+                    ctx.drawRadialGradient(stain, startCenter: center, startRadius: 0, endCenter: center, endRadius: 12 + random() * 30, options: [])
+                }
+                // Branching cracks.
+                ctx.setStrokeColor(color("0C1824", alpha: 0.8).cgColor); ctx.setLineCap(.round)
+                for _ in 0..<7 {
+                    var point = CGPoint(x: random() * s, y: random() * s), heading = random() * .pi * 2
+                    ctx.setLineWidth(0.8 + random() * 1.2)
+                    ctx.move(to: point)
+                    for _ in 0..<(6 + Int(random() * 10)) {
+                        heading += (random() - 0.5) * 1.1
+                        point = CGPoint(x: point.x + cos(heading) * (6 + random() * 12), y: point.y + sin(heading) * (6 + random() * 12))
+                        ctx.addLine(to: point)
+                    }
+                    ctx.strokePath()
+                }
             } else {
-                let base = name == "asphalt" ? "263744" : name == "paving" ? "61717D" : "686868"
+                let s = Double(size)
+                let base = name == "paving" ? "61717D" : "686868"
                 ctx.setFillColor(color(base).cgColor); ctx.fill(bounds)
-                for _ in 0..<16000 {
-                    let x = random() * 256, y = random() * 256
+                for _ in 0..<(16000 * size * size / 65536) {
+                    let x = random() * s, y = random() * s
                     let val = name == "roughness" ? 0.22 + random() * 0.42 : random()
                     ctx.setFillColor(CGColor(gray: val, alpha: name == "roughness" ? 0.7 : 0.13))
                     ctx.fill(CGRect(x: x, y: y, width: 1 + random() * 2, height: 1 + random()))
                 }
                 if name == "paving" {
-                    ctx.setStrokeColor(color("263B4B").cgColor); ctx.setLineWidth(2)
-                    for n in stride(from: 0, to: 256, by: 64) {
-                        ctx.move(to: CGPoint(x: 0, y: n)); ctx.addLine(to: CGPoint(x: 256, y: n)); ctx.strokePath()
-                        ctx.move(to: CGPoint(x: n, y: 0)); ctx.addLine(to: CGPoint(x: n, y: 256)); ctx.strokePath()
+                    let slab = size / 4
+                    // Each slab weathers to its own tone before the joints are drawn.
+                    for row in 0..<4 { for column in 0..<4 {
+                        ctx.setFillColor(CGColor(gray: random() < 0.5 ? 0.15 : 0.85, alpha: 0.05 + random() * 0.04))
+                        ctx.fill(CGRect(x: column * slab, y: row * slab, width: slab, height: slab))
+                    } }
+                    ctx.setStrokeColor(color("263B4B").cgColor); ctx.setLineWidth(3)
+                    for n in stride(from: 0, to: size, by: slab) {
+                        ctx.move(to: CGPoint(x: 0, y: n)); ctx.addLine(to: CGPoint(x: size, y: n)); ctx.strokePath()
+                        ctx.move(to: CGPoint(x: n, y: 0)); ctx.addLine(to: CGPoint(x: n, y: size)); ctx.strokePath()
                     }
-                }
-                if name == "asphalt" {
-                    ctx.setStrokeColor(color("101E2C", alpha: 0.75).cgColor); ctx.setLineWidth(1)
-                    ctx.move(to: CGPoint(x: 70, y: 0))
-                    for y in stride(from: 0, to: 256, by: 15) { ctx.addLine(to: CGPoint(x: 70 + random() * 18, y: Double(y))) }
-                    ctx.strokePath()
                 }
             }
         }
@@ -1806,12 +1757,7 @@ private extension CoastalWorld {
             finaleRoot = harborFinale
             scene.background.contents = harborBackground
             scene.lightingEnvironment.contents = loadAsset("HarborSky") ?? environmentMap()
-            scene.lightingEnvironment.intensity = 0.65
-            scene.fogColor = color("354B66")
-            scene.fogStartDistance = 75; scene.fogEndDistance = 215
-            worldSun?.color = color("FFC392"); worldSun?.intensity = 1500
             worldSun?.shadowBias = 0.01; worldSun?.zFar = 95; worldSun?.orthographicScale = 34
-            worldAmbient?.color = color("8199C9"); worldAmbient?.intensity = 75
         } else {
             // Practice-world selection may arrive without an approach: finish only that destination.
             while destinations[stage]?.sections.count ?? 0 < 9 { buildDestinationSlice(stage) }
@@ -1823,18 +1769,17 @@ private extension CoastalWorld {
                 scene.background.contents = destination.sky
                 scene.lightingEnvironment.contents = destination.sky
             }
-            scene.lightingEnvironment.intensity = stage == .orbit ? 0.75 : 0.85
-            scene.fogColor = color(worldPalette.haze)
-            scene.fogStartDistance = stage == .orbit ? 180 : 95
-            scene.fogEndDistance = stage == .orbit ? 370 : 255
-            worldSun?.color = color(stage == .mars ? "FFD3A2" : stage == .forge ? "FFA675" : stage == .verdant ? "C6FFE6" : "DBEDFF")
-            worldSun?.intensity = stage == .forge ? 1200 : stage == .cryo ? 1750 : 1550
-            worldAmbient?.color = color(worldPalette.glow); worldAmbient?.intensity = 120
             worldSun?.shadowBias = 2.0; worldSun?.zFar = 320; worldSun?.orthographicScale = 60
         }
+        applyLook(stage)
+        applyAmbient(stage)
         let stages = WorldStage.allCases
         let next = stages.firstIndex(of: stage).flatMap { $0 + 1 < stages.count ? stages[$0 + 1] : nil }
         destinations = destinations.filter { $0.key == stage || $0.key == next }
+        // Off-world skies are 2048x1024 decoded images; keep only the current and next stage's. HarborSky is never evicted.
+        for (other, name) in Self.skyNames where other != stage && other != next { textureCache["asset-" + name] = nil }
+        // Live sections and the forge dais hold their own deck references; this only drops the cache entry.
+        for other in stages where other != stage && other != next { materials["deck-v4-" + other.rawValue] = nil }
         warmedStages = warmedStages.filter { $0 == stage || $0 == next }
         // Pools survive stage changes, but never retain more than 96 entity hierarchies.
         trimEntityPools()
@@ -1867,8 +1812,7 @@ private extension CoastalWorld {
         if destinations[stage] == nil {
             journeyRoot = SCNNode()
             makeWorldHorizon()
-            let names: [WorldStage: String] = [.orbit: "OrbitSky", .mars: "MarsSky", .verdant: "VerdantSky", .cryo: "CryoSky", .forge: "ForgeSky"]
-            let sky = loadAsset(names[stage] ?? "") ?? worldSky()
+            let sky = loadAsset(Self.skyNames[stage] ?? "") ?? worldSky()
             let finale = SCNNode()
             makeFinale(stage: stage, into: finale)
             journeyRoot.addChildNode(finale)
@@ -2111,8 +2055,9 @@ private extension CoastalWorld {
         let mat = material(palette.floor, unique: true)
         mat.roughness.contents = stage == .cryo ? 0.16 : stage == .mars || stage == .verdant ? 0.88 : 0.45
         mat.metalness.contents = stage == .orbit || stage == .forge ? 0.65 : 0.12
-        mat.diffuse.contents = image(width: 768, height: 768) { ctx in
-            ctx.setFillColor(color(palette.floor).cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 768, height: 768))
+        mat.diffuse.contents = image(width: 1024, height: 1024) { ctx in
+            ctx.setFillColor(color(palette.floor).cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 1024, height: 1024))
+            ctx.saveGState(); ctx.scaleBy(x: 4.0 / 3.0, y: 4.0 / 3.0)
             for i in 0..<2200 {
                 let x = (i * 229 + 47) % 768, y = (i * 367 + 19) % 768
                 ctx.setFillColor(color(i % 2 == 0 ? "D3D1C0" : "111C2B", alpha: stage == .mars ? 0.14 : 0.045).cgColor)
@@ -2153,11 +2098,86 @@ private extension CoastalWorld {
                 }
             case .harbor: break
             }
+            ctx.restoreGState()
+            var rng: UInt64 = 0xDEC0_5EED &+ UInt64(stage.rawValue.unicodeScalars.reduce(0) { $0 &* 31 &+ UInt64($1.value) })
+            func random() -> Double { rng = rng &* 6364136223846793005 &+ 1442695040888963407; return Double((rng >> 33) & 0xFFFF) / 65535 }
+            // Lane wear: lanes at x = -2.6, 0, 2.6 m on the 8.5 m deck are polished by traffic.
+            for lane in [-2.6, 0.0, 2.6] {
+                let center = (lane + 4.25) / 8.5 * 1024
+                for band in 0..<6 {
+                    let width = 150.0 - Double(band) * 22
+                    ctx.setFillColor(color(stage == .cryo ? "E4F4FA" : "0A121C", alpha: 0.018).cgColor)
+                    ctx.fill(CGRect(x: center - width / 2, y: 0, width: width, height: 1024))
+                }
+            }
+            // Scuffs.
+            ctx.setLineCap(.round)
+            for _ in 0..<160 {
+                let x = random() * 1024, y = random() * 1024, length = 8 + random() * 40, angle = (random() - 0.5) * 0.6 + .pi / 2
+                ctx.setStrokeColor(color(random() < 0.5 ? "05090F" : "C9CFD3", alpha: 0.10 + random() * 0.08).cgColor)
+                ctx.setLineWidth(0.8 + random() * 1.6)
+                ctx.move(to: CGPoint(x: x, y: y)); ctx.addLine(to: CGPoint(x: x + cos(angle) * length, y: y + sin(angle) * length)); ctx.strokePath()
+            }
+            // Per-world decal layer.
+            switch stage {
+            case .orbit, .forge:
+                let stripe = stage == .orbit ? "E9B44C" : "F08A3C"
+                for edge in [30.0, 954.0] {
+                    ctx.saveGState(); ctx.clip(to: CGRect(x: edge, y: 0, width: 40, height: 1024))
+                    for y in stride(from: -32.0, to: 1056, by: 32) {  // 32 divides 1024, so the stripes tile
+                        ctx.setFillColor(color(stripe, alpha: 0.35).cgColor)
+                        ctx.move(to: CGPoint(x: edge, y: y)); ctx.addLine(to: CGPoint(x: edge + 40, y: y + 16))
+                        ctx.addLine(to: CGPoint(x: edge + 40, y: y + 32)); ctx.addLine(to: CGPoint(x: edge, y: y + 16)); ctx.fillPath()
+                    }
+                    ctx.restoreGState()
+                }
+                if stage == .forge {
+                    let temper = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("5A6BB0", alpha: 0.14).cgColor, color("B5652A", alpha: 0.10).cgColor, color("B5652A", alpha: 0).cgColor] as CFArray, locations: [0, 0.5, 1])!
+                    for _ in 0..<5 {
+                        let c = CGPoint(x: 150 + random() * 724, y: random() * 1024)
+                        ctx.drawRadialGradient(temper, startCenter: c, startRadius: 0, endCenter: c, endRadius: 40 + random() * 60, options: [])
+                    }
+                }
+            case .mars:
+                for lane in [-2.6, 0.0, 2.6] {
+                    let center = (lane + 4.25) / 8.5 * 1024
+                    for track in [-45.0, 45.0] {
+                        for y in stride(from: 0.0, to: 1024, by: 14) {
+                            ctx.setFillColor(color("3A2522", alpha: 0.22).cgColor)
+                            ctx.fill(CGRect(x: center + track - 9, y: y, width: 18, height: 6))
+                        }
+                    }
+                }
+                let dust = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("D9A37A", alpha: 0.22).cgColor, color("D9A37A", alpha: 0).cgColor] as CFArray, locations: [0, 1])!
+                for _ in 0..<10 {
+                    let c = CGPoint(x: random() < 0.5 ? random() * 120 : 904 + random() * 120, y: random() * 1024)
+                    ctx.drawRadialGradient(dust, startCenter: c, startRadius: 0, endCenter: c, endRadius: 50 + random() * 70, options: [])
+                }
+            case .verdant:
+                for _ in 0..<70 {
+                    // Tile joints of the scaled 768-space grid: 192 × 4/3 = 256 px columns, 128 × 4/3 px rows.
+                    let joint = CGPoint(x: Double(Int(random() * 5)) * 256, y: Double(Int(random() * 7)) * 128 * 4 / 3)
+                    ctx.setFillColor(color("4C8A5C", alpha: 0.28).cgColor)
+                    ctx.fillEllipse(in: CGRect(x: joint.x - 14 + random() * 10, y: joint.y - 10 + random() * 8, width: 18 + random() * 22, height: 10 + random() * 14))
+                }
+                for _ in 0..<40 {
+                    ctx.setFillColor(color("9EF4C8", alpha: 0.45).cgColor)
+                    ctx.fillEllipse(in: CGRect(x: random() * 1024, y: random() * 1024, width: 3, height: 3))
+                }
+            case .cryo:
+                let frost = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color("F2FBFF", alpha: 0.25).cgColor, color("F2FBFF", alpha: 0).cgColor] as CFArray, locations: [0, 1])!
+                for _ in 0..<12 {
+                    let c = CGPoint(x: random() * 1024, y: random() * 1024)
+                    ctx.drawRadialGradient(frost, startCenter: c, startRadius: 0, endCenter: c, endRadius: 40 + random() * 80, options: [])
+                }
+            case .harbor: break
+            }
         }
         mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
         mat.diffuse.contentsTransform = SCNMatrix4MakeScale(1, 2, 1)
         mat.normal.contents = texture(stage == .cryo ? "water-normal" : "cloth-normal")
         mat.normal.intensity = stage == .cryo ? 0.09 : 0.10
+        for prop in [mat.diffuse, mat.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
         materials[key] = mat
         return mat
     }
@@ -2346,6 +2366,7 @@ private extension CoastalWorld {
         }
         surface.diffuse.wrapS = .repeat; surface.diffuse.wrapT = .repeat
         surface.normal.contents = texture("cloth-normal"); surface.normal.intensity = icy ? 0.08 : 0.28
+        for prop in [surface.diffuse, surface.normal] { prop.mipFilter = .linear; prop.maxAnisotropy = 4 }
         materials[key] = surface
         return surface
     }
@@ -2375,14 +2396,15 @@ private extension CoastalWorld {
         // Irregular connected ridgelines: each peak has shoulders and secondary erosion features.
         for layer in 0..<3 {
             var vertices: [SCNVector3] = [], indices: [Int32] = []
-            let columns = 72, rows = 5
+            let columns = 144, rows = 7
             for row in 0..<rows { for column in 0..<columns {
                 let x = -230 + Double(column) * 460 / Double(columns - 1)
-                let phase = Double(column) * 0.23 + Double(layer) * 1.7
-                let ridge = 22 + pow(abs(sin(phase)), 1.6) * 22 + sin(phase * 2.7) * 6 + cos(phase * 5.3) * 2.5
-                let crest = 1 - abs(Double(row) - 2) / 2.5
+                let phase = Double(column) * 0.115 + Double(layer) * 1.7
+                let erosion = (Self.valueNoise(Double(column) * 0.09, Double(layer) * 3.1, 11) - 0.5) * 10
+                let ridge = 22 + pow(abs(sin(phase)), 1.6) * 22 + sin(phase * 2.7) * 6 + cos(phase * 5.3) * 2.5 + erosion
+                let crest = 1 - abs(Double(row) - 3) / 3.5
                 let y = -7 + ridge * crest * (0.65 + Double(layer) * 0.22)
-                vertices.append(vector(x, y, -172 - Double(layer) * 29 - Double(row) * 11))
+                vertices.append(vector(x, y, -172 - Double(layer) * 29 - Double(row) * 7.3))
             } }
             for row in 0..<(rows - 1) { for column in 0..<(columns - 1) {
                 let a = Int32(row * columns + column), b = a + Int32(columns)
@@ -2395,17 +2417,9 @@ private extension CoastalWorld {
     }
 
     func makeTerrain(into root: SCNNode, side: Double, index: Int, tint: String, height: Double, icy: Bool) {
-        var vertices: [SCNVector3] = [], indices: [Int32] = []
-        let columns = 25, rows = 7
-        for row in 0..<rows { for column in 0..<columns {
-            let z = -13 + Double(column) * 26 / Double(columns - 1)
-            let position = Double(index) * 26 - z
-            let variation = sin(position * 0.19 + Double(row) * 0.7) * 0.32 + sin(position * 0.77 + Double(row)) * 0.13
-            let heightFraction = Double(row) / Double(rows - 1)
-            let ridgeHeight = (icy ? 11.0 : 12.0) + sin(position * 0.025) * 3
-            let y = row == 0 ? -1.3 : ridgeHeight * heightFraction * (0.82 + variation) + sin(position * 1.8) * heightFraction * 0.35
-            vertices.append(vector(side * (7.5 + Double(row) * 3.6 + variation * 1.7), y, z))
-        } }
+        let columns = 41, rows = 11
+        let vertices = Self.terrainVertices(side: side, index: index, icy: icy, columns: columns, rows: rows).map { vector($0.x, $0.y, $0.z) }
+        var indices: [Int32] = []
         for row in 0..<(rows - 1) { for column in 0..<(columns - 1) {
             let a = Int32(row * columns + column), b = a + Int32(columns)
             if side > 0 { indices += [a, b, a + 1, a + 1, b, b + 1] }
@@ -2415,20 +2429,20 @@ private extension CoastalWorld {
     }
 
     func makeRock(into root: SCNNode, at position: SCNVector3, size: Double, tint: String) {
-        let geometry = SCNSphere(radius: size); geometry.segmentCount = renderedStage == .mars ? 14 : 9
-        geometry.firstMaterial = renderedStage == .mars ? terrainSurface(tint: tint, icy: false) : material(tint)
-        let node = SCNNode(geometry: geometry); node.position = position
-        node.scale = vector(1.4, 0.8, 1); node.eulerAngles = vector(0.2, Double(position.z), 0.3)
+        let variant = Int(abs(Double(position.x) * 7 + Double(position.z) * 13))
+        let surface = renderedStage == .mars ? terrainSurface(tint: tint, icy: false) : material(tint)
+        let node = rockNode(size: size, material: surface, variant: variant)
+        node.position = position
+        node.eulerAngles = vector(0.2, Double(position.z), 0.3)
         root.addChildNode(node)
     }
 
     func makeCrystal(into root: SCNNode, at position: SCNVector3, height: Double, tint: String) {
-        let geometry = SCNCone(topRadius: 0, bottomRadius: height * 0.22, height: height)
-        geometry.radialSegmentCount = 5
-        geometry.firstMaterial = renderedStage == .cryo ? iceMaterial() : material(tint)
-        let node = SCNNode(geometry: geometry); node.position = position; node.position.y += scalar(height / 2)
-        node.eulerAngles.z = scalar(sin(Double(position.z)) * 0.22); root.addChildNode(node)
-        let spark = sphere(0.06, tint, at: vector(Double(position.x), Double(position.y) + height, Double(position.z)), into: root)
+        let cluster = crystalCluster(height: height, material: renderedStage == .cryo ? iceMaterial() : material(tint))
+        cluster.position = position
+        cluster.eulerAngles.z = scalar(sin(Double(position.z)) * 0.22)
+        root.addChildNode(cluster)
+        let spark = sphere(0.06, tint, at: vector(0, height, 0), into: cluster)
         spark.geometry?.firstMaterial = material(tint, emissive: true)
     }
 
@@ -2443,22 +2457,8 @@ private extension CoastalWorld {
     }
 
     func makeAlienTree(into root: SCNNode, at position: SCNVector3, size: Double) {
-        let tree = SCNNode(); tree.position = position; tree.scale = vector(size, size, size)
-        let trunk = cylinder(0.65, 10, "496C65", at: vector(0, 4.8, 0), into: tree)
-        trunk.eulerAngles.z = scalar(0.12)
-        for i in 0..<3 {
-            let y = 5.8 + Double(i) * 2.2
-            let cap = sphere(3.8 - Double(i) * 0.7, i == 2 ? "54AFA6" : "438A83", at: vector(-0.7, y, 0), scale: vector(1.1, 0.23, 0.85), into: tree)
-            cap.geometry?.firstMaterial = material(i == 2 ? "62B4A7" : "477E80", unique: true)
-            cap.geometry?.firstMaterial?.emission.contents = color("24766A")
-            cap.geometry?.firstMaterial?.emission.intensity = 0.15
-            ring(3.1 - Double(i) * 0.6, tube: 0.07, tint: "7FE4BE", at: vector(-0.7, y - 0.18, 0), into: tree, glow: true)
-            for j in 0..<5 {
-                let angle = Double(j) * .pi * 0.4
-                let tendril = cylinder(0.027, 2, "8BD6BA", at: vector(cos(angle) * 2.3 - 0.7, y - 1.4, sin(angle) * 2.3), into: tree)
-                tendril.geometry?.firstMaterial = material("55BAA8", emissive: true)
-            }
-        }
+        let tree = alienTreeNode(size: size, outward: Double(position.x) < 0 ? -1 : 1)
+        tree.position = position
         root.addChildNode(tree)
     }
 
@@ -2516,6 +2516,16 @@ private extension CoastalWorld {
                     arrow.eulerAngles.y = scalar(.pi / 4)
                 }
             }
+            // Collapsing deck: an intact plate under a zigzag crack until the collider opens. Radius-0 boxes.
+            let plate = box(2.56, 0.05, 7, worldPalette.floor, at: vector(0, 0.03, 0), radius: 0, into: root)
+            plate.name = "deckPlate"; plate.isHidden = true
+            plate.geometry?.firstMaterial = deckMaterial(for: renderedStage)
+            let crack = SCNNode(); crack.name = "crackDecal"; crack.isHidden = true; root.addChildNode(crack)
+            for i in 0..<6 {
+                let stroke = glowBox(0.08, 0.02, 1.3, "FFD08A", at: vector(i % 2 == 0 ? -0.2 : 0.2, 0.065, -3 + Double(i) * 1.2), into: crack)
+                stroke.eulerAngles.y = scalar(i % 2 == 0 ? 0.5 : -0.5)
+                stroke.castsShadow = false
+            }
         case .meteor:
             let target = SCNNode(); target.name = "target"; root.addChildNode(target)
             for i in 0..<3 { ring(0.7 + Double(i) * 0.25, tube: 0.035, tint: "FF7547", at: vector(0, 0.03 + Double(i) * 0.005, 0), into: target, glow: true) }
@@ -2556,9 +2566,26 @@ private extension CoastalWorld {
             }
             let warning = SCNNode(); warning.name = "crackWarning"; root.addChildNode(warning)
             for z in [-1.65, 1.65] { glowBox(2.3, 0.025, 0.07, "B5EFFF", at: vector(0, 0.12, z), into: warning) }
+            let plate = box(2.5, 0.05, 3.2, "A6D9E9", at: vector(0, 0.03, 0), radius: 0, into: root)
+            plate.name = "deckPlate"; plate.isHidden = true
+            plate.geometry?.firstMaterial = iceMaterial()
+            let crack = SCNNode(); crack.name = "crackDecal"; crack.isHidden = true; root.addChildNode(crack)
+            for i in 0..<3 {
+                // Dark and unlit: a pale emissive stroke vanishes on pale ice (about 1.4:1); this is about 5:1.
+                let stroke = box(0.10, 0.02, 1.1, "143A52", at: vector(i % 2 == 0 ? -0.2 : 0.2, 0.065, -1.0 + Double(i) * 1.0), radius: 0, into: crack)
+                stroke.geometry?.firstMaterial = material("143A52", unique: true)
+                stroke.geometry?.firstMaterial?.lightingModel = .constant
+                stroke.eulerAngles.y = scalar(i % 2 == 0 ? 0.5 : -0.5)
+                stroke.castsShadow = false
+            }
         case .laserSweep:
+            // Posts and a top bar reach the world's stackTop (Orbit 3.88 m, others 2.6 m): a lit laser strikes anything
+            // above the beam, so a visible jump must visibly meet the frame.
+            let top = renderedStage.stackTop
+            let postTint = renderedStage == .verdant ? "456B55" : "635463"
+            box(2.5, 0.2, 0.3, postTint, at: vector(0, top - 0.1, 0), radius: 0, into: root)
             for side in [-1.0, 1.0] {
-                cylinder(0.20, 2.3, renderedStage == .verdant ? "456B55" : "635463", at: vector(side * 1.10, 1.14, 0), into: root)
+                cylinder(0.20, top, postTint, at: vector(side * 1.10, top / 2, 0), into: root)
                 let emitter = sphere(0.27, "E1845E", at: vector(side * 1.10, 1.38, 0), into: root)
                 emitter.geometry?.firstMaterial = material("FF9870", emissive: true)
                 for i in 0..<3 { ring(0.22, tube: 0.04, tint: "29323F", at: vector(side * 1.10, 1.9 + Double(i) * 0.11, 0), into: root) }
@@ -2566,7 +2593,11 @@ private extension CoastalWorld {
             let beam = glowBox(2.12, 0.13, 0.13, "FF896D", at: vector(0, 1.40, 0), into: root)
             beam.name = "beam"
             let bloom = glowBox(2.1, 0.38, 0.035, "FF8769", at: vector(0, 1.40, 0), into: root)
+            bloom.name = "bloom"
             bloom.opacity = 0.20; bloom.geometry?.firstMaterial?.writesToDepthBuffer = false
+            // Off state: a dashed line replaces the solid beam (shape, not colour). Three radius-0 boxes.
+            let standby = SCNNode(); standby.name = "standby"; standby.isHidden = true; root.addChildNode(standby)
+            for x in [-0.6, 0.0, 0.6] { glowBox(0.28, 0.05, 0.05, "FF896D", at: vector(x, 1.40, 0), into: standby).castsShadow = false }
             for side in [-1.0, 1.0] {
                 let chevron = glowBox(0.37, 0.08, 0.05, "FFF0D1", at: vector(side * 0.14, 1.92, 0), into: root)
                 chevron.eulerAngles.z = scalar(side * 0.6)
@@ -2588,6 +2619,36 @@ private extension CoastalWorld {
             foamMat.isDoubleSided = true; foamMat.writesToDepthBuffer = false; foam.firstMaterial = foamMat
             let wakeNode = SCNNode(geometry: foam); wakeNode.eulerAngles.x = scalar(-.pi / 2); wakeNode.position = vector(0, 0.015, -4.2)
             wakeNode.opacity = 0.65; wakeNode.castsShadow = false; root.addChildNode(wakeNode)
+        case .wall:
+            // Full-height slab: nothing passes over or under. Crossed bars read as "blocked" without colour.
+            let palette = worldPalette
+            // The cap's top is RunnerSimulation.wallTop, the height the collider ends at.
+            let top = RunnerSimulation.wallTop
+            box(2.3, top - 0.2, 1.0, palette.stone, at: vector(0, (top - 0.2) / 2, 0), radius: 0, into: root)
+            box(2.4, 0.2, 1.08, palette.edge, at: vector(0, top - 0.1, 0), radius: 0, into: root)
+            for side in [-1.0, 1.0] {
+                let bar = glowBox(0.16, 2.6, 0.04, "FFB36B", at: vector(0, 1.8, 0.52), into: root)
+                bar.eulerAngles.z = scalar(side * 0.6)
+            }
+        case .stack:
+            // A low barrier under an overhead beam, joined by struts: one solid block, not two separate actions.
+            let palette = worldPalette
+            box(2.05, 0.96, 0.95, palette.stone, at: vector(0, 0.48, 0), radius: 0, into: root)
+            // Struts and beam reach the world's stackTop, the height the collider ends at (taller in low gravity).
+            let top = renderedStage.stackTop
+            for side in [-1.0, 1.0] { box(0.22, top, 0.4, palette.edge, at: vector(side * 1.06, top / 2, 0), radius: 0, into: root) }
+            box(2.3, 0.55, 0.7, palette.stone, at: vector(0, top - 0.275, 0), radius: 0, into: root)
+            let gapHeight = top - 0.55 - 0.96
+            for x in [-0.45, 0.45] { glowBox(0.07, gapHeight, 0.03, "FFF0D1", at: vector(x, 0.96 + gapHeight / 2, 0.37), into: root) }
+            glowBox(1.75, 0.08, 0.03, "FFB369", at: vector(0, 0.9, 0.49), into: root)
+            // Bright edge and slanted stripes on the beam face so it reads against dark skies (Orbit, Forge, Cryo).
+            // The slant is a pattern, so the hazard does not depend on colour alone.
+            glowBox(2.3, 0.1, 0.04, "FFB369", at: vector(0, top - 0.5, 0.37), into: root)
+            glowBox(2.3, 0.07, 0.04, "FFB369", at: vector(0, top - 0.035, 0.37), into: root)
+            for x in [-0.8, 0, 0.8] {
+                let stripe = glowBox(0.2, 0.42, 0.04, "FFE3A1", at: vector(x, top - 0.275, 0.37), into: root)
+                stripe.eulerAngles.z = scalar(-0.45)
+            }
         default: return nil
         }
         return root
@@ -2721,11 +2782,14 @@ private extension CoastalWorld {
     }
 
     func updateJourney(simulation: RunnerSimulation, time: Double, menu: Bool, travel: Double) {
+        let count = journeySections.count
         for (index, section) in journeySections.enumerated() {
-            section.isHidden = qualityLevel == 0 && index > 6
-            let z = travel.truncatingRemainder(dividingBy: 26) - Double(index) * 26 + 13
+            let z = recycledZ(index: index, count: count, length: 26, front: 39, travel: travel)
+            // Performance tier skips the two farthest sections (previously the last two indices).
+            section.isHidden = qualityLevel == 0 && z < 39 - Double(count - 2) * 26
             placeRouteSection(section, centerZ: z, localCenterZ: 0, length: 26,
                               simulation: simulation, menu: menu)
+            section.opacity = CGFloat(arrivalFade(z: z, count: count, length: 26, front: 39))
         }
         portalSurface?.isHidden = reducedMotion
         let odyssey = (menu ? previewMode : simulation.mode) == .odyssey
@@ -2752,7 +2816,7 @@ private extension CoastalWorld {
         warpVeil.geometry?.firstMaterial?.diffuse.contents = color(reducedMotion ? "101D2F" : "A7E5FC")
         warpVeil.opacity = transitioning ? min(1, max(0, (progress - 0.48) / 0.34)) : entryFade
         if transitioning && !reducedMotion {
-            camera.camera?.fieldOfView = (aspect < 0.8 ? 66 : 58) + sin(progress * .pi / 2) * 24
+            camera.camera?.fieldOfView = CGFloat(cameraFOV + sin(progress * .pi / 2) * 24)
             player.eulerAngles.x = scalar(-sin(progress * .pi) * 0.35)
         }
     }
@@ -2762,6 +2826,20 @@ private extension CoastalWorld {
 private extension CoastalWorld {
     /// Both decks follow the same deterministic curve used by the route selector. The lane
     /// coordinates remain local to the chosen deck, so the visible surface and collision agree.
+    /// Continuous recycling: each section keeps its own content and travels toward the camera with the run.
+    /// The window is [front − count·length, front). A section leaves only past `front` (behind the camera)
+    /// and re-enters at the far end, so nothing in view ever snaps. At travel 0 this matches the old layout.
+    func recycledZ(index: Int, count: Int, length: Double, front: Double, travel: Double) -> Double {
+        let span = Double(count) * length, back = front - span
+        let offset = (front - length - Double(index) * length + travel - back).truncatingRemainder(dividingBy: span)
+        return back + (offset < 0 ? offset + span : offset)
+    }
+
+    /// Sections fade in over their first length after re-entering at the far end, hiding the pop inside the fog.
+    func arrivalFade(z: Double, count: Int, length: Double, front: Double) -> Double {
+        min(1, max(0, (z - (front - Double(count) * length)) / length))
+    }
+
     func placeRouteSection(_ section: SCNNode, centerZ: Double, localCenterZ: Double,
                            length: Double, simulation: RunnerSimulation, menu: Bool) {
         let selected: BranchRoute = simulation.branchRoute == .undecided ? .safe : simulation.branchRoute
@@ -2841,7 +2919,7 @@ private extension CoastalWorld {
         cue.name = "actionCue"
         let jump = [EntityKind.barrier, .gap, .root, .iceCrack].contains(kind)
         let slide = [EntityKind.arch, .laserSweep].contains(kind)
-        let dodge = [EntityKind.meteor, .tram, .airHazard].contains(kind)
+        let dodge = [EntityKind.meteor, .tram, .airHazard, .wall, .stack].contains(kind)
         guard jump || slide || dodge else { return }
         let backplate = box(1.25, 0.02, 0.9, "101925", at: vector(0, 0.064, -0.05), radius: 0.06, into: cue)
         backplate.name = "cueBackplate"; backplate.castsShadow = false
@@ -2856,6 +2934,22 @@ private extension CoastalWorld {
         }
         if slide { glowBox(0.07, 0.033, 0.5, tint, at: vector(0, 0.09, -0.22), into: cue).castsShadow = false }
         cue.isHidden = true
+        root.addChildNode(cue)
+    }
+
+    /// A lane-changer's chevron points at the lane it will take: a shape, not a colour. Two radius-0 boxes, pooled with the tram.
+    func addShiftCue(to root: SCNNode) {
+        let cue = SCNNode()
+        cue.name = "shiftCue"
+        cue.isHidden = true
+        // Two strokes stand upright in the xy plane, facing the camera, and form a ">" pointing toward +x;
+        // the sync yaws it by pi toward a -x target lane.
+        for side in [-1.0, 1.0] {
+            // About 1.8x the first size, lifted so the lower stroke clears the roof; still well inside the 2.1-wide roof.
+            let stroke = glowBox(1.1, 0.13, 0.25, "FFE3A1", at: vector(0, 3.65 + side * 0.29, 0), into: cue)
+            stroke.eulerAngles.z = scalar(-side * 0.54)
+            stroke.castsShadow = false
+        }
         root.addChildNode(cue)
     }
 
@@ -3001,52 +3095,6 @@ private extension CoastalWorld {
                 node.position.y = scalar((renderedStage == .cryo ? 16.0 : -1.0) - collapse * (reducedMotion ? 4 : 18))
                 node.eulerAngles = vector(collapse * 0.4, 0, side * collapse * 0.3)
             }
-        }
-    }
-}
-
-private extension CoastalWorld {
-    func makeCourierArmor() {
-        // Independent panels articulate with the joints. The cloth remains visible between
-        // shells, so the runner reads as a person in a suit rather than stacked rigid boxes.
-        for (index, arm) in [leftArm, rightArm].enumerated() {
-            let side = index == 0 ? -1.0 : 1.0
-            let pauldron = sculptedMesh(rings: [(-0.21, 0.12, 0.13), (-0.12, 0.17, 0.18), (0.08, 0.17, 0.17), (0.16, 0.08, 0.10)], tint: index == 0 ? "CBD8DD" : "597888")
-            pauldron.position = vector(side * 0.02, 0, 0)
-            arm.addChildNode(pauldron)
-            box(0.035, 0.22, 0.16, "F6C58A", at: vector(side * 0.16, -0.02, 0), radius: 0.012, into: arm)
-            if index < forearms.count {
-                let wrist = forearms[index]
-                box(0.12, 0.11, 0.06, "0C1E2B", at: vector(0, -0.16, 0.085), radius: 0.025, into: wrist)
-                glowBox(0.065, 0.045, 0.012, "9ADBDC", at: vector(0, -0.15, 0.12), into: wrist)
-                box(0.10, 0.045, 0.055, "A6B8C4", at: vector(0, -0.31, 0.035), radius: 0.015, into: wrist)
-            }
-        }
-        for (index, leg) in [leftLeg, rightLeg].enumerated() {
-            let side = index == 0 ? -1.0 : 1.0
-            let thigh = box(0.16, 0.22, 0.07, "4A6575", at: vector(side * 0.07, -0.16, -0.08), radius: 0.055, into: leg)
-            thigh.eulerAngles.z = scalar(side * 0.08)
-            box(0.15, 0.11, 0.08, "B3C4CB", at: vector(0, -0.31, -0.1), radius: 0.04, into: leg)
-            if index < feet.count {
-                let boot = feet[index]
-                box(0.25, 0.10, 0.16, "3C5262", at: vector(0, 0.025, -0.23), radius: 0.045, into: boot)
-                for tread in 0..<4 { box(0.23, 0.023, 0.026, "233544", at: vector(0, -0.10, -0.21 + Double(tread) * 0.085), radius: 0, into: boot) }
-            }
-        }
-        for side in [-1.0, 1.0] {
-            let collar = box(0.16, 0.11, 0.23, "B4C5CC", at: vector(side * 0.15, 1.6, 0), radius: 0.045, into: body)
-            collar.eulerAngles.z = scalar(-side * 0.22)
-            let helmetRail = box(0.06, 0.27, 0.28, "AAC0CE", at: vector(side * 0.27, 0.49, 0.10), radius: 0.035, into: headRig)
-            helmetRail.eulerAngles.z = scalar(-side * 0.2)
-            cylinder(0.09, 0.055, "2C4659", at: vector(side * 0.31, 0.41, 0.06), into: headRig).eulerAngles.z = scalar(.pi / 2)
-            for i in 0..<3 { box(0.06, 0.018, 0.025, "173141", at: vector(side * 0.15, 0.55 + Double(i) * 0.055, 0.31), radius: 0, into: headRig) }
-        }
-        glowBox(0.21, 0.033, 0.018, "9ADBDD", at: vector(0, 0.55, 0.349), into: headRig)
-        let chest = box(0.30, 0.27, 0.07, "405B6A", at: vector(0, 1.39, -0.195), radius: 0.07, into: body)
-        glowBox(0.16, 0.024, 0.013, "B2E3DB", at: vector(0, 0.015, -0.044), into: chest)
-        for side in [-1.0, 1.0] {
-            let hip = box(0.18, 0.23, 0.24, "6D899A", at: vector(side * 0.27, 0.88, 0.07), radius: 0.055, into: body)
-            hip.eulerAngles.z = scalar(side * 0.1)
         }
     }
 }

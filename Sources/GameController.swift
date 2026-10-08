@@ -414,8 +414,8 @@ final class GameController: ObservableObject {
     private func playHazardCue() {
         guard run.phase == .running, !run.isWaterTraversal, run.elapsed - lastWarningTime >= 0.8,
               let obstacle = run.entities.filter({ entity in
-                  [.barrier, .root, .arch, .laserSweep, .gap, .iceCrack, .tram, .meteor].contains(entity.kind) &&
-                  abs(Double(entity.lane) - run.lateral) < 0.55 && entity.z > 0 && entity.z / max(1, run.speed) < 1.4
+                  [.barrier, .root, .arch, .laserSweep, .gap, .iceCrack, .tram, .meteor, .wall, .stack].contains(entity.kind) &&
+                  abs(Double(entity.arrivalLane) - run.lateral) < run.lateralTolerance && entity.z > 0 && entity.z / max(1, run.speed) < 1.4
               }).min(by: { $0.z < $1.z }), obstacle.id != lastWarningID else { return }
         lastWarningID = obstacle.id; lastWarningTime = run.elapsed
         switch obstacle.kind {

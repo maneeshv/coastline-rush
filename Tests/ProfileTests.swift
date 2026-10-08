@@ -140,10 +140,16 @@ enum ProfileTests {
         expect(!other.isValid, "Replays reject unknown worlds")
         other = course; other.decisionPlan = Array(repeating: decisions[0], count: 7)
         expect(!other.isValid, "Replay plans remain bounded")
-        let oldMode = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"endless","expert":false,"seed":42,"startWorld":0,"revision":4}"#.utf8))
+        let oldMode = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"endless","expert":false,"seed":42,"startWorld":0,"revision":6}"#.utf8))
         expect(oldMode.isValid && oldMode.decisionPlan.isEmpty && oldMode.artifact == nil, "Original mode ghosts remain compatible when new fields are absent")
+        var retired = oldMode; retired.revision = 4
+        expect(!retired.isValid, "Endless ghosts recorded before the G1 generator change retire")
         let oldOdyssey = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"odyssey","expert":false,"seed":42,"startWorld":0,"revision":6}"#.utf8))
-        expect(!oldOdyssey.isValid, "Older Odyssey geometry never races the authored v7 course")
+        expect(!oldOdyssey.isValid, "Older Odyssey geometry never races the current generator")
+        let jetSki = try JSONDecoder().decode(GhostCourseKey.self, from: Data(#"{"mode":"jetSki","expert":false,"seed":42,"startWorld":0,"revision":4}"#.utf8))
+        expect(jetSki.isValid && GhostCourseKey(mode: .jetSki, expert: false, seed: 42, startWorld: 0).revision == 4, "Jet Ski ghosts survive G1: its generator did not change")
+        var odysseyV7 = GhostCourseKey(mode: .odyssey, expert: false, seed: 42, startWorld: 0); odysseyV7.revision = 7
+        expect(!odysseyV7.isValid, "Odyssey ghosts recorded before the G1 coin lines retire")
         let normalized = GhostCourseKey(mode: .jetSki, expert: false, seed: 77, startWorld: 0, expeditionStyle: .endless, decisionPlan: decisions, artifact: .phaseStep)
         expect(normalized.isValid && normalized.decisionPlan.isEmpty && normalized.artifact == nil, "Original modes ignore expedition-only menu settings")
     }
@@ -195,7 +201,14 @@ enum ProfileTests {
         expect(restored.worldBestTimes == profile.worldBestTimes && restored.legacyWorldBestTimes == profile.legacyWorldBestTimes, "Migration is idempotent after saving")
         var oldOdyssey = GhostCourseKey(mode: .odyssey, expert: false, seed: 42, startWorld: 0); oldOdyssey.revision = 4
         expect(!oldOdyssey.isValid, "Short-stage ghosts cannot race extended Odyssey")
-        expect(GhostCourseKey(mode: .endless, expert: false, seed: 42, startWorld: 0).revision == 4, "Unchanged modes retain their compatible ghosts")
+        expect(GhostCourseKey(mode: .endless, expert: false, seed: 42, startWorld: 0).revision == GhostCourseKey.legacyModeRevision, "Endless ghosts use the current generator revision")
+        expect(GhostCourseKey.revision(for: .odyssey) == 9 && GhostCourseKey.revision(for: .endless) == 6
+               && GhostCourseKey.revision(for: .harborSprint) == 6 && GhostCourseKey.revision(for: .jetSki) == 4,
+               "G3 generation retires Odyssey, Endless and Sprint ghosts; Jet Ski generation is unchanged")
+        var g1Odyssey = GhostCourseKey(mode: .odyssey, expert: false, seed: 42, startWorld: 0); g1Odyssey.revision = 8
+        var g1Endless = GhostCourseKey(mode: .endless, expert: false, seed: 42, startWorld: 0); g1Endless.revision = 5
+        expect(!g1Odyssey.isValid && !g1Endless.isValid && GhostCourseKey(mode: .jetSki, expert: false, seed: 42, startWorld: 0).isValid,
+               "G1-era Odyssey and Endless ghosts are discarded; Jet Ski ghosts stay valid")
     }
 
     private static func testMomentumRecordMigration() throws {

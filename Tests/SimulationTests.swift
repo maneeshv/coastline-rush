@@ -112,6 +112,21 @@ struct SimulationTests {
                 simulation.update(dt: 1.5)
                 try expect(simulation.height == 0, "Runner must fall from the end of the roof")
             }),
+            ("roof support follows a completed lane shift", {
+                func carried(runnerLane: Int) -> RunnerSimulation {
+                    var tram = entity(.tram, id: 2, lane: -1, z: 16, y: 0, length: 12)
+                    tram.targetLane = 0; tram.motionStart = 40; tram.motionLength = 6 // finished long before it arrives
+                    var run = fixture([entity(.ramp, id: 1, lane: runnerLane, z: 6, y: 0, length: 7), tram])
+                    if runnerLane == -1 { run.act(.left) }
+                    run.update(dt: 1.3)
+                    return run
+                }
+                let arrival = carried(runnerLane: 0)
+                try expect(arrival.phase == .running && abs(arrival.height - RunnerSimulation.tramRoofHeight) < 0.01,
+                           "A runner in the arrival lane must stand on the shifted tram's roof")
+                let spawn = carried(runnerLane: -1)
+                try expect(spawn.phase == .running && spawn.height < 0.5, "The spawn lane has no roof once the tram has left it")
+            }),
             ("board consumes inventory and absorbs exactly one hit", {
                 var simulation = fixture([entity(.barrier)], boards: 2)
                 simulation.act(.board)
@@ -128,13 +143,65 @@ struct SimulationTests {
                 empty.act(.board)
                 try expect(empty.boardTime == 0 && empty.availableBoards == 0, "Empty board inventory must be respected")
             }),
-            ("board naturally expires after thirty active seconds", {
+            ("board naturally expires after twenty active seconds, twelve on Expert", {
                 var simulation = fixture(boards: 1)
                 simulation.act(.board)
-                simulation.update(dt: 29)
+                simulation.update(dt: 19)
                 try expect(simulation.boardTime > 0.9, "Board expired early")
                 simulation.update(dt: 1.1)
-                try expect(simulation.boardTime == 0, "Board should expire after thirty seconds")
+                try expect(simulation.boardTime == 0, "Board should expire after twenty seconds")
+                var expert = RunnerSimulation()
+                expert.start(seed: 42, boards: 1, expert: true)
+                expert.replaceTrackForTesting([])
+                expert.act(.board)
+                try expect(expert.boardTime == 12, "Expert boards protect for twelve seconds")
+            }),
+            ("board clear radius applies only in Endless and Sprint", {
+                let track = [entity(.barrier, id: 1, z: 5, y: 0, length: 0.8), entity(.barrier, id: 2, lane: 1, z: 12, y: 0, length: 0.8)]
+                var endless = fixture(track, boards: 1)
+                endless.act(.board)
+                endless.update(dt: 0.6)
+                try expect(endless.phase == .running && !endless.entities.contains { $0.id == 2 }, "An Endless board burst clears nearby hazards")
+                var odyssey = RunnerSimulation()
+                odyssey.start(seed: 42, boards: 1, mode: .odyssey)
+                odyssey.replaceTrackForTesting(track)
+                odyssey.act(.board)
+                odyssey.update(dt: 0.4)
+                try expect(odyssey.phase == .running && odyssey.entities.contains { $0.id == 2 }, "An Odyssey board absorbs the hit without clearing the track")
+            }),
+            ("a hit lands at the difficulty's padding and lateral tolerance (Standard 0.35/0.55, Expert 0.50/0.65)", {
+                for (expert, padding, tolerance) in [(false, 0.35, 0.55), (true, 0.50, 0.65)] {
+                    let label = expert ? "Expert" : "Standard"
+                    let step = 0.0005
+                    // Along the track: a barrier (length 0.8) in the runner's lane is hit once its edge is within the padding.
+                    var along = RunnerSimulation(); along.start(seed: 42, boards: 0, expert: expert)
+                    along.replaceTrackForTesting([entity(.barrier, z: 3, y: 0, length: 0.8)])
+                    while along.phase == .running && along.distance < 60 { along.update(dt: step) }
+                    let hitZ = along.entities.first?.z ?? .nan
+                    try expect(along.phase == .crashed && abs(hitZ - (0.4 + padding)) < 0.01,
+                               "\(label) hit should land at the edge plus \(padding), not \(hitZ)")
+                    // Across the track: a long barrier one lane right is hit once the runner steers within the tolerance.
+                    var across = RunnerSimulation(); across.start(seed: 42, boards: 0, expert: expert)
+                    across.replaceTrackForTesting([entity(.barrier, lane: 1, z: 0, y: 0, length: 40)])
+                    across.act(.right)
+                    while across.phase == .running && across.lateral < 1 { across.update(dt: step) }
+                    try expect(across.phase == .crashed && abs(across.lateral - (1 - tolerance)) < 0.01,
+                               "\(label) hit should land at lateral \(1 - tolerance), not \(across.lateral)")
+                }
+            }),
+            ("a pass at lateral distance 0.60 is a near miss on Standard and a hit on Expert", {
+                // A lane-changer frozen mid-shift (offset ~0.604 lanes) passes the runner without moving appreciably.
+                func pass(expert: Bool) -> RunnerSimulation {
+                    var run = RunnerSimulation(); run.start(seed: 42, boards: 0, expert: expert)
+                    var shifter = entity(.barrier, z: 5, y: 0, length: 0.8)
+                    shifter.targetLane = 1; shifter.motionStart = 570_000; shifter.motionLength = 1_000_000
+                    run.replaceTrackForTesting([shifter])
+                    for _ in 0..<150 { run.update(dt: 1.0 / 60) }
+                    return run
+                }
+                let standard = pass(expert: false), expert = pass(expert: true)
+                try expect(standard.phase == .running && standard.nearMisses == 1, "Standard should count a CLOSE CALL at 0.60")
+                try expect(expert.phase == .crashed, "Expert should crash at 0.60 lateral distance")
             }),
             ("pause freezes world, power timers and controls", {
                 var simulation = fixture([entity(.magnet, z: 0)], durations: [.magnet: 5])
@@ -175,6 +242,19 @@ struct SimulationTests {
                 simulation.update(dt: 0.1)
                 try expect(simulation.coins == 2 && simulation.keys == 0, "Magnet should attract nearby coins across lanes")
                 try expect(simulation.activePowerUps[.magnet] != nil, "Magnet pickup did not activate")
+            }),
+            ("low coins need a roll", {
+                let low = entity(.coin, id: 1, lane: 0, z: 0.4, y: 0.35, length: 0.3)
+                var standing = fixture([low])
+                standing.update(dt: 1.0 / 60)
+                try expect(standing.coins == 0, "A standing runner should pass over a low coin")
+                var rolling = fixture([low])
+                rolling.act(.roll)
+                rolling.update(dt: 1.0 / 60)
+                try expect(rolling.coins == 1, "A rolling runner should collect a low coin")
+                var high = fixture([entity(.coin, id: 1, lane: 0, z: 0.4, y: 0.9, length: 0.3)])
+                high.update(dt: 1.0 / 60)
+                try expect(high.coins == 1, "A standing runner should still collect a chest-high coin")
             }),
             ("aligned keys are collected once", {
                 var simulation = fixture([entity(.key, z: 0)])
@@ -236,6 +316,155 @@ struct SimulationTests {
                 let decoded = try JSONDecoder().decode(TrackEntity.self, from: legacy)
                 try expect(decoded.oncomingSpeed == 0, "Older entity saves should decode as stationary")
             }),
+            ("new entity fields decode with defaults and round-trip", {
+                let legacy = Data(#"{"id":1,"kind":"meteor","lane":0,"z":30,"y":0,"length":2}"#.utf8)
+                let old = try JSONDecoder().decode(TrackEntity.self, from: legacy)
+                try expect(old.targetLane == nil && old.motionStart == 0 && old.motionLength == 0 && old.cyclePhase == -1 && old.activeFrom == .infinity,
+                           "Old entities must decode with inert defaults")
+                let plain = String(decoding: try JSONEncoder().encode(old), as: UTF8.self)
+                try expect(!plain.contains("activeFrom") && !plain.contains("targetLane") && !plain.contains("cyclePhase") && !plain.contains("motion"),
+                           "Default fields must not be written (JSON cannot hold an infinite activeFrom)")
+                var moving = entity(.tram, lane: -1, z: 40, length: 7)
+                moving.targetLane = 0; moving.motionStart = 30; moving.motionLength = 6; moving.cyclePhase = 0.4; moving.activeFrom = 12
+                let restored = try JSONDecoder().decode(TrackEntity.self, from: JSONEncoder().encode(moving))
+                try expect(restored == moving, "Set fields must survive a checkpoint")
+            }),
+            ("lane offset, laser cycle and activation are pure functions of z and time", {
+                var shifting = entity(.tram, lane: -1, z: 31, length: 7)
+                shifting.targetLane = 0; shifting.motionStart = 30; shifting.motionLength = 6
+                try expect(shifting.laneOffset() == 0 && shifting.arrivalLane == 0, "No shift before motionStart; arrival lane is the target")
+                shifting.z = 27
+                try expect(abs(shifting.laneOffset() - 0.5) < 1e-9, "Halfway through the shift the offset is half a lane")
+                shifting.z = 20
+                try expect(shifting.laneOffset() == 1, "The shift completes at motionStart - motionLength")
+                var laser = entity(.laserSweep)
+                try expect(laser.isOn(at: 0.5) && laser.isOn(at: 1.5), "Untimed lasers are always on")
+                laser.cyclePhase = 0
+                try expect(laser.isOn(at: 0.1) && !laser.isOn(at: 1.0) && laser.isOn(at: 1.85), "Timed lasers are on 0.9 s, off 0.9 s")
+                var meteor = entity(.meteor, z: 12, length: 2)
+                meteor.activeFrom = 10
+                try expect(!meteor.isActive, "Inactive before its activation z")
+                meteor.z = 10
+                try expect(meteor.isActive, "Active from its activation z")
+            }),
+            ("colliders follow lane shifts, laser cycles and activation", {
+                func shifting() -> TrackEntity {
+                    var tram = entity(.tram, lane: -1, z: 30, y: 0, length: 7)
+                    tram.targetLane = 0; tram.motionStart = 26; tram.motionLength = 6
+                    return tram
+                }
+                var hit = fixture([shifting()])
+                hit.update(dt: 3)
+                try expect(hit.phase == .crashed, "A tram shifting into the runner's lane must collide")
+                var left = fixture([shifting()])
+                left.act(.left)
+                left.update(dt: 3)
+                try expect(left.phase == .running, "The lane a shifting tram leaves must be safe")
+                func laser(_ phase: Double) -> TrackEntity {
+                    var beam = entity(.laserSweep, z: 6, y: 0, length: 1.1)
+                    beam.cyclePhase = phase
+                    return beam
+                }
+                var on = fixture([laser(0)])
+                on.update(dt: 1)
+                try expect(on.phase == .crashed, "A laser that is on while a standing runner passes collides")
+                var off = fixture([laser(0.9)])
+                off.update(dt: 1)
+                try expect(off.phase == .running, "A laser that is off lets a standing runner through")
+                var rolled = fixture([laser(0)])
+                rolled.act(.roll)
+                rolled.update(dt: 1)
+                try expect(rolled.phase == .running, "Rolling is always safe under a timed laser")
+                // Standing through an off laser is no dodge: no combo, no skill points. Rolling under an on laser is.
+                var idle = fixture([laser(0.9)])
+                idle.update(dt: 2)
+                try expect(idle.phase == .running && idle.bestCombo == 0 && !idle.eventText.contains("SLIDE"),
+                           "Standing through an off laser must earn no skill credit")
+                var skilled = fixture([laser(0)])
+                skilled.act(.roll)
+                skilled.update(dt: 2)
+                try expect(skilled.bestCombo == 1 && skilled.eventText.contains("CLEAN SLIDE"),
+                           "Rolling under an on laser still earns CLEAN SLIDE")
+                var meteor = entity(.meteor, z: 6, y: 0, length: 2)
+                meteor.activeFrom = -50
+                var dormant = fixture([meteor])
+                dormant.update(dt: 1)
+                try expect(dormant.phase == .running, "An inactive collider cannot hit")
+                meteor.activeFrom = 20
+                var impact = fixture([meteor])
+                impact.update(dt: 1)
+                try expect(impact.phase == .crashed, "An active collider hits")
+            }),
+            ("walls and stacked hazards stop jumps and rolls alike", {
+                for kind in [EntityKind.wall, .stack] {
+                    var jumped = fixture([entity(kind, z: 5, y: 0, length: 1.0)])
+                    jumped.act(.jump); jumped.update(dt: 1)
+                    try expect(jumped.phase == .crashed, "\(kind) must stop a jump")
+                    var rolled = fixture([entity(kind, z: 5, y: 0, length: 1.0)])
+                    rolled.act(.roll); rolled.update(dt: 1)
+                    try expect(rolled.phase == .crashed, "\(kind) must stop a roll")
+                    var dodged = fixture([entity(kind, z: 5, y: 0, length: 1.0)])
+                    dodged.act(.left); dodged.update(dt: 1)
+                    try expect(dodged.phase == .running, "\(kind) is solid only in its own lane")
+                }
+            }),
+            ("walls and stacks collide up to their drawn height, and stacks are taller in low gravity", {
+                try expect(WorldStage.orbit.stackTop > 3.8 && WorldStage.orbit.stackTop < 4.0, "Orbit stackTop \(WorldStage.orbit.stackTop)")
+                for stage in WorldStage.allCases {
+                    let apex = stage.jumpVelocity * stage.jumpVelocity / (2 * stage.gravity)
+                    try expect(stage.stackTop >= 2.6 && stage.stackTop >= apex + 0.5 - 1e-9, "\(stage) stack must top a normal jump")
+                }
+                // Jump in Orbit (optionally on sneakers), hold the apex, then slide the hazard under the runner.
+                func peak(_ kind: EntityKind, sneakers: Bool) -> RunnerSimulation {
+                    var run = RunnerSimulation()
+                    run.start(seed: 42, boards: 0, mode: .odyssey, startStage: 1)
+                    if sneakers { run.replaceTrackForTesting([entity(.sneakers, z: 0)]); run.update(dt: 1.0 / 60) }
+                    run.replaceTrackForTesting([])
+                    run.act(.jump)
+                    var best = 0.0
+                    for _ in 0..<150 { run.update(dt: 1.0 / 60); if run.height < best { break }; best = run.height }
+                    run.replaceTrackForTesting([entity(kind, z: 0.3, y: 0, length: 1.0)])
+                    for _ in 0..<4 { run.update(dt: 1.0 / 60) }
+                    return run
+                }
+                let normal = peak(.stack, sneakers: false)
+                try expect(normal.phase == .crashed, "A normal Orbit jump (apex 3.38 m) must not clear a stack")
+                try expect(peak(.wall, sneakers: false).phase == .crashed, "A normal Orbit jump must not clear a wall")
+                let high = peak(.stack, sneakers: true)
+                try expect(high.height > WorldStage.orbit.stackTop && high.phase == .running, "A runner above stackTop passes over a stack")
+                let over = peak(.wall, sneakers: true)
+                try expect(over.height > RunnerSimulation.wallTop && over.phase == .running, "A runner above 3.8 m passes over a wall")
+                // A lit laser's frame is drawn to stackTop: a normal jump meets it, a sneakers jump visibly clears it.
+                try expect(peak(.laserSweep, sneakers: false).phase == .crashed, "A normal Orbit jump must not clear a lit laser")
+                let laser = peak(.laserSweep, sneakers: true)
+                try expect(laser.height > WorldStage.orbit.stackTop && laser.phase == .running, "A runner above stackTop passes over a laser")
+            }),
+            ("a gap wall's opening is one lane from the previous route", {
+                var checked = 0
+                for stage in 0..<WorldStage.allCases.count {
+                    for seed in [3, 9, 21] as [UInt64] {
+                        var run = RunnerSimulation()
+                        run.start(seed: seed, boards: 0, mode: .odyssey, startStage: stage)
+                        var known = Set<Int>()
+                        for _ in 0..<5000 where run.phase == .running {
+                            let before = run.previousRouteLane
+                            run.update(dt: 1.0 / 60)
+                            let fresh = run.entities.filter { known.insert($0.id).inserted && ![.coin, .key, .relic].contains($0.kind) }
+                            // Only a tick that generated just one wall row names its previous route unambiguously.
+                            if !fresh.isEmpty, fresh.allSatisfy({ $0.kind == .wall }) {
+                                let opening = [-1, 0, 1].filter { lane in !fresh.contains { $0.lane == lane } }
+                                try expect(opening.count == 1, "A wall row leaves exactly one opening")
+                                try expect(opening[0] != before && abs(opening[0] - before) == 1,
+                                           "opening \(opening[0]) after route \(before), stage \(stage), seed \(seed)")
+                                checked += 1
+                            }
+                            // Keep the runner alive on a clear road while the generator keeps feeding rows.
+                            run.replaceTrackForTesting(run.entities.filter { $0.z > 18 }, generate: true)
+                        }
+                    }
+                }
+                try expect(checked >= 10, "Expected generated wall rows to inspect, saw \(checked)")
+            }),
             ("large frame deltas cannot tunnel through obstacles", {
                 var simulation = fixture([entity(.barrier, z: 50)])
                 simulation.update(dt: 10)
@@ -280,26 +509,26 @@ struct SimulationTests {
                             while simulation.lane > upcoming.lane { simulation.act(.left) }
                         }
                         simulation.update(dt: 0.2)
-                        let obstacles = simulation.entities.filter { [.barrier, .arch, .tram].contains($0.kind) }
-                        var rows: [Int: Set<Int>] = [:]
-                        for obstacle in obstacles {
-                            rows[Int((obstacle.z * 1_000).rounded()), default: []].insert(obstacle.lane)
-                        }
-                        try expect(rows.values.allSatisfy { $0.count < 3 }, "Generated an impassable three-lane wall")
+                        let obstacles = simulation.entities.filter { [.barrier, .arch, .tram, .laserSweep, .wall, .stack].contains($0.kind) }
                         let oncoming = obstacles.filter { $0.oncomingSpeed > 0 }
                         if !oncoming.isEmpty {
                             sawAnyOncoming = true
                             try expect(simulation.distance > 500, "Moving trams must wait until the advanced section")
                         }
                         if simulation.entities.contains(where: { $0.kind == .ramp }) { sawStationaryRoof = true }
-                        // Check interval overlap, not just matching row centers: moving trams cross rows.
+                        // G3 Endless has full-width jump/slide rows, so a lane-only escape is no longer guaranteed.
+                        // At every collider edge and centre (moving trams cross rows), some lane must hold no solid
+                        // and never ask for a jump and a slide at the same point.
                         for obstacle in obstacles {
                             for point in [obstacle.z - obstacle.length / 2 - 0.35,
                                           obstacle.z, obstacle.z + obstacle.length / 2 + 0.35] {
-                                let blockedLanes = Set(obstacles.filter {
-                                    abs($0.z - point) <= $0.length / 2 + 0.35 + 0.000_001
-                                }.map(\.lane))
-                                try expect(blockedLanes.count < 3, "A moving tram filled another row's only safe lane")
+                                let here = obstacles.filter { abs($0.z - point) <= $0.length / 2 + 0.35 + 0.000_001 }
+                                let passable = (-1...1).contains { lane in
+                                    let kinds = here.filter { $0.arrivalLane == lane }.map(\.kind)
+                                    return !kinds.contains { [.tram, .wall, .stack].contains($0) }
+                                        && !(kinds.contains(.barrier) && kinds.contains { $0 == .arch || $0 == .laserSweep })
+                                }
+                                try expect(passable, "Generated an impassable row: every lane is solid or needs a jump and a slide at once")
                             }
                         }
                     }
@@ -320,6 +549,16 @@ struct SimulationTests {
                 simulation.start(seed: 42, boards: 4)
                 try expect(simulation.distance == 0 && simulation.jumps == 0 && simulation.score == 0, "Start should reset the previous run")
                 try expect(simulation.availableBoards == 4, "Start should restore the supplied inventory")
+            }),
+            ("HUD row label: timed laser and stack outrank a plain solid, older mixed rows keep their first label", {
+                var laser = entity(.laserSweep, id: 1, lane: 0, z: 20, length: 0.8)
+                laser.cyclePhase = 0
+                let laserRow = fixture([laser, entity(.tram, id: 2, lane: 1, z: 20, length: 8)])
+                try expect(laserRow.encounterText == "TIMED LASER · SLIDE OR TIME IT", "A tram beside a timed laser must not rename the row: \(laserRow.encounterText)")
+                let stackRow = fixture([entity(.barrier, id: 1, lane: -1, z: 20), entity(.tram, id: 2, lane: 0, z: 20, length: 8), entity(.stack, id: 3, lane: 1, z: 20)])
+                try expect(stackRow.encounterText == "STACKED BARRIER · CHANGE LANES", "A stack names its row over a plain solid: \(stackRow.encounterText)")
+                let oldRow = fixture([entity(.barrier, id: 1, lane: 0, z: 20), entity(.tram, id: 2, lane: 1, z: 20, length: 8)])
+                try expect(oldRow.encounterText == "CARGO LINE · JUMP", "A pre-G2 mixed row keeps its first entity's label: \(oldRow.encounterText)")
             }),
             ("headstart and invalid time inputs behave safely", {
                 var simulation = RunnerSimulation()
